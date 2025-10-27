@@ -37,9 +37,9 @@ export interface NaverDocCountsRecord {
 
 export interface AutoSeedUsageRecord {
   seed: string
-  last_auto_collect_at: string
-  depth: number
-  note: string
+  lastUsed: string
+  usageCount: number
+  createdAt: string
 }
 
 export interface CollectLogRecord {
