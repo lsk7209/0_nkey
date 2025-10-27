@@ -15,7 +15,7 @@ interface BatchResult<T> {
 }
 
 export class BatchProcessor {
-  private options: BatchProcessorOptions
+  public options: BatchProcessorOptions
 
   constructor(options: Partial<BatchProcessorOptions> = {}) {
     this.options = {
