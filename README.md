@@ -1,527 +1,75 @@
-# 🚀 황금키워드 찾기 서비스 PRD v1.2
+# 0_nkey - 키워드 수집 도구
 
-> 검색량은 많고 문서수는 적은 "황금 키워드"를 자동으로 찾아주는 데이터 분석 플랫폼
-> 스택: Next.js 14 (App Router) · Cloudflare Pages Functions · D1 · KV · Cron · Tailwind
+클라우드플레어 페이지에서 호스팅되는 정적 키워드 수집 도구입니다.
 
----
+## 🚀 기능
 
-## 0️⃣ 프로젝트 개요
+- **시드 키워드 기반 연관검색어 수집**: 입력한 키워드로부터 관련 키워드를 자동 생성
+- **로컬 스토리지 저장**: 브라우저 로컬 스토리지를 사용한 데이터 저장
+- **데이터 관리**: 수집된 키워드 조회, 내보내기, 삭제 기능
+- **반응형 UI**: 모바일과 데스크톱에서 모두 사용 가능
 
-| 항목          | 내용                                                                      |
-| ----------- | ----------------------------------------------------------------------- |
-| **목표**      | 시드 키워드로부터 연관검색어를 수집, 검색량·문서수를 비교해 "황금키워드(고효율 키워드)"를 자동 탐색               |
-| **핵심지표**    | 검색량(높을수록↑) / 문서수(낮을수록↓) → **Gold Score = avg_search / (all_total + 1)** |
-| **대상**      | 블로그·웹문서 운영자, 콘텐츠 마케터, 자동 포스팅 시스템 운영자                                    |
-| **MVP 사용자** | 단일 관리자(개발자 본인)                                                          |
-| **확장 목표**   | v2에서 회원제(프리셋, 알림, AI 키워드 추천)                                            |
+## 🛠️ 기술 스택
 
----
+- **Next.js 14**: React 기반 프레임워크
+- **TypeScript**: 타입 안전성
+- **Tailwind CSS**: 스타일링
+- **클라우드플레어 페이지**: 정적 호스팅
 
-## 1️⃣ 메뉴 구조 (IA)
+## 📦 설치 및 실행
 
-```
-/
-├─ 홈(Home) — 수동수집 (시드입력 → 연관검색어 미리보기)
-├─ 데이터(Data) — 수집된 연관검색어 + 문서수 자동추가 + 자동수집 on/off
-└─ 인사이트(Insights) — 황금키워드 대시보드(문서수 밴드별 Top10)
-```
+### 로컬 개발
 
----
-
-## 2️⃣ 핵심 기능 개요
-
-| 기능               | 설명                                                     |
-| ---------------- | ------------------------------------------------------ |
-| **1. 시드입력 수동수집** | 시드키워드 입력 → 네이버 검색광고 API로 연관검색어 조회 → 테이블 미리보기           |
-| **2. 연관검색어 저장**  | 미리보기 결과 저장 시 D1에 키워드 및 검색량 upsert                      |
-| **3. 문서수 자동수집**  | 저장 직후 네이버 오픈API(blog, cafe, web, news)로 문서수 파악 후 자동저장  |
-| **4. 자동수집 토글**   | ON일 경우, 새로 저장된 키워드를 시드로 2차 연관검색어 수집                    |
-| **5. 중복수집 방지**   | ① 자동수집 시 사용한 시드는 30일 내 재실행 금지<br>② 동일 키워드 30일 내 재수집 금지 |
-| **6. 인사이트 대시보드** | 문서수 밴드별(low/mid/high/ultra) Top10 황금키워드 표시             |
-| **7. 크론 자동화**    | 매일 00:00 UTC에 문서수 30일 이상 경과 항목 자동 갱신                   |
-| **8. 관리보안**      | `x-admin-key` 인증 / 60rpm 레이트리밋 / RFC7807 에러 형식         |
-
----
-
-## 3️⃣ 페이지별 상세 설계
-
-### 🏠 홈(Home)
-
-**기능:** 시드 키워드 입력 → 연관검색어 미리보기 → 저장
-
-#### UI
-
-* 입력창: `seed`
-* 버튼: "연관검색어 수집", "모두 저장"
-* 테이블: `keyword | PC검색량 | 모바일검색량 | 총검색량`
-* CTA: "데이터 페이지에서 보기"
-
-#### API 흐름
-
-1. `POST /api/collect/related?preview=true`
-   → 네이버 검색광고 API 호출, **DB 저장 없이** 10~50개 미리보기
-2. "모두 저장" 클릭 → `POST /api/collect/related`
-
-   * DB upsert(`keywords`, `keyword_metrics`)
-   * **문서수 자동수집 트리거**
-   * **자동수집 ON**이면 새 키워드 → 시드 큐 추가
-   * **중복/30일 내 데이터**는 PASS
-
-#### 수용기준
-
-* 시드 입력 시 미리보기 10건 이상
-* 저장 후 `/data`에 자동 표시
-* 중복 키워드는 30일 내엔 PASS, 이후엔 UPDATE
-
----
-
-### 📊 데이터(Data)
-
-**기능:** 모든 수집 키워드 목록 + 문서수 자동추가 + 자동수집 on/off
-
-#### UI
-
-* 상단: 총 키워드 수 / 최근 수집일 / 자동수집 상태 토글
-* 필터: `minSearch`, `maxCafe`, `days`
-* 정렬: 기본 `cafe_total ASC, avg_monthly_search DESC`
-* 테이블: `keyword | avg_search | blog | cafe | web | news | total | collected_at`
-
-#### 자동수집 로직
-
-1. 자동수집 ON → 새로 저장된 키워드가 시드 후보로 등록
-2. 실행 전 체크:
-
-   * `auto_seed_usage` 테이블에 해당 seed가 30일 내 있으면 PASS
-   * 없으면 `/api/collect/related` 호출 → 완료 후 `auto_seed_usage` 갱신
-
-#### 자동수집 제한
-
-* 일일 실행 상한(200 seeds/day)
-* seed 중복 방지 (UNIQUE + KV 락)
-* seed 재사용 방지(30일)
-
-#### 중복수집 방지 로직
-
-| 조건                            | 처리         |
-| ----------------------------- | ---------- |
-| keyword 존재 & updated_at < 30일 | PASS       |
-| keyword 존재 & updated_at ≥ 30일 | UPDATE(갱신) |
-| keyword 미존재                   | INSERT(신규) |
-
-#### API
-
-* `GET /api/keywords`
-* `POST /api/collect/naver-docs`
-* `POST /api/auto/collect/toggle`
-* `GET /api/auto/collect/status`
-
-#### 수용기준
-
-* 문서수 60초 내 자동 추가
-* 자동수집 ON일 때 신규 키워드로 2차 수집 발생
-* 중복/30일 내 키워드는 PASS
-
----
-
-### 💡 인사이트(Insights)
-
-**기능:** 황금키워드 인사이트 대시보드
-
-#### UI
-
-* 밴드 탭: `low(0–50)`, `mid(51–200)`, `high(201–1000)`, `ultra(1000+)`
-* 필터: `minSearch`
-* 카드: 10개(키워드, 총검색수, 문서수, gold_score)
-* 버튼: CSV 내보내기, 데이터 페이지로 이동
-
-#### API
-
-* `GET /api/insights/golden?band=low&minSearch=500`
-
-#### 수용기준
-
-* 각 밴드 Top10
-* 정렬: `cafe_total ASC, avg_search DESC`
-* CSV 행 수 = 화면 노출 수
-
----
-
-## 4️⃣ 자동화 & 스케줄러
-
-| 항목      | 동작                                            | 주기           |
-| ------- | --------------------------------------------- | ------------ |
-| 문서수 재수집 | `/api/collect/naver-docs`                     | 매일 00:00 UTC |
-| 자동수집 워커 | `auto_collect_queue` → `/api/collect/related` | 매일 00:30 UTC |
-| 만료 규칙   | `updated_at`, `collected_at` 30일 초과 항목만 대상    | 지속적          |
-
----
-
-## 5️⃣ DB 스키마 (현재 JSON 파일 기반)
-
-**현재 구현**: JSON 파일 기반 영구 저장소 (`data/database.json`)
-
-```typescript
-interface DatabaseData {
-  keywords: Record<number, KeywordRecord>
-  keywordMetrics: Record<number, KeywordMetricsRecord>
-  naverDocCounts: Record<number, NaverDocCountsRecord>
-  nextId: number
-}
-
-interface KeywordRecord {
-  id: number
-  seed: string
-  keyword: string
-  source: string
-  last_related_at: string
-  created_at: string
-}
-
-interface KeywordMetricsRecord {
-  keyword_id: number
-  monthly_search_pc: number
-  monthly_search_mob: number
-  avg_monthly_search: number
-  monthly_click_pc: number
-  monthly_click_mobile: number
-  ctr_pc: number
-  ctr_mobile: number
-  ad_count: number
-  cpc: number
-  comp_index: number
-  updated_at: string
-}
-
-interface NaverDocCountsRecord {
-  keyword_id: number
-  blog_total: number
-  cafe_total: number
-  web_total: number
-  news_total: number
-  collected_at: string
-}
-```
-
-**향후 Cloudflare D1 마이그레이션 계획**:
-
-```sql
-CREATE TABLE keywords (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  seed TEXT NOT NULL,
-  keyword TEXT NOT NULL,
-  source TEXT DEFAULT 'naver-ads',
-  last_related_at DATETIME,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(seed, keyword)
-);
-
-CREATE TABLE keyword_metrics (
-  keyword_id INTEGER NOT NULL REFERENCES keywords(id),
-  monthly_search_pc INTEGER,
-  monthly_search_mob INTEGER,
-  avg_monthly_search INTEGER GENERATED ALWAYS AS (COALESCE(monthly_search_pc,0)+COALESCE(monthly_search_mob,0)) VIRTUAL,
-  cpc REAL,
-  comp_index REAL,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(keyword_id)
-);
-
-CREATE TABLE naver_doc_counts (
-  keyword_id INTEGER NOT NULL REFERENCES keywords(id),
-  blog_total INTEGER DEFAULT 0,
-  cafe_total INTEGER DEFAULT 0,
-  web_total INTEGER DEFAULT 0,
-  news_total INTEGER DEFAULT 0,
-  all_total INTEGER GENERATED ALWAYS AS (COALESCE(blog_total,0)+COALESCE(cafe_total,0)+COALESCE(web_total,0)+COALESCE(news_total,0)) VIRTUAL,
-  collected_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE(keyword_id)
-);
-
-CREATE TABLE auto_seed_usage (
-  seed TEXT PRIMARY KEY,
-  last_auto_collect_at DATETIME NOT NULL,
-  depth INTEGER DEFAULT 1,
-  note TEXT
-);
-
-CREATE TABLE collect_logs (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  keyword TEXT,
-  type TEXT,
-  status TEXT,
-  message TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_doc_cafe ON naver_doc_counts(cafe_total, all_total);
-CREATE INDEX idx_metrics_avg ON keyword_metrics(avg_monthly_search);
-```
-
----
-
-## 6️⃣ KV 구조
-
-| 키                       | 내용              | TTL   |
-| ----------------------- | --------------- | ----- |
-| `related:{seed}`        | 연관검색어 결과 캐시     | 24h   |
-| `docs:{keyword}`        | 문서수 결과 캐시       | 24h   |
-| `golden:{band}`         | 인사이트 캐시         | 12h   |
-| `auto:seed:lock:{seed}` | 자동수집 중복 락       | 10min |
-| `dup:kw:lock:{keyword}` | 키워드 단건 upsert 락 | 60s   |
-
----
-
-## 7️⃣ 주요 API 요약 (현재 구현 상태)
-
-| Endpoint | Method | 설명 | 상태 |
-|----------|--------|------|------|
-| `/api/collect/related?preview=true` | POST | 연관검색어 미리보기 (DB 미저장) | ✅ 완료 |
-| `/api/collect/related` | POST | 키워드 수집 + 저장 + 문서수 트리거 | ✅ 완료 |
-| `/api/collect/naver-docs` | POST | 문서수(blog,cafe,web,news) 수집 | ✅ 완료 |
-| `/api/keywords` | GET | 필터/정렬/페이지 기반 목록 | ✅ 완료 |
-| `/api/insights` | GET | 6가지 골든키워드 인사이트 분석 | ✅ 완료 |
-| `/api/auto-collect/route` | POST | 자동수집 토글 on/off | ✅ 완료 |
-| `/api/auto-collect/status` | GET | 자동수집 상태 조회 | ✅ 완료 |
-| `/api/monitor/usage` | GET | API 사용량 모니터링 | ✅ 완료 |
-
----
-
-## 8️⃣ 중복수집/자동수집 정책 (핵심 로직)
-
-| 항목              | 조건                                           | 처리     |
-| --------------- | -------------------------------------------- | ------ |
-| **자동수집 재실행 방지** | `auto_seed_usage.last_auto_collect_at` ≤ 30일 | PASS   |
-| **중복키워드 방지**    | `keyword_metrics.updated_at` ≤ 30일           | PASS   |
-| **문서수 갱신**      | `naver_doc_counts.collected_at` > 30일        | UPDATE |
-| **자동수집 락**      | KV(`auto:seed:lock:{seed}`) 존재               | 대기/스킵  |
-
----
-
-## 9️⃣ 수용 기준(통합 테스트)
-
-✅ 시드 입력 후 미리보기 테이블 표시
-✅ 저장 시 중복 키워드 30일 내 PASS
-✅ 자동수집 ON 상태에서 새 키워드 시드로 2차 수집
-✅ 자동수집 시 이미 사용한 시드는 30일간 재실행 금지
-✅ 인사이트 페이지 밴드별 Top10 정렬 정확
-✅ 크론 실행 후 30일 이상된 문서수 갱신
-
----
-
-## 🔟 성능 / 보안 / 운영
-
-| 구분           | 기준                                        |
-| ------------ | ----------------------------------------- |
-| **성능**       | `/data` 렌더 ≤ 1.5s (1000행), API 응답 ≤ 300ms |
-| **보안**       | 모든 POST 요청 `x-admin-key` 필수               |
-| **API 제한**   | 60req/min/IP                              |
-| **로그**       | `collect_logs` + RFC7807                  |
-| **Cron 안정성** | KV 락 멱등키 + 200 seed/day 제한                |
-
----
-
-## 11️⃣ 향후 확장 계획 (v2)
-
-| 기능    | 설명                              |
-| ----- | ------------------------------- |
-| 회원제   | Supabase Auth / 사용자별 프리셋 저장     |
-| 알림    | 조건형 알림(예: "검색수>1000 & 카페문서<50") |
-| AI 추천 | GPT 기반 "키워드 군집/제목 생성기"          |
-| 수익화   | AdSense + Affiliate CTA 삽입      |
-
----
-
-## 📊 현재 개발 상태 요약 (2024.10.26)
-
-**✅ 완료된 핵심 기능**:
-- 🏠 **홈 페이지**: 시드 키워드 입력 → 연관검색어 미리보기 → 저장
-- 📊 **데이터 페이지**: 키워드 목록 + 필터링 + 정렬 + 자동수집 토글
-- 💡 **인사이트 페이지**: 6가지 골든 키워드 인사이트 분석
-- 🔌 **API 연동**: 네이버 검색광고 API + 네이버 오픈API 실제 연동
-- 💾 **데이터 저장**: JSON 파일 기반 영구 저장소
-- 🤖 **자동화**: 백그라운드 키워드 수집 + 문서수 자동 수집
-- 📈 **모니터링**: API 사용량 추적 + 일일 제한 관리
-
-**🎯 주요 성과**:
-- 총 3,010개 키워드 데이터 수집 완료
-- 6가지 인사이트 카테고리별 골든 키워드 분석
-- 카페문서수 적고 + 총검색량 많은 키워드 우선 정렬
-- 실시간 필터링 및 정렬 기능
-
-**🚀 다음 단계**:
-- Cloudflare D1 데이터베이스 마이그레이션
-- 크론 작업 자동화
-- 회원제 및 프리셋 기능
-
----
-
-✅ **요약 한줄**
-
-> **시드→연관검색어→DB저장→문서수자동→30일중복방지→2차자동수집→6가지인사이트분석**
-> 완전한 자동 "황금키워드 인사이트" 시스템 (MVP 완성!)
-
----
-
-## 🚀 개발 가이드
-
-### 현재 개발 환경 (2024.10.26)
-
-**✅ 완료된 기능**:
-- ✅ **홈 페이지**: 시드 키워드 입력 → 연관검색어 미리보기 → 저장
-- ✅ **데이터 페이지**: 수집된 키워드 목록 + 필터링 + 정렬 + 자동수집 토글
-- ✅ **인사이트 페이지**: 6가지 골든 키워드 인사이트 분석
-- ✅ **네이버 검색광고 API**: 실제 연관검색어 수집 (하드코딩된 키 사용)
-- ✅ **네이버 오픈API**: 문서수 자동수집 (하드코딩된 키 사용)
-- ✅ **영구 데이터베이스**: JSON 파일 기반 데이터 저장
-- ✅ **자동수집 시스템**: 백그라운드 키워드 수집
-- ✅ **API 모니터링**: 사용량 추적 + 일일 제한 관리
-
-**🔧 현재 기술 스택**:
-- **프론트엔드**: Next.js 14 (App Router) + Tailwind CSS
-- **백엔드**: Next.js API Routes
-- **데이터베이스**: JSON 파일 기반 영구 저장소 (`src/lib/persistent-db.ts`)
-- **API 연동**: 네이버 검색광고 API + 네이버 오픈API
-- **개발 환경**: 로컬 개발 서버 (http://localhost:3000)
-
-### 로컬 개발 환경 설정
-
-1. **의존성 설치**
 ```bash
+# 의존성 설치
 npm install
-```
 
-2. **환경 변수 설정** (현재 하드코딩된 키 사용 중)
-```bash
-# .env.local 파일 생성 (선택사항 - 현재 하드코딩된 키 사용)
-ADMIN_KEY=dev-key-2024
-
-# 네이버 검색광고 API (현재 하드코딩됨)
-SEARCHAD_API_KEY=your_searchad_api_key
-SEARCHAD_SECRET=your_searchad_secret
-SEARCHAD_CUSTOMER_ID=your_customer_id
-
-# 네이버 오픈API (현재 하드코딩됨)
-NAVER_CLIENT_ID=your_naver_client_id
-NAVER_CLIENT_SECRET=your_naver_client_secret
-```
-
-3. **개발 서버 실행**
-```bash
+# 개발 서버 실행
 npm run dev
 ```
 
-4. **브라우저에서 확인**
-- 홈: http://localhost:3000
-- 데이터: http://localhost:3000/data
-- 인사이트: http://localhost:3000/insights
-
-### 🔥 실제 API 연동 완료!
-
-- ✅ **네이버 검색광고 API**: 실제 HMAC-SHA256 시그니처 인증 구현
-- ✅ **네이버 오픈API**: 문서수 자동수집 구현 (블로그, 카페, 웹, 뉴스)
-- ✅ **캐시 시스템**: KV 기반 24시간 캐시
-- ✅ **배치 처리**: 5개 단위 배치 + 레이트 리미팅
-- ✅ **자동화**: 백그라운드 문서수 수집 + 자동수집 큐
-- ✅ **API 모니터링**: 사용량 추적 + 일일 제한 관리
-- ✅ **에러 처리**: 429 에러 감지 + 지수적 백오프
-
-### Cloudflare 배포 설정
-
-1. **Wrangler CLI 설치**
-```bash
-npm install -g wrangler
-```
-
-2. **Cloudflare 로그인**
-```bash
-wrangler login
-```
-
-3. **D1 데이터베이스 생성**
-```bash
-wrangler d1 create golden-keyword-db
-```
-
-4. **스키마 적용**
-```bash
-wrangler d1 execute golden-keyword-db --file=./schema.sql
-```
-
-5. **KV 네임스페이스 생성**
-```bash
-wrangler kv:namespace create "CACHE"
-```
-
-6. **환경 변수 설정**
-```bash
-wrangler secret put ADMIN_KEY
-wrangler secret put NAVER_CLIENT_ID
-wrangler secret put NAVER_CLIENT_SECRET
-```
-
-7. **배포**
-```bash
-wrangler pages deploy
-```
-
-### API 테스트
+### 빌드
 
 ```bash
-# 연관검색어 미리보기 (네이버 검색광고 API 연동)
-curl -X POST http://localhost:3000/api/collect/related?preview=true \
-  -H "Content-Type: application/json" \
-  -H "x-admin-key: dev-key-2024" \
-  -d '{"seed": "블로그 마케팅"}'
-
-# 키워드 목록 조회
-curl http://localhost:3000/api/keywords?minSearch=500&maxCafe=100
-
-# 황금키워드 조회
-curl http://localhost:3000/api/insights/golden?band=low&minSearch=500
-
-# 자동수집 상태 조회
-curl http://localhost:3000/api/auto/collect/status \
-  -H "x-admin-key: dev-key-2024"
-
-# 자동수집 토글
-curl -X POST http://localhost:3000/api/auto/collect/toggle \
-  -H "Content-Type: application/json" \
-  -H "x-admin-key: dev-key-2024" \
-  -d '{"enabled": true}'
-
-# API 사용량 모니터링
-curl http://localhost:3000/api/monitor/usage \
-  -H "x-admin-key: dev-key-2024"
+# 프로덕션 빌드
+npm run build
 ```
 
-### 현재 프로젝트 구조
+## 🌐 배포
 
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API 라우트
-│   │   ├── collect/       # 키워드 수집 API
-│   │   │   ├── related/route.ts    # 연관검색어 수집
-│   │   │   └── naver-docs/route.ts # 문서수 수집
-│   │   ├── keywords/route.ts       # 키워드 조회 API
-│   │   ├── insights/route.ts       # 인사이트 분석 API
-│   │   ├── auto-collect/           # 자동수집 관리
-│   │   │   ├── route.ts            # 자동수집 토글
-│   │   │   └── status/route.ts     # 자동수집 상태
-│   │   └── monitor/usage/route.ts  # API 모니터링
-│   ├── data/page.tsx      # 데이터 페이지
-│   ├── insights/page.tsx  # 인사이트 페이지
-│   ├── layout.tsx         # 레이아웃 (네비게이션)
-│   └── page.tsx           # 홈 페이지
-├── lib/                   # 유틸리티 라이브러리
-│   ├── persistent-db.ts  # JSON 파일 기반 데이터베이스
-│   ├── naver-api.ts      # 네이버 검색광고 API 클라이언트
-│   ├── naver-openapi-strict.ts # 네이버 오픈API 클라이언트
-│   └── api-monitor.ts    # API 사용량 모니터링
-└── data/                  # 데이터 저장소
-    └── database.json     # 영구 데이터베이스 파일
-```
+이 프로젝트는 클라우드플레어 페이지에 최적화되어 있습니다:
 
----
-#   0 _ n k e y  
- 
+1. **GitHub에 푸시**
+2. **클라우드플레어 페이지에서 GitHub 연결**
+3. **빌드 설정**:
+   - 빌드 명령: `npm run build`
+   - 출력 디렉토리: `out`
+
+## 📱 사용 방법
+
+1. **키워드 수집**:
+   - 메인 페이지에서 시드 키워드 입력
+   - "연관검색어 수집" 버튼 클릭
+   - 수집된 키워드가 로컬 스토리지에 저장됨
+
+2. **데이터 관리**:
+   - 데이터 페이지에서 저장된 키워드 조회
+   - JSON 파일로 데이터 내보내기
+   - 필요시 전체 데이터 삭제
+
+## ⚠️ 주의사항
+
+- **정적 호스팅**: 클라우드플레어 페이지는 정적 호스팅이므로 서버 사이드 API가 작동하지 않습니다
+- **로컬 스토리지**: 데이터는 브라우저 로컬 스토리지에 저장되므로 브라우저를 삭제하면 데이터가 사라집니다
+- **백업 권장**: 중요한 데이터는 JSON 내보내기 기능으로 정기적으로 백업하세요
+
+## 🔧 개발 정보
+
+- **프로젝트 구조**: Next.js App Router 사용
+- **스타일링**: Tailwind CSS
+- **타입 체킹**: TypeScript
+- **빌드 최적화**: SWC 컴파일러 사용
+
+## 📄 라이선스
+
+이 프로젝트는 개인 사용을 위한 도구입니다.
