@@ -67,25 +67,23 @@ export default function Home() {
       setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다.`)
       setKeywords(mockKeywords)
       
-      // Cloudflare Workers API로 데이터 저장 시도
-      try {
-        console.log('API 호출 시작:', {
-          url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect',
-          seed: seed.trim(),
-          keywordsCount: mockKeywords.length
-        })
+          // Cloudflare Workers API로 실제 네이버 API 호출 시도
+          try {
+            console.log('네이버 API 호출 시작:', {
+              url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver',
+              seed: seed.trim()
+            })
 
-        const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-key': 'dev-key-2024'
-          },
-          body: JSON.stringify({
-            seed: seed.trim(),
-            keywords: mockKeywords
-          })
-        })
+            const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-admin-key': 'dev-key-2024'
+              },
+              body: JSON.stringify({
+                seed: seed.trim()
+              })
+            })
 
         console.log('API 응답 상태:', response.status, response.statusText)
 
