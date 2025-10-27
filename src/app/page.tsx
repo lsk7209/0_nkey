@@ -98,7 +98,7 @@ export default function Home() {
           console.error('API 에러 응답:', response.status, errorText)
           throw new Error(`API 저장 실패: ${response.status} - ${errorText}`)
         }
-      } catch (apiError) {
+      } catch (apiError: any) {
         console.error('API 호출 에러:', apiError)
         
         // API 실패 시 로컬 스토리지에 저장
@@ -110,7 +110,7 @@ export default function Home() {
         }))]
         localStorage.setItem('keywords', JSON.stringify(newData))
         
-        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패: ${apiError.message})`)
+        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패: ${apiError?.message || 'Unknown error'})`)
       }
       
     } catch (error) {
