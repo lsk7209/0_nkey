@@ -1,6 +1,6 @@
 // Cloudflare Workers용 키워드 수집 API
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request: Request, env: any, ctx: any) {
     // CORS 헤더 설정
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -54,7 +54,7 @@ export default {
 
 
 // 키워드 수집 처리
-async function handleCollect(request, env, corsHeaders) {
+async function handleCollect(request: Request, env: any, corsHeaders: any) {
   if (request.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: 'Method Not Allowed' }),
@@ -145,7 +145,7 @@ async function handleCollect(request, env, corsHeaders) {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Collect error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to save keywords', message: error.message }),
@@ -155,7 +155,7 @@ async function handleCollect(request, env, corsHeaders) {
 }
 
 // 키워드 조회 처리
-async function handleGetKeywords(request, env, corsHeaders) {
+async function handleGetKeywords(request: Request, env: any, corsHeaders: any) {
   if (request.method !== 'GET') {
     return new Response(
       JSON.stringify({ error: 'Method Not Allowed' }),
@@ -197,7 +197,7 @@ async function handleGetKeywords(request, env, corsHeaders) {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Get keywords error:', error);
     return new Response(
       JSON.stringify({ error: 'Failed to fetch keywords', message: error.message }),

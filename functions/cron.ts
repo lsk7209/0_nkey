@@ -1,6 +1,6 @@
 // Cloudflare Workers 크론 작업
 export default {
-  async fetch(request, env, ctx) {
+  async fetch(request: Request, env: any, ctx: any) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -17,7 +17,7 @@ export default {
     }
   },
   
-  async scheduled(event, env, ctx) {
+  async scheduled(event: any, env: any, ctx: any) {
     // 크론 트리거로 실행되는 함수
     ctx.waitUntil(handleAutoCollect(env));
   }
@@ -25,7 +25,7 @@ export default {
 
 
 // 자동 수집 크론 작업
-async function handleAutoCollect(env) {
+async function handleAutoCollect(env: any) {
   try {
     console.log('Starting auto collect cron job...');
 
@@ -117,7 +117,7 @@ async function handleAutoCollect(env) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Auto collect error:', error);
     
     // 에러 로그 저장
@@ -134,7 +134,7 @@ async function handleAutoCollect(env) {
 }
 
 // 정리 작업 크론
-async function handleCleanup(env) {
+async function handleCleanup(env: any) {
   try {
     console.log('Starting cleanup cron job...');
 
@@ -177,7 +177,7 @@ async function handleCleanup(env) {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Cleanup error:', error);
     return new Response(
       JSON.stringify({ error: 'Cleanup failed', message: error.message }),
@@ -187,7 +187,7 @@ async function handleCleanup(env) {
 }
 
 // 시뮬레이션 키워드 생성 함수
-function generateMockKeywords(seed) {
+function generateMockKeywords(seed: string) {
   const patterns = [
     { suffix: '방법', pc: 1200, mob: 800, cpc: 500, comp: 80 },
     { suffix: '가이드', pc: 900, mob: 600, cpc: 450, comp: 75 },

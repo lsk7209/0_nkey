@@ -6,10 +6,6 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  // API 라우트 비활성화 (정적 사이트용)
-  experimental: {
-    appDir: true
-  },
   // 빌드 최적화
   swcMinify: true,
   // 정적 파일 최적화
