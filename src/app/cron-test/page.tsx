@@ -21,7 +21,7 @@ export default function CronTestPage() {
       const data = await response.json()
       setResult(data)
     } catch (error) {
-      setResult({ error: error.message })
+      setResult({ error: error instanceof Error ? error.message : 'Unknown error' })
     } finally {
       setRunning(false)
     }
