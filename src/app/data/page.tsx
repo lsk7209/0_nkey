@@ -133,7 +133,7 @@ export default function DataPage() {
       if (!keywordsWithoutDocCountsResponse.ok) throw new Error('문서수가 없는 키워드 목록을 불러오는데 실패했습니다.')
       
       const keywordsWithoutDocCountsData = await keywordsWithoutDocCountsResponse.json()
-      const keywordsToCollect = keywordsWithoutDocCountsData.keywords.map(item => item.keyword)
+      const keywordsToCollect = keywordsWithoutDocCountsData.keywords.map((item: any) => item.keyword)
       
       console.log(`📊 문서수 수집 대상: ${keywordsToCollect.length}개 키워드 (문서수가 없는 키워드만)`)
       
