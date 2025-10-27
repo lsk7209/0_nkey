@@ -8,6 +8,11 @@ interface KeywordData {
   monthly_search_pc: number
   monthly_search_mob: number
   avg_monthly_search: number
+  monthly_click_pc?: number
+  monthly_click_mobile?: number
+  ctr_pc?: number
+  ctr_mobile?: number
+  ad_count?: number
   cpc?: number
   comp_index?: number
 }
