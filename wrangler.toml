@@ -4,11 +4,6 @@ compatibility_date = "2024-01-01"
 # Cloudflare Pages 설정
 pages_build_output_dir = "out"
 
-# 빌드 설정
-[build]
-command = "npm run build"
-cwd = "."
-
 # 환경 변수
 [vars]
 ADMIN_KEY = "dev-key-2024"
