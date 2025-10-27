@@ -135,7 +135,7 @@ export default function DataPage() {
 
         <div className="flex space-x-4 mb-6">
           <button
-            onClick={loadStoredKeywords}
+            onClick={loadKeywords}
             className="btn-secondary"
           >
             새로고침
