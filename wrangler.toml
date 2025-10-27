@@ -1,4 +1,4 @@
-name = "0_nkey"
+name = "0_nkey_db"
 compatibility_date = "2024-01-01"
 
 # Cloudflare Pages 설정
@@ -8,7 +8,7 @@ pages_build_output_dir = "out"
 [[d1_databases]]
 binding = "DB"
 database_name = "0_nkey_db"
-database_id = "your-database-id-here"
+database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
 
 # 환경 변수
 [vars]
