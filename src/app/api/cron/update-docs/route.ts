@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const errors: string[] = []
 
     // 배치로 문서수 조회
-    const keywords = expiredKeywords.map(item => item.keyword)
+    const keywords = expiredKeywords.map((item: any) => item.keyword)
     const docCountsMap = await naverApi.getBatchDocCounts(keywords)
 
     // 각 키워드의 문서수 업데이트
