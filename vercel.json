@@ -1,0 +1,11 @@
+# Vercel Cron Jobs 설정
+# vercel.json 파일에 추가
+
+{
+  "crons": [
+    {
+      "path": "/api/cron/collect-docs",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}

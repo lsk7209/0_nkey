@@ -1,0 +1,36 @@
+name = "golden-keyword-finder"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "golden-keyword-finder"
+
+# D1 데이터베이스 설정
+[[d1_databases]]
+binding = "DB"
+database_name = "golden-keyword-db"
+database_id = "your-database-id"
+
+# KV 네임스페이스 설정
+[[kv_namespaces]]
+binding = "CACHE"
+id = "your-kv-namespace-id"
+preview_id = "your-preview-kv-namespace-id"
+
+# 환경 변수
+[vars]
+ADMIN_KEY = "your-admin-key"
+NAVER_CLIENT_ID = "your-naver-client-id"
+NAVER_CLIENT_SECRET = "your-naver-client-secret"
+
+# 크론 트리거 설정
+[[triggers]]
+crons = ["0 0 * * *"]  # 매일 00:00 UTC
+
+# 빌드 설정
+[build]
+command = "npm run build"
+cwd = "."
+
+# Pages 설정
+[pages]
+build_output_dir = ".next"
