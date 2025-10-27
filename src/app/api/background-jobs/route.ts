@@ -25,7 +25,7 @@ interface BackgroundJob {
 }
 
 // 작업 큐 관리 클래스
-class BackgroundJobQueue {
+export class BackgroundJobQueue {
   private jobs = new Map<string, BackgroundJob>()
   private runningJobs = new Set<string>()
   private maxConcurrentJobs = 3
