@@ -69,6 +69,12 @@ export default function Home() {
       
       // Cloudflare Workers API로 데이터 저장 시도
       try {
+        console.log('API 호출 시작:', {
+          url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect',
+          seed: seed.trim(),
+          keywordsCount: mockKeywords.length
+        })
+
         const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect', {
           method: 'POST',
           headers: {
@@ -81,13 +87,20 @@ export default function Home() {
           })
         })
 
+        console.log('API 응답 상태:', response.status, response.statusText)
+
         if (response.ok) {
           const result = await response.json()
+          console.log('API 성공 응답:', result)
           setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
         } else {
-          throw new Error('API 저장 실패')
+          const errorText = await response.text()
+          console.error('API 에러 응답:', response.status, errorText)
+          throw new Error(`API 저장 실패: ${response.status} - ${errorText}`)
         }
       } catch (apiError) {
+        console.error('API 호출 에러:', apiError)
+        
         // API 실패 시 로컬 스토리지에 저장
         const existingData = JSON.parse(localStorage.getItem('keywords') || '[]')
         const newData = [...existingData, ...mockKeywords.map(k => ({
@@ -97,7 +110,7 @@ export default function Home() {
         }))]
         localStorage.setItem('keywords', JSON.stringify(newData))
         
-        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패)`)
+        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패: ${apiError.message})`)
       }
       
     } catch (error) {

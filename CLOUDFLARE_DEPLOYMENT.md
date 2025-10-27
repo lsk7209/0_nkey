@@ -62,8 +62,14 @@ curl -X POST https://your-worker-domain.workers.dev/cron/auto-collect
 
 ### 1. 클라우드플레어 대시보드에서 설정
 
-1. **Workers & Pages** → **0_nkey** → **Settings** → **Variables**
+1. **Workers & Pages** → **0_nkey-api** → **Settings** → **Variables**
 2. 다음 환경 변수 추가:
+   - `ADMIN_KEY`: `dev-key-2024`
+   - `NAVER_CLIENT_ID`: 네이버 API 클라이언트 ID
+   - `NAVER_CLIENT_SECRET`: 네이버 API 클라이언트 시크릿
+
+3. **Workers & Pages** → **0_nkey-workers** → **Settings** → **Variables**
+4. 동일한 환경 변수 추가:
    - `ADMIN_KEY`: `dev-key-2024`
    - `NAVER_CLIENT_ID`: 네이버 API 클라이언트 ID
    - `NAVER_CLIENT_SECRET`: 네이버 API 클라이언트 시크릿
