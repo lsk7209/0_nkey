@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 
 interface ApiKeyStatus {
   name: string
+  clientId?: string
   usedToday: number
   dailyLimit: number
   remaining: number
@@ -363,7 +364,7 @@ export default function ApiStatusPage() {
                             {key.name}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {key.clientId}
+                            {key.clientId || 'N/A'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
