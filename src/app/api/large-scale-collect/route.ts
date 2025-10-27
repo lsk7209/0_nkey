@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     })
 
     // 작업 시작
-    jobQueue.startJob(job.id, {
+    jobQueue.startJob(job, {
       seedCount,
       keywordsPerSeed,
       maxConcurrent
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      jobId: job.id,
+      jobId: job,
       message: `대규모 자동수집 작업이 시작되었습니다. (${seedCount}개 시드, 각 ${keywordsPerSeed}개씩)`,
       estimatedDuration: `${Math.ceil(seedCount / maxConcurrent) * 2}분 예상`,
       estimatedKeywords: `${seedCount * keywordsPerSeed}개 키워드 예상`
