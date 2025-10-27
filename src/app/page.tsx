@@ -67,16 +67,38 @@ export default function Home() {
       setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다.`)
       setKeywords(mockKeywords)
       
-      // 로컬 스토리지에 저장 (클라이언트 사이드 저장)
-      const existingData = JSON.parse(localStorage.getItem('keywords') || '[]')
-      const newData = [...existingData, ...mockKeywords.map(k => ({
-        ...k,
-        seed: seed.trim(),
-        created_at: new Date().toISOString()
-      }))]
-      localStorage.setItem('keywords', JSON.stringify(newData))
-      
-      setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료)`)
+      // Cloudflare Workers API로 데이터 저장 시도
+      try {
+        const response = await fetch('/api/collect', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-admin-key': 'dev-key-2024'
+          },
+          body: JSON.stringify({
+            seed: seed.trim(),
+            keywords: mockKeywords
+          })
+        })
+
+        if (response.ok) {
+          const result = await response.json()
+          setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
+        } else {
+          throw new Error('API 저장 실패')
+        }
+      } catch (apiError) {
+        // API 실패 시 로컬 스토리지에 저장
+        const existingData = JSON.parse(localStorage.getItem('keywords') || '[]')
+        const newData = [...existingData, ...mockKeywords.map(k => ({
+          ...k,
+          seed: seed.trim(),
+          created_at: new Date().toISOString()
+        }))]
+        localStorage.setItem('keywords', JSON.stringify(newData))
+        
+        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패)`)
+      }
       
     } catch (error) {
       console.error('키워드 수집 에러:', error)

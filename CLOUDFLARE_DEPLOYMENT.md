@@ -1,52 +1,158 @@
-# 클라우드플레어 배포 가이드
+# 클라우드플레어 데이터베이스 & 크론 설정 가이드
 
-## 🚀 배포 계획
+## 🗄️ 클라우드플레어 D1 데이터베이스 설정
 
-### **1. 호스팅: Cloudflare Pages**
-- Next.js 앱을 Cloudflare Pages에 배포
-- 자동 빌드 및 배포 설정
+### 1. D1 데이터베이스 생성
 
-### **2. 데이터베이스: Cloudflare D1**
-- SQLite 기반 서버리스 데이터베이스
-- 로컬 JSON 파일을 D1 테이블로 마이그레이션
+```bash
+# Wrangler CLI 설치 (이미 설치되어 있다면 생략)
+npm install -g wrangler
 
-### **3. 크론: Cloudflare Workers Cron Triggers**
-- 매일 새벽 2시 자동 문서수 수집
-- Workers에서 D1 데이터베이스 직접 접근
+# 로그인
+wrangler login
 
-## 📋 마이그레이션 체크리스트
+# D1 데이터베이스 생성
+wrangler d1 create 0_nkey_db
+```
 
-### **데이터베이스 마이그레이션**
-- [ ] `persistent-db.ts` → D1 클라이언트로 변경
-- [ ] JSON 파일 → SQL 테이블 스키마 생성
-- [ ] 데이터 마이그레이션 스크립트 작성
+### 2. 데이터베이스 ID 업데이트
 
-### **크론 작업 마이그레이션**
-- [ ] `/api/cron/collect-docs` → Workers Cron Trigger로 변경
-- [ ] 환경변수 설정 (Cloudflare Secrets)
-- [ ] Rate Limiting 최적화
+생성된 데이터베이스 ID를 `wrangler.toml`에 업데이트:
 
-### **환경변수 설정**
-- [ ] 네이버 검색광고 API 키
-- [ ] 네이버 오픈API 키
-- [ ] 관리자 키
+```toml
+[[d1_databases]]
+binding = "DB"
+database_name = "0_nkey_db"
+database_id = "your-actual-database-id-here"  # 여기에 실제 ID 입력
+```
 
-## 🔧 현재 로컬 개발 상태
+### 3. 스키마 적용
 
-✅ **완료된 기능**
-- 네이버 검색광고 API 연동 (절대규칙 준수)
-- 네이버 오픈API 연동 (절대규칙 준수)
-- 자동 키워드 수집 및 저장
-- 문서수 자동 수집 (크론 작업)
-- 데이터 정렬 (카페문서수 오름차순 + 검색량 내림차순)
-- 중복 키워드 방지 (30일 규칙)
+```bash
+# 스키마 적용
+wrangler d1 execute 0_nkey_db --file=./schema.sql
+```
 
-🔄 **로컬 개발 중**
-- Rate Limiting 최적화
-- 에러 처리 개선
-- UI/UX 개선
+## ⏰ 클라우드플레어 Workers 크론 설정
 
-📋 **클라우드플레어 배포 준비**
-- D1 데이터베이스 스키마 설계
-- Workers Cron 설정
-- 환경변수 관리
+### 1. Workers 배포
+
+```bash
+# 크론 Workers 배포
+wrangler deploy --config wrangler.toml
+```
+
+### 2. 크론 트리거 설정 확인
+
+`wrangler.toml`에서 크론 설정이 올바른지 확인:
+
+```toml
+[[triggers]]
+crons = ["0 2 * * *"]  # 매일 02:00 UTC에 실행
+```
+
+### 3. 크론 작업 테스트
+
+```bash
+# 수동으로 크론 작업 실행
+curl -X POST https://your-worker-domain.workers.dev/cron/auto-collect
+```
+
+## 🔧 환경 변수 설정
+
+### 1. 클라우드플레어 대시보드에서 설정
+
+1. **Workers & Pages** → **0_nkey** → **Settings** → **Variables**
+2. 다음 환경 변수 추가:
+   - `ADMIN_KEY`: `dev-key-2024`
+   - `NAVER_CLIENT_ID`: 네이버 API 클라이언트 ID
+   - `NAVER_CLIENT_SECRET`: 네이버 API 클라이언트 시크릿
+
+### 2. 로컬 개발용 .env 파일
+
+```bash
+# .env.local
+ADMIN_KEY=dev-key-2024
+NAVER_CLIENT_ID=your-naver-client-id
+NAVER_CLIENT_SECRET=your-naver-client-secret
+```
+
+## 📊 API 엔드포인트
+
+### 키워드 수집
+```
+POST /api/collect
+Headers: x-admin-key: dev-key-2024
+Body: {
+  "seed": "블로그 마케팅",
+  "keywords": [...]
+}
+```
+
+### 키워드 조회
+```
+GET /api/keywords?page=1&limit=50
+Headers: x-admin-key: dev-key-2024
+```
+
+### 헬스 체크
+```
+GET /api/health
+```
+
+### 크론 작업
+```
+POST /cron/auto-collect    # 자동 수집
+POST /cron/cleanup         # 정리 작업
+```
+
+## 🚀 배포 순서
+
+1. **D1 데이터베이스 생성 및 스키마 적용**
+2. **wrangler.toml에 데이터베이스 ID 업데이트**
+3. **환경 변수 설정**
+4. **Workers 배포**
+5. **Pages 재배포 (functions 폴더 포함)**
+
+## 🔍 모니터링
+
+### 로그 확인
+```bash
+# Workers 로그 확인
+wrangler tail
+
+# D1 쿼리 로그 확인
+wrangler d1 execute 0_nkey_db --command="SELECT * FROM collect_logs ORDER BY created_at DESC LIMIT 10"
+```
+
+### 데이터베이스 상태 확인
+```bash
+# 테이블 목록 확인
+wrangler d1 execute 0_nkey_db --command="SELECT name FROM sqlite_master WHERE type='table'"
+
+# 키워드 수 확인
+wrangler d1 execute 0_nkey_db --command="SELECT COUNT(*) as total FROM keywords"
+```
+
+## ⚠️ 주의사항
+
+1. **데이터베이스 ID**: `wrangler.toml`의 `database_id`를 실제 생성된 ID로 반드시 업데이트
+2. **환경 변수**: 민감한 정보는 클라우드플레어 대시보드에서 설정
+3. **크론 실행**: 처음 배포 후 수동으로 한 번 실행하여 정상 작동 확인
+4. **API 키**: 네이버 API 키가 유효한지 확인
+
+## 🆘 문제 해결
+
+### 일반적인 문제들
+
+1. **데이터베이스 연결 실패**
+   - `database_id`가 올바른지 확인
+   - 스키마가 적용되었는지 확인
+
+2. **크론 작업이 실행되지 않음**
+   - `wrangler.toml`의 크론 설정 확인
+   - Workers가 정상 배포되었는지 확인
+
+3. **API 인증 실패**
+   - `ADMIN_KEY` 환경 변수 확인
+   - 요청 헤더에 `x-admin-key` 포함 확인
