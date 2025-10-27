@@ -265,11 +265,12 @@ class MockDatabase {
 
   // 자동수집 사용 기록 저장
   insertAutoSeedUsage(seed: string, depth: number = 1, note: string = ''): void {
+    const now = new Date().toISOString()
     this.autoSeedUsage.set(seed, {
       seed,
-      last_auto_collect_at: new Date().toISOString(),
-      depth,
-      note
+      lastUsed: now,
+      usageCount: (this.autoSeedUsage.get(seed)?.usageCount || 0) + 1,
+      createdAt: this.autoSeedUsage.get(seed)?.createdAt || now
     })
   }
 
