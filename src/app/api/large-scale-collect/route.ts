@@ -46,7 +46,11 @@ export async function POST(request: NextRequest) {
     })
 
     // 작업 시작
-    jobQueue.startJob(job.id)
+    jobQueue.startJob(job.id, {
+      seedCount,
+      keywordsPerSeed,
+      maxConcurrent
+    })
 
     return NextResponse.json({
       success: true,
