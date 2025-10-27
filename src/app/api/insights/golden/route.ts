@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
       },
       keywords: top10,
       count: top10.length,
-      total: filteredData.length
+      total: top10.length
     })
 
   } catch (error) {
