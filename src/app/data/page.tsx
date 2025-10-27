@@ -28,7 +28,7 @@ export default function DataPage() {
     try {
       // 먼저 클라우드 데이터베이스에서 시도
       try {
-        const response = await fetch('/api/keywords?page=1&limit=1000', {
+        const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords?page=1&limit=1000', {
           headers: {
             'x-admin-key': 'dev-key-2024'
           }

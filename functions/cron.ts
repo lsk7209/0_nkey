@@ -1,8 +1,6 @@
 // Cloudflare Workers 크론 작업
-export async function onRequest(context) {
-  const { request, env } = context;
-  
-  try {
+export default {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
 
@@ -17,14 +15,14 @@ export async function onRequest(context) {
           { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
     }
-  } catch (error) {
-    console.error('Cron error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal Server Error', message: error.message }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+  },
+  
+  async scheduled(event, env, ctx) {
+    // 크론 트리거로 실행되는 함수
+    ctx.waitUntil(handleAutoCollect(env));
   }
-}
+};
+
 
 // 자동 수집 크론 작업
 async function handleAutoCollect(env) {

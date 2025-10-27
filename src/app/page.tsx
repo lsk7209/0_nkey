@@ -69,7 +69,7 @@ export default function Home() {
       
       // Cloudflare Workers API로 데이터 저장 시도
       try {
-        const response = await fetch('/api/collect', {
+        const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

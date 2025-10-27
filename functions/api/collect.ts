@@ -1,56 +1,57 @@
 // Cloudflare Workers용 키워드 수집 API
-export async function onRequest(context) {
-  const { request, env } = context;
-  
-  // CORS 헤더 설정
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-key',
-  };
+export default {
+  async fetch(request, env, ctx) {
+    // CORS 헤더 설정
+    const corsHeaders = {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-admin-key',
+    };
 
-  // OPTIONS 요청 처리
-  if (request.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
-  }
+    // OPTIONS 요청 처리
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 200, headers: corsHeaders });
+    }
 
-  try {
-    const url = new URL(request.url);
-    const path = url.pathname;
+    try {
+      const url = new URL(request.url);
+      const path = url.pathname;
 
-    // 인증 확인
-    const adminKey = request.headers.get('x-admin-key');
-    if (!adminKey || adminKey !== env.ADMIN_KEY) {
+      // 인증 확인
+      const adminKey = request.headers.get('x-admin-key');
+      if (!adminKey || adminKey !== env.ADMIN_KEY) {
+        return new Response(
+          JSON.stringify({ error: 'Unauthorized' }),
+          { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      switch (path) {
+        case '/api/collect':
+          return await handleCollect(request, env, corsHeaders);
+        case '/api/keywords':
+          return await handleGetKeywords(request, env, corsHeaders);
+        case '/api/health':
+          return new Response(
+            JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
+            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        default:
+          return new Response(
+            JSON.stringify({ error: 'Not Found' }),
+            { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+      }
+    } catch (error) {
+      console.error('API Error:', error);
       return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: 'Internal Server Error', message: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    switch (path) {
-      case '/api/collect':
-        return await handleCollect(request, env, corsHeaders);
-      case '/api/keywords':
-        return await handleGetKeywords(request, env, corsHeaders);
-      case '/api/health':
-        return new Response(
-          JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      default:
-        return new Response(
-          JSON.stringify({ error: 'Not Found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-    }
-  } catch (error) {
-    console.error('API Error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal Server Error', message: error.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
   }
-}
+};
+
 
 // 키워드 수집 처리
 async function handleCollect(request, env, corsHeaders) {
