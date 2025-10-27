@@ -55,7 +55,7 @@ export class BackgroundJobQueue {
   }
 
   // 작업 시작
-  private async startJob(jobId: string, data: any) {
+  async startJob(jobId: string, data: any) {
     const job = this.jobs.get(jobId)
     if (!job) return
 
