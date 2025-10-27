@@ -134,20 +134,23 @@ class MockDatabase {
 
   // 키워드 존재 여부 확인 (30일 기준)
   keywordExists(keyword: string): { exists: boolean, keywordId?: number, isRecent?: boolean } {
-    for (const [id, record] of this.keywords) {
+    let result: { exists: boolean, keywordId?: number, isRecent?: boolean } = { exists: false }
+    
+    this.keywords.forEach((record, id) => {
       if (record.keyword === keyword) {
         const createdDate = new Date(record.created_at)
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
         const isRecent = createdDate > thirtyDaysAgo
         
-        return {
+        result = {
           exists: true,
           keywordId: id,
           isRecent
         }
       }
-    }
-    return { exists: false }
+    })
+    
+    return result
   }
 
   // 키워드 저장 (중복 체크 포함)
