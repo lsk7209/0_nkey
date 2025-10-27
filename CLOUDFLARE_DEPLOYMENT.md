@@ -62,17 +62,39 @@ curl -X POST https://your-worker-domain.workers.dev/cron/auto-collect
 
 ### 1. 클라우드플레어 대시보드에서 설정
 
+#### **API Workers (0_nkey-api) 설정**:
 1. **Workers & Pages** → **0_nkey-api** → **Settings** → **Variables**
-2. 다음 환경 변수 추가:
-   - `ADMIN_KEY`: `dev-key-2024`
-   - `NAVER_CLIENT_ID`: 네이버 API 클라이언트 ID
-   - `NAVER_CLIENT_SECRET`: 네이버 API 클라이언트 시크릿
+2. 다음 환경 변수들을 **하나씩 추가**:
 
-3. **Workers & Pages** → **0_nkey-workers** → **Settings** → **Variables**
-4. 동일한 환경 변수 추가:
-   - `ADMIN_KEY`: `dev-key-2024`
-   - `NAVER_CLIENT_ID`: 네이버 API 클라이언트 ID
-   - `NAVER_CLIENT_SECRET`: 네이버 API 클라이언트 시크릿
+```
+변수명: ADMIN_KEY
+값: dev-key-2024
+
+변수명: NAVER_CLIENT_ID  
+값: your-naver-client-id
+
+변수명: NAVER_CLIENT_SECRET
+값: your-naver-client-secret
+
+변수명: NAVER_API_KEY_1
+값: your-first-api-key
+
+변수명: NAVER_API_KEY_2
+값: your-second-api-key
+
+변수명: NAVER_API_KEY_3
+값: your-third-api-key
+
+변수명: NAVER_API_KEY_4
+값: your-fourth-api-key
+
+변수명: NAVER_API_KEY_5
+값: your-fifth-api-key
+```
+
+#### **크론 Workers (0_nkey-workers) 설정**:
+1. **Workers & Pages** → **0_nkey-workers** → **Settings** → **Variables**
+2. 위와 동일한 환경 변수들을 **하나씩 추가**
 
 ### 2. 로컬 개발용 .env 파일
 
