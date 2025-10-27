@@ -98,7 +98,15 @@ class MockDatabase {
     monthly_search_mob: number
     created_at: string
   }> {
-    const keywords = []
+    const keywords: Array<{
+      id: number
+      keyword: string
+      seed: string
+      avg_monthly_search: number
+      monthly_search_pc: number
+      monthly_search_mob: number
+      created_at: string
+    }> = []
     
     this.keywords.forEach((record, id) => {
       // 시드로 사용되지 않은 키워드만 선택
