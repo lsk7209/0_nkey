@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { optimizedNaverAdsClient } from '@/lib/optimized-naver-api'
 import { persistentDB } from '@/lib/persistent-db'
 import { CacheService } from '@/lib/db'
+import { createNaverOpenApiStrict } from '@/lib/naver-openapi-strict'
 
 interface KeywordData {
   keyword: string
