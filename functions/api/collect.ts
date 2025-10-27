@@ -359,7 +359,7 @@ async function collectKeywordsFromNaver(seed: string, env: any) {
     // 요청 데이터
     const requestData = {
       siteId: apiKey.customerId,
-      hintKeywords: [seed],
+      hintKeywords: seed, // 배열 대신 단일 문자열로 변경
       showDetail: '1'
     };
 
@@ -564,7 +564,7 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
     const apiKey = openApiKeys[0];
     console.log(`Using Naver OpenAPI key: ${apiKey.key.substring(0, 8)}...`);
 
-    const docCounts = {
+    const docCounts: { [key: string]: number } = {
       blog_total: 0,
       cafe_total: 0,
       web_total: 0,
