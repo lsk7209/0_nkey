@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { NaverOpenApiStrict } from '@/lib/naver-openapi-strict'
+import { createNaverOpenApiStrict } from '@/lib/naver-openapi-strict'
 
 // 문서수 API 상태 조회
 export async function GET(request: NextRequest) {
@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 네이버 오픈API 클라이언트 생성
-    const naverOpenApi = new NaverOpenApiStrict()
+    const naverOpenApi = createNaverOpenApiStrict()
     
     // API 키 상태 조회
     const apiKeys = naverOpenApi.getApiKeysStatus()
