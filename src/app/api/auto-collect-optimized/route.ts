@@ -112,7 +112,13 @@ export async function POST(request: NextRequest) {
               setTimeout(async () => {
                 try {
                   const docCounts = await naverOpenApi.getDocCounts(keyword)
-                  persistentDB.insertNaverDocCounts(keywordId, docCounts)
+                  persistentDB.insertNaverDocCounts(
+                    keywordId,
+                    docCounts.blog_total,
+                    docCounts.cafe_total,
+                    docCounts.web_total,
+                    docCounts.news_total
+                  )
                   console.log(`📄 문서수 수집 완료: "${keyword}"`)
                 } catch (error) {
                   console.error(`❌ 문서수 수집 실패: "${keyword}"`, error)
