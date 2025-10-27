@@ -134,6 +134,11 @@ export class PersistentDB {
     console.log('🔄 시드 사용 기록이 초기화되었습니다.')
   }
 
+  // 시드 사용 기록 조회
+  getAutoSeedUsage(): Record<string, any> {
+    return this.data.autoSeedUsage || {}
+  }
+
   // 사용되지 않은 키워드 중 검색량 높은 순으로 조회
   getUnusedKeywordsBySearchVolume(limit: number = 50): Array<{
     id: number

@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     const unusedKeywords = persistentDB.getUnusedKeywordsBySearchVolume(20)
     
     // 시드키워드 사용 기록 조회
-    const seedUsage = persistentDB.data?.autoSeedUsage || {}
+    const seedUsage = persistentDB.getAutoSeedUsage()
     const usageList = Object.values(seedUsage).map((usage: any) => ({
       seed: usage.seed,
       lastUsed: usage.lastUsed,
