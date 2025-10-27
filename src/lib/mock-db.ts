@@ -100,7 +100,7 @@ class MockDatabase {
   }> {
     const keywords = []
     
-    for (const [id, record] of this.keywords) {
+    this.keywords.forEach((record, id) => {
       // 시드로 사용되지 않은 키워드만 선택
       if (!this.isSeedUsed(record.keyword)) {
         const metrics = this.keywordMetrics.get(id)
@@ -116,7 +116,7 @@ class MockDatabase {
           })
         }
       }
-    }
+    })
     
     // 검색량 높은 순으로 정렬
     keywords.sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
