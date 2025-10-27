@@ -565,14 +565,14 @@ class BackgroundJobQueue {
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000)
     let cleanedCount = 0
 
-    for (const [jobId, job] of this.jobs) {
+    this.jobs.forEach((job, jobId) => {
       if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
         if (job.completedAt && new Date(job.completedAt) < oneDayAgo) {
           this.jobs.delete(jobId)
           cleanedCount++
         }
       }
-    }
+    })
 
     if (cleanedCount > 0) {
       console.log(`🧹 오래된 작업 ${cleanedCount}개 정리 완료`)
