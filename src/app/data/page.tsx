@@ -452,7 +452,7 @@ export default function DataPage() {
             </div>
             
             <div className="text-sm text-gray-600">
-              예상 수집량: {autoCollectSettings.seedCount * autoCollectSettings.maxKeywordsPerSeed.toLocaleString()}개
+              예상 수집량: {(autoCollectSettings.seedCount * Number(autoCollectSettings.maxKeywordsPerSeed)).toLocaleString()}개
             </div>
           </div>
           
