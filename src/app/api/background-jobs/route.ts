@@ -6,7 +6,7 @@ import { optimizedNaverAdsClient } from '@/lib/optimized-naver-api'
 type JobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 // 작업 타입
-type JobType = 'auto-collect' | 'manual-collect' | 'doc-count'
+type JobType = 'auto-collect' | 'manual-collect' | 'doc-count' | 'large-scale-auto-collect'
 
 // 작업 인터페이스
 interface BackgroundJob {
