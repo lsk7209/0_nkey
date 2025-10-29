@@ -115,9 +115,39 @@ export default function DataPage() {
     }
   }
 
-  const handleClearAll = () => {
-    // TODO: D1 데이터베이스 삭제 API 구현 필요
-    setMessage('❌ 삭제 기능은 아직 구현되지 않았습니다. D1 데이터베이스에서 직접 삭제해주세요.')
+  const handleClearAll = async () => {
+    if (!confirm('모든 키워드를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('https://0-nkey.pages.dev/api/keywords-delete', {
+        method: 'DELETE',
+        headers: {
+          'x-admin-key': 'dev-key-2024'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setKeywords([]);
+          setMessage('✅ 모든 키워드가 삭제되었습니다.');
+          setCurrentPage(1);
+        } else {
+          throw new Error(data.message || '삭제 실패');
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `삭제 실패: ${response.status}`);
+      }
+    } catch (error) {
+      console.error('키워드 삭제 실패:', error);
+      setMessage(`❌ 키워드 삭제 실패: ${(error as Error).message}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   const handleFilterChange = (field: keyof FilterValues, value: string) => {

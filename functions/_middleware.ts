@@ -30,6 +30,10 @@ export async function onRequest(context: any) {
         console.log('🎯 keywords 라우트 선택');
         const handler = await import('./api/keywords');
         return handler.onRequest(context);
+      } else if (path === '/api/keywords-delete') {
+        console.log('🎯 keywords-delete 라우트 선택');
+        const handler = await import('./api/keywords-delete');
+        return handler.onRequest(context);
       } else if (path === '/api/test') {
         console.log('🎯 test 라우트 선택');
         const handler = await import('./api/test');
