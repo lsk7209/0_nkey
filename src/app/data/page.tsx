@@ -182,17 +182,71 @@ export default function DataPage() {
 
   const handleExport = () => {
     try {
-      const dataStr = JSON.stringify(keywords, null, 2)
-      const dataBlob = new Blob([dataStr], { type: 'application/json' })
+      // CSV 헤더 생성
+      const headers = [
+        '키워드',
+        '총검색량',
+        '카페문서수',
+        '블로그문서수',
+        '웹문서수',
+        '뉴스문서수',
+        '월클릭(pc)',
+        '월클릭(m)',
+        '월클릭률(pc)',
+        '월클릭률(m)',
+        '월광고수',
+        'PC 검색량',
+        '모바일 검색량',
+        '생성일'
+      ]
+
+      // CSV 데이터 행 생성
+      const rows = keywords.map(keyword => [
+        keyword.keyword || '',
+        keyword.avg_monthly_search || 0,
+        keyword.cafe_total || 0,
+        keyword.blog_total || 0,
+        keyword.web_total || 0,
+        keyword.news_total || 0,
+        keyword.monthly_click_pc ? keyword.monthly_click_pc.toFixed(1) : '',
+        keyword.monthly_click_mo ? keyword.monthly_click_mo.toFixed(1) : '',
+        keyword.ctr_pc ? `${keyword.ctr_pc.toFixed(2)}%` : '',
+        keyword.ctr_mo ? `${keyword.ctr_mo.toFixed(2)}%` : '',
+        keyword.ad_count || '',
+        keyword.pc_search || 0,
+        keyword.mobile_search || 0,
+        keyword.created_at ? new Date(keyword.created_at).toLocaleDateString() : ''
+      ])
+
+      // CSV 형식으로 변환 (쉼표로 구분, 따옴표로 감싸기)
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => {
+          // 쉼표, 따옴표, 줄바꿈이 포함된 경우 따옴표로 감싸기
+          const cellStr = String(cell)
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`
+          }
+          return cellStr
+        }).join(','))
+      ].join('\n')
+
+      // BOM 추가 (한글 깨짐 방지)
+      const BOM = '\uFEFF'
+      const csvWithBOM = BOM + csvContent
+
+      // Blob 생성 및 다운로드
+      const dataBlob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(dataBlob)
       const link = document.createElement('a')
       link.href = url
-      link.download = `keywords-${new Date().toISOString().split('T')[0]}.json`
+      link.download = `keywords-${new Date().toISOString().split('T')[0]}.csv`
       link.click()
       URL.revokeObjectURL(url)
-      setMessage('키워드 데이터를 JSON 파일로 내보냈습니다.')
+      setMessage(`✅ 키워드 데이터를 CSV 파일로 내보냈습니다. (${keywords.length}개)`)
     } catch (error) {
-      setMessage('데이터 내보내기에 실패했습니다.')
+      console.error('CSV 내보내기 실패:', error)
+      setMessage('❌ 데이터 내보내기에 실패했습니다: ' + (error as Error).message)
     }
   }
 
@@ -273,7 +327,7 @@ export default function DataPage() {
             disabled={keywords.length === 0}
             className="btn-primary disabled:opacity-50"
           >
-            JSON 내보내기
+            CSV 내보내기
           </button>
           <button
             onClick={handleClearAll}
@@ -576,7 +630,7 @@ export default function DataPage() {
           <p>• 데이터는 Cloudflare D1 데이터베이스에 안전하게 저장됩니다</p>
           <p>• 홈 페이지에서 수집한 키워드는 자동으로 이 페이지에 표시됩니다</p>
           <p>• "새로고침" 버튼을 클릭하여 최신 데이터를 불러올 수 있습니다</p>
-          <p>• 중요한 데이터는 "JSON 내보내기" 기능으로 백업하세요</p>
+          <p>• 중요한 데이터는 "CSV 내보내기" 기능으로 백업하세요</p>
           <p>• 데이터는 Pages Functions를 통해 D1에서 조회됩니다</p>
         </div>
       </div>
