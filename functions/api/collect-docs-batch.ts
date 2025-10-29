@@ -210,20 +210,17 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
 
       while (retryCount < maxRetries && !success) {
         try {
-          // 공식 문서 기준: query 파라미터는 UTF-8 인코딩 필수
+          // 공식 문서 기준: query 파라미터는 UTF-8 인코딩 필수 (예제 코드 기준)
           const apiUrl = `https://openapi.naver.com/v1/search/${searchType.type}.json`;
-          const params = new URLSearchParams({
-            query: keyword, // URLSearchParams가 자동으로 인코딩
-            display: '1', // 공식 문서: 1~100
-            start: '1' // 공식 문서: 1~1000
-          });
+          // 공식 문서 예제와 동일하게 encodeURIComponent 사용
+          const encodedQuery = encodeURIComponent(keyword);
+          const url = `${apiUrl}?query=${encodedQuery}&display=1&start=1`;
 
-          const response = await fetch(`${apiUrl}?${params}`, {
+          const response = await fetch(url, {
             method: 'GET',
             headers: {
               'X-Naver-Client-Id': apiKey.key,
-              'X-Naver-Client-Secret': apiKey.secret,
-              'Content-Type': 'application/json; charset=UTF-8'
+              'X-Naver-Client-Secret': apiKey.secret
             }
           });
 
