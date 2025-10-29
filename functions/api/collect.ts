@@ -453,8 +453,15 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 // HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용)
 async function generateHMACSignature(secret: string, message: string): Promise<string> {
   try {
-    // 네이버 API는 secret을 직접 사용
-    const secretBytes = new TextEncoder().encode(secret);
+    console.log('Generating HMAC signature:', {
+      secret: secret.substring(0, 8) + '...',
+      message,
+      secretLength: secret.length,
+      messageLength: message.length
+    });
+
+    // 네이버 API는 secret을 Base64 디코딩해서 사용해야 함
+    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
     const messageBytes = new TextEncoder().encode(message);
     
     const cryptoKey = await crypto.subtle.importKey(
@@ -467,9 +474,10 @@ async function generateHMACSignature(secret: string, message: string): Promise<s
     
     const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
     
-    // Cloudflare Workers에서 지원하는 표준 Base64 인코딩 사용
+    // Base64 인코딩
     const base64String = btoa(String.fromCharCode(...new Uint8Array(signature)));
     
+    console.log('Generated signature:', base64String.substring(0, 20) + '...');
     return base64String;
   } catch (error: any) {
     console.error('HMAC signature generation error:', error);
@@ -687,50 +695,11 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
   } catch (error: any) {
     console.error('Error collecting document counts from Naver OpenAPI:', error);
     
-    // API 실패 시 샘플 데이터로 폴백
-    console.log('Falling back to sample document counts due to API error');
-    return generateSampleDocCounts(keyword);
+    // API 실패 시 에러를 그대로 전파 (샘플 데이터 폴백 제거)
+    throw new Error(`네이버 오픈API 호출 실패: ${error.message}`);
   }
 }
 
-// 샘플 문서 수 생성 (API 실패 시 폴백)
-function generateSampleDocCounts(keyword: string) {
-  // 키워드 길이와 복잡성에 따라 샘플 문서 수 생성
-  const baseCount = keyword.length * 1000;
-  const randomFactor = Math.random() * 0.5 + 0.75; // 0.75 ~ 1.25 배수
-
-  return {
-    blog_total: Math.floor(baseCount * randomFactor),
-    cafe_total: Math.floor(baseCount * randomFactor * 0.8),
-    web_total: Math.floor(baseCount * randomFactor * 1.2),
-    news_total: Math.floor(baseCount * randomFactor * 0.3)
-  };
-}
-
-// 샘플 키워드 생성 (API 실패 시 폴백)
-function generateSampleKeywords(seed: string) {
-  const patterns = [
-    { suffix: '방법', pc: 1200, mob: 800, cpc: 500, comp: 80 },
-    { suffix: '가이드', pc: 900, mob: 600, cpc: 450, comp: 75 },
-    { suffix: '팁', pc: 700, mob: 500, cpc: 400, comp: 70 },
-    { suffix: '전략', pc: 600, mob: 400, cpc: 350, comp: 65 },
-    { suffix: '노하우', pc: 500, mob: 350, cpc: 300, comp: 60 },
-    { suffix: '기법', pc: 400, mob: 300, cpc: 250, comp: 55 },
-    { suffix: '활용법', pc: 350, mob: 250, cpc: 200, comp: 50 },
-    { suffix: '사례', pc: 300, mob: 200, cpc: 180, comp: 45 },
-    { suffix: '예시', pc: 250, mob: 180, cpc: 150, comp: 40 },
-    { suffix: '도구', pc: 200, mob: 150, cpc: 120, comp: 35 },
-  ];
-
-  return patterns.map(pattern => ({
-    keyword: `${seed} ${pattern.suffix}`,
-    monthly_search_pc: pattern.pc,
-    monthly_search_mob: pattern.mob,
-    avg_monthly_search: pattern.pc + pattern.mob,
-    cpc: pattern.cpc,
-    comp_index: pattern.comp
-  }));
-}
 
 // 네이버 API 테스트 처리
 async function handleTestNaverAPI(request: Request, env: any, corsHeaders: any) {
