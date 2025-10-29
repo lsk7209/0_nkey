@@ -1,6 +1,11 @@
 // Cloudflare Workers용 키워드 수집 API
 export default {
   async fetch(request: Request, env: any, ctx: any) {
+    console.log('🌐 메인 라우터 실행!');
+    console.log('📅 요청 시간:', new Date().toISOString());
+    console.log('🔗 요청 URL:', request.url);
+    console.log('📝 요청 메서드:', request.method);
+    
     // CORS 헤더 설정
     const corsHeaders = {
       'Access-Control-Allow-Origin': '*',
@@ -10,12 +15,14 @@ export default {
 
     // OPTIONS 요청 처리
     if (request.method === 'OPTIONS') {
+      console.log('🔄 OPTIONS 요청 처리');
       return new Response(null, { status: 200, headers: corsHeaders });
     }
 
     try {
       const url = new URL(request.url);
       const path = url.pathname;
+      console.log('🛤️ 요청 경로:', path);
 
           // 인증 확인
           const adminKey = request.headers.get('x-admin-key');
@@ -29,14 +36,19 @@ export default {
 
       switch (path) {
         case '/api/collect':
+          console.log('🎯 /api/collect 라우트 선택됨');
           return await handleCollect(request, env, corsHeaders);
         case '/api/collect-naver':
+          console.log('🎯 /api/collect-naver 라우트 선택됨');
           return await handleCollectFromNaver(request, env, corsHeaders);
         case '/api/collect-docs':
+          console.log('🎯 /api/collect-docs 라우트 선택됨');
           return await handleCollectDocs(request, env, corsHeaders);
         case '/api/keywords':
+          console.log('🎯 /api/keywords 라우트 선택됨');
           return await handleGetKeywords(request, env, corsHeaders);
             case '/api/health':
+              console.log('🎯 /api/health 라우트 선택됨');
               return new Response(
                 JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
                 { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -163,9 +175,14 @@ async function handleCollect(request: Request, env: any, corsHeaders: any) {
 
 // 네이버 API로 키워드 수집 처리
 async function handleCollectFromNaver(request: Request, env: any, corsHeaders: any) {
-  console.log('🚨 handleCollectFromNaver 함수가 실행되었습니다!');
+  console.log('🚨🚨🚨 handleCollectFromNaver 함수가 실행되었습니다! 🚨🚨🚨');
+  console.log('📅 실행 시간:', new Date().toISOString());
+  console.log('🔗 요청 URL:', request.url);
+  console.log('📝 요청 메서드:', request.method);
+  console.log('🔑 Admin Key:', request.headers.get('x-admin-key'));
   
   if (request.method !== 'POST') {
+    console.log('❌ 잘못된 메서드:', request.method);
     return new Response(
       JSON.stringify({ error: 'Method Not Allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -174,22 +191,28 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 
   let seed = '';
   try {
+    console.log('📥 요청 본문 파싱 시작...');
     const body = await request.json();
     seed = body.seed;
+    console.log('📝 파싱된 시드 키워드:', seed);
     
     if (!seed || typeof seed !== 'string') {
+      console.log('❌ 잘못된 시드 키워드:', seed);
       return new Response(
         JSON.stringify({ error: 'Invalid seed keyword' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Starting Naver API collection for seed: ${seed}`);
+    console.log(`🚀 Starting Naver API collection for seed: ${seed}`);
+    console.log('⏰ 현재 시간:', new Date().toISOString());
 
     // 공식 네이버 SearchAd API로 연관검색어 수집
-    console.log('About to call official Naver SearchAd API...');
+    console.log('📞 About to call official Naver SearchAd API...');
+    console.log('🔍 환경변수 확인 시작...');
     
     // 🚨 강제 에러 발생 - 실제 함수 실행 여부 확인
+    console.log('💥 강제 에러 발생 시도...');
     throw new Error('🚨 강제 에러 발생 - 이 메시지가 보이면 우리 코드가 실행되고 있습니다!');
     
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
@@ -337,10 +360,16 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
     );
 
   } catch (error: any) {
-    console.error('Naver collect error:', error);
+    console.error('💥 Naver collect error 발생!');
+    console.error('📅 에러 발생 시간:', new Date().toISOString());
+    console.error('🔍 에러 타입:', typeof error);
+    console.error('📝 에러 메시지:', error?.message);
+    console.error('📚 에러 스택:', error?.stack);
+    console.error('🔑 시드 키워드:', seed);
     
     // 네이버 API 키 문제로 인한 실패인 경우 명확한 메시지 제공
     if (error.message.includes('403') || error.message.includes('invalid-signature')) {
+      console.log('🔐 네이버 API 키 인증 실패 감지');
       return new Response(
         JSON.stringify({ 
           success: false, 
@@ -353,12 +382,14 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
       );
     }
     
+    console.log('🔄 일반 에러 응답 반환');
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: 'Failed to collect keywords from Naver API', 
         message: error?.message || 'Unknown error',
-        details: error?.toString()
+        details: error?.toString(),
+        timestamp: new Date().toISOString()
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
