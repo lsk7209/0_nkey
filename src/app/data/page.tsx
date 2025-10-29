@@ -30,12 +30,38 @@ interface KeywordData {
   created_at?: string
 }
 
+interface FilterValues {
+  minAvgSearch: string
+  maxAvgSearch: string
+  minCafeTotal: string
+  maxCafeTotal: string
+  minBlogTotal: string
+  maxBlogTotal: string
+  minWebTotal: string
+  maxWebTotal: string
+  minNewsTotal: string
+  maxNewsTotal: string
+}
+
 export default function DataPage() {
   const [keywords, setKeywords] = useState<KeywordData[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(20)
+  const [filters, setFilters] = useState<FilterValues>({
+    minAvgSearch: '',
+    maxAvgSearch: '',
+    minCafeTotal: '',
+    maxCafeTotal: '',
+    minBlogTotal: '',
+    maxBlogTotal: '',
+    minWebTotal: '',
+    maxWebTotal: '',
+    minNewsTotal: '',
+    maxNewsTotal: ''
+  })
+  const [showFilters, setShowFilters] = useState(false)
 
   useEffect(() => {
     loadKeywords()
@@ -44,8 +70,23 @@ export default function DataPage() {
   const loadKeywords = async () => {
     try {
       setLoading(true)
+      // 필터 파라미터 구성
+      const params = new URLSearchParams()
+      if (filters.minAvgSearch) params.append('minAvgSearch', filters.minAvgSearch)
+      if (filters.maxAvgSearch) params.append('maxAvgSearch', filters.maxAvgSearch)
+      if (filters.minCafeTotal) params.append('minCafeTotal', filters.minCafeTotal)
+      if (filters.maxCafeTotal) params.append('maxCafeTotal', filters.maxCafeTotal)
+      if (filters.minBlogTotal) params.append('minBlogTotal', filters.minBlogTotal)
+      if (filters.maxBlogTotal) params.append('maxBlogTotal', filters.maxBlogTotal)
+      if (filters.minWebTotal) params.append('minWebTotal', filters.minWebTotal)
+      if (filters.maxWebTotal) params.append('maxWebTotal', filters.maxWebTotal)
+      if (filters.minNewsTotal) params.append('minNewsTotal', filters.minNewsTotal)
+      if (filters.maxNewsTotal) params.append('maxNewsTotal', filters.maxNewsTotal)
+
+      const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
+      
       // Pages Functions를 통해 D1 데이터베이스에서 키워드 조회
-      const response = await fetch('https://0-nkey.pages.dev/api/keywords', {
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'x-admin-key': 'dev-key-2024'
@@ -77,6 +118,36 @@ export default function DataPage() {
   const handleClearAll = () => {
     // TODO: D1 데이터베이스 삭제 API 구현 필요
     setMessage('❌ 삭제 기능은 아직 구현되지 않았습니다. D1 데이터베이스에서 직접 삭제해주세요.')
+  }
+
+  const handleFilterChange = (field: keyof FilterValues, value: string) => {
+    setFilters(prev => ({
+      ...prev,
+      [field]: value
+    }))
+  }
+
+  const handleApplyFilters = () => {
+    setCurrentPage(1)
+    loadKeywords()
+  }
+
+  const handleResetFilters = () => {
+    setFilters({
+      minAvgSearch: '',
+      maxAvgSearch: '',
+      minCafeTotal: '',
+      maxCafeTotal: '',
+      minBlogTotal: '',
+      maxBlogTotal: '',
+      minWebTotal: '',
+      maxWebTotal: '',
+      minNewsTotal: '',
+      maxNewsTotal: ''
+    })
+    setCurrentPage(1)
+    // 필터 초기화 후 즉시 로드
+    setTimeout(() => loadKeywords(), 100)
   }
 
   const handleExport = () => {
@@ -162,6 +233,12 @@ export default function DataPage() {
             새로고침
           </button>
           <button
+            onClick={() => setShowFilters(!showFilters)}
+            className="btn-secondary"
+          >
+            {showFilters ? '필터 숨기기' : '필터 보기'}
+          </button>
+          <button
             onClick={handleExport}
             disabled={keywords.length === 0}
             className="btn-primary disabled:opacity-50"
@@ -176,6 +253,134 @@ export default function DataPage() {
             전체 삭제
           </button>
         </div>
+
+        {/* 필터 섹션 */}
+        {showFilters && (
+          <div className="border-t pt-6 mt-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">필터 설정</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* 총검색수 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">총검색수</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="최소"
+                    value={filters.minAvgSearch}
+                    onChange={(e) => handleFilterChange('minAvgSearch', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="최대"
+                    value={filters.maxAvgSearch}
+                    onChange={(e) => handleFilterChange('maxAvgSearch', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* 카페문서수 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">카페문서수</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="최소"
+                    value={filters.minCafeTotal}
+                    onChange={(e) => handleFilterChange('minCafeTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="최대"
+                    value={filters.maxCafeTotal}
+                    onChange={(e) => handleFilterChange('maxCafeTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* 블로그문서수 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">블로그문서수</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="최소"
+                    value={filters.minBlogTotal}
+                    onChange={(e) => handleFilterChange('minBlogTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="최대"
+                    value={filters.maxBlogTotal}
+                    onChange={(e) => handleFilterChange('maxBlogTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* 웹문서수 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">웹문서수</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="최소"
+                    value={filters.minWebTotal}
+                    onChange={(e) => handleFilterChange('minWebTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="최대"
+                    value={filters.maxWebTotal}
+                    onChange={(e) => handleFilterChange('maxWebTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                </div>
+              </div>
+
+              {/* 뉴스문서수 필터 */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">뉴스문서수</label>
+                <div className="flex space-x-2">
+                  <input
+                    type="number"
+                    placeholder="최소"
+                    value={filters.minNewsTotal}
+                    onChange={(e) => handleFilterChange('minNewsTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                  <input
+                    type="number"
+                    placeholder="최대"
+                    value={filters.maxNewsTotal}
+                    onChange={(e) => handleFilterChange('maxNewsTotal', e.target.value)}
+                    className="input-field flex-1"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex space-x-4 mt-4">
+              <button
+                onClick={handleApplyFilters}
+                className="btn-primary"
+              >
+                필터 적용
+              </button>
+              <button
+                onClick={handleResetFilters}
+                className="btn-secondary"
+              >
+                필터 초기화
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {keywords.length === 0 ? (

@@ -42,9 +42,69 @@ export async function onRequest(context: any) {
 
     console.log('🔍 Pages Functions - 키워드 조회 시작');
 
-    // D1 데이터베이스에서 키워드 조회 (문서수 포함)
+    // 필터 파라미터 파싱
+    const url = new URL(request.url);
+    const minAvgSearch = url.searchParams.get('minAvgSearch');
+    const maxAvgSearch = url.searchParams.get('maxAvgSearch');
+    const minCafeTotal = url.searchParams.get('minCafeTotal');
+    const maxCafeTotal = url.searchParams.get('maxCafeTotal');
+    const minBlogTotal = url.searchParams.get('minBlogTotal');
+    const maxBlogTotal = url.searchParams.get('maxBlogTotal');
+    const minWebTotal = url.searchParams.get('minWebTotal');
+    const maxWebTotal = url.searchParams.get('maxWebTotal');
+    const minNewsTotal = url.searchParams.get('minNewsTotal');
+    const maxNewsTotal = url.searchParams.get('maxNewsTotal');
+
+    // WHERE 절 조건 구성
+    const conditions: string[] = [];
+    const bindings: any[] = [];
+
+    if (minAvgSearch) {
+      conditions.push('k.avg_monthly_search >= ?');
+      bindings.push(parseInt(minAvgSearch));
+    }
+    if (maxAvgSearch) {
+      conditions.push('k.avg_monthly_search <= ?');
+      bindings.push(parseInt(maxAvgSearch));
+    }
+    if (minCafeTotal) {
+      conditions.push('COALESCE(ndc.cafe_total, 0) >= ?');
+      bindings.push(parseInt(minCafeTotal));
+    }
+    if (maxCafeTotal) {
+      conditions.push('COALESCE(ndc.cafe_total, 0) <= ?');
+      bindings.push(parseInt(maxCafeTotal));
+    }
+    if (minBlogTotal) {
+      conditions.push('COALESCE(ndc.blog_total, 0) >= ?');
+      bindings.push(parseInt(minBlogTotal));
+    }
+    if (maxBlogTotal) {
+      conditions.push('COALESCE(ndc.blog_total, 0) <= ?');
+      bindings.push(parseInt(maxBlogTotal));
+    }
+    if (minWebTotal) {
+      conditions.push('COALESCE(ndc.web_total, 0) >= ?');
+      bindings.push(parseInt(minWebTotal));
+    }
+    if (maxWebTotal) {
+      conditions.push('COALESCE(ndc.web_total, 0) <= ?');
+      bindings.push(parseInt(maxWebTotal));
+    }
+    if (minNewsTotal) {
+      conditions.push('COALESCE(ndc.news_total, 0) >= ?');
+      bindings.push(parseInt(minNewsTotal));
+    }
+    if (maxNewsTotal) {
+      conditions.push('COALESCE(ndc.news_total, 0) <= ?');
+      bindings.push(parseInt(maxNewsTotal));
+    }
+
+    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    // D1 데이터베이스에서 키워드 조회 (문서수 포함, 필터 적용)
     const db = env.DB;
-    const result = await db.prepare(`
+    const query = `
       SELECT 
         k.keyword,
         k.avg_monthly_search,
@@ -62,9 +122,17 @@ export async function onRequest(context: any) {
         COALESCE(ndc.news_total, 0) as news_total
       FROM keywords k
       LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+      ${whereClause}
       ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
       LIMIT 1000
-    `).all();
+    `;
+
+    let result;
+    if (bindings.length > 0) {
+      result = await db.prepare(query).bind(...bindings).all();
+    } else {
+      result = await db.prepare(query).all();
+    }
 
     console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
 
