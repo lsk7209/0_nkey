@@ -17,9 +17,9 @@ export default {
       const url = new URL(request.url);
       const path = url.pathname;
 
-      // 인증 확인
-      const adminKey = request.headers.get('x-admin-key');
-      if (!adminKey || adminKey !== env.ADMIN_KEY) {
+          // 인증 확인
+          const adminKey = request.headers.get('x-admin-key');
+          if (!adminKey || adminKey !== env.NAVER_ADMIN_KEY) {
         return new Response(
           JSON.stringify({ error: 'Unauthorized' }),
           { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
