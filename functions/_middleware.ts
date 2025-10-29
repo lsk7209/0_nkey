@@ -6,7 +6,7 @@ export async function onRequest(context: any) {
   // API 라우트 처리
   if (url.pathname.startsWith('/api/')) {
     // collect.ts의 핸들러를 직접 호출
-    const { default: handler } = await import('./api/collect.ts');
+    const { default: handler } = await import('./api/collect');
     return handler.fetch(request, env, context);
   }
   
