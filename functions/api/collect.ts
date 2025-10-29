@@ -28,7 +28,7 @@ export default {
 
           // 인증 확인
           const adminKey = request.headers.get('x-admin-key');
-          const expectedKey = env.NAVER_ADMIN_KEY || 'dev-key-2024';
+          const expectedKey = env.ADMIN_KEY || 'dev-key-2024';
           if (!adminKey || adminKey !== expectedKey) {
         return new Response(
           JSON.stringify({ error: 'Unauthorized' }),
@@ -980,18 +980,13 @@ async function handleDebugEnv(request: Request, env: any, corsHeaders: any) {
   }
 
   const envStatus = {
-    // 기존 환경변수들 확인
+    // 실제 Workers 설정에 맞는 환경변수들 확인
+    ADMIN_KEY: env.ADMIN_KEY ? '✅ 설정됨' : '❌ 미설정',
     NAVER_API_KEY_1: env.NAVER_API_KEY_1 ? '✅ 설정됨' : '❌ 미설정',
     NAVER_API_SECRET_1: env.NAVER_API_SECRET_1 ? '✅ 설정됨' : '❌ 미설정',
     NAVER_CUSTOMER_ID_1: env.NAVER_CUSTOMER_ID_1 ? '✅ 설정됨' : '❌ 미설정',
-    NAVER_API_KEY_2: env.NAVER_API_KEY_2 ? '✅ 설정됨' : '❌ 미설정',
-    NAVER_API_SECRET_2: env.NAVER_API_SECRET_2 ? '✅ 설정됨' : '❌ 미설정',
-    NAVER_CUSTOMER_ID_2: env.NAVER_CUSTOMER_ID_2 ? '✅ 설정됨' : '❌ 미설정',
-    // 공식 API 환경변수들 (선택사항)
-    SEARCHAD_BASE: env.SEARCHAD_BASE ? '✅ 설정됨' : '❌ 미설정 (기본값 사용)',
-    SEARCHAD_API_KEY: env.SEARCHAD_API_KEY ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)',
-    SEARCHAD_SECRET: env.SEARCHAD_SECRET ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)',
-    SEARCHAD_CUSTOMER_ID: env.SEARCHAD_CUSTOMER_ID ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)'
+    NAVER_OPENAPI_KEY_1: env.NAVER_OPENAPI_KEY_1 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_OPENAPI_SECRET_1: env.NAVER_OPENAPI_SECRET_1 ? '✅ 설정됨' : '❌ 미설정'
   };
 
   return new Response(
