@@ -1,5 +1,5 @@
 // Cloudflare Pages Functions 라우트 설정
-export async function onRequest(context) {
+export async function onRequest(context: any) {
   const { request, env } = context;
   const url = new URL(request.url);
   
