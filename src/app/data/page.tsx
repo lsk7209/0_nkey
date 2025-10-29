@@ -98,6 +98,21 @@ export default function DataPage() {
         if (data.success && Array.isArray(data.keywords)) {
           setKeywords(data.keywords)
           setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개의 키워드를 불러왔습니다.`)
+          
+          // 문서수가 없는 키워드 자동 수집
+          const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) => 
+            !kw.blog_total && !kw.cafe_total && !kw.web_total && !kw.news_total
+          )
+          
+          if (keywordsWithoutDocCounts.length > 0) {
+            console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 자동 수집 시작`)
+            setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 수집 중... (${keywordsWithoutDocCounts.length}개)`)
+            
+            // 백그라운드에서 문서수 수집 (비동기)
+            collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20)).catch(err => {
+              console.error('자동 문서수 수집 실패:', err)
+            })
+          }
         } else {
           setKeywords([])
           setMessage('키워드 데이터를 찾을 수 없습니다.')
@@ -112,6 +127,35 @@ export default function DataPage() {
       setKeywords([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 문서수가 없는 키워드들의 문서수 자동 수집
+  const collectDocCountsForKeywords = async (keywordsToCollect: KeywordData[]) => {
+    try {
+      const response = await fetch('https://0-nkey.pages.dev/api/collect-docs-batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'dev-key-2024'
+        },
+        body: JSON.stringify({
+          keywords: keywordsToCollect.map(kw => kw.keyword)
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success) {
+          console.log(`✅ ${data.successCount}개 키워드의 문서수 수집 완료`)
+          // 수집 완료 후 키워드 목록 다시 로드
+          setTimeout(() => {
+            loadKeywords()
+          }, 1000)
+        }
+      }
+    } catch (error) {
+      console.error('문서수 수집 실패:', error)
     }
   }
 

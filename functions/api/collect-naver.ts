@@ -167,6 +167,54 @@ export async function onRequest(context: any) {
           ).run();
           savedCount++;
         }
+
+        // 문서수 수집 (최대 10개까지, API 제한 고려)
+        if (savedCount + updatedCount <= 10) {
+          try {
+            const docCounts = await collectDocCountsFromNaver(keyword.keyword, env);
+            if (docCounts) {
+              const keywordRecord = await db.prepare(
+                'SELECT id FROM keywords WHERE keyword = ?'
+              ).bind(keyword.keyword).first();
+
+              if (keywordRecord) {
+                const existingDocCount = await db.prepare(
+                  'SELECT id FROM naver_doc_counts WHERE keyword_id = ?'
+                ).bind(keywordRecord.id).first();
+
+                if (existingDocCount) {
+                  await db.prepare(`
+                    UPDATE naver_doc_counts 
+                    SET blog_total = ?, cafe_total = ?, web_total = ?, news_total = ?, collected_at = CURRENT_TIMESTAMP
+                    WHERE keyword_id = ?
+                  `).bind(
+                    docCounts.blog_total || 0,
+                    docCounts.cafe_total || 0,
+                    docCounts.web_total || 0,
+                    docCounts.news_total || 0,
+                    keywordRecord.id
+                  ).run();
+                } else {
+                  await db.prepare(`
+                    INSERT INTO naver_doc_counts (keyword_id, blog_total, cafe_total, web_total, news_total)
+                    VALUES (?, ?, ?, ?, ?)
+                  `).bind(
+                    keywordRecord.id,
+                    docCounts.blog_total || 0,
+                    docCounts.cafe_total || 0,
+                    docCounts.web_total || 0,
+                    docCounts.news_total || 0
+                  ).run();
+                }
+              }
+            }
+            // API 호출 간격 조절 (Rate Limit 방지)
+            await new Promise(resolve => setTimeout(resolve, 300));
+          } catch (docError: any) {
+            console.error(`문서수 수집 실패 (${keyword.keyword}):`, docError.message);
+            // 문서수 수집 실패해도 키워드 저장은 성공으로 처리
+          }
+        }
       } catch (dbError: any) {
         console.error(`데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
         console.error('에러 상세:', dbError.message, dbError.stack);
@@ -382,4 +430,88 @@ function normalizeSearchCount(value: string | number): number {
     return parseInt(str.replace('<', '').replace(' ', '')) || 0;
   }
   return parseInt(str) || 0;
+}
+
+// 네이버 오픈API로 문서 수 수집
+async function collectDocCountsFromNaver(keyword: string, env: any) {
+  try {
+    // 사용 가능한 네이버 오픈API 키 찾기
+    const openApiKeys = [
+      { key: env.NAVER_OPENAPI_KEY_1, secret: env.NAVER_OPENAPI_SECRET_1 },
+      { key: env.NAVER_OPENAPI_KEY_2, secret: env.NAVER_OPENAPI_SECRET_2 },
+      { key: env.NAVER_OPENAPI_KEY_3, secret: env.NAVER_OPENAPI_SECRET_3 },
+      { key: env.NAVER_OPENAPI_KEY_4, secret: env.NAVER_OPENAPI_SECRET_4 },
+      { key: env.NAVER_OPENAPI_KEY_5, secret: env.NAVER_OPENAPI_SECRET_5 },
+      { key: env.NAVER_OPENAPI_KEY_6, secret: env.NAVER_OPENAPI_SECRET_6 },
+      { key: env.NAVER_OPENAPI_KEY_7, secret: env.NAVER_OPENAPI_SECRET_7 },
+      { key: env.NAVER_OPENAPI_KEY_8, secret: env.NAVER_OPENAPI_SECRET_8 },
+      { key: env.NAVER_OPENAPI_KEY_9, secret: env.NAVER_OPENAPI_SECRET_9 },
+      { key: env.NAVER_OPENAPI_KEY_10, secret: env.NAVER_OPENAPI_SECRET_10 }
+    ].filter(api => api.key && api.secret);
+
+    if (openApiKeys.length === 0) {
+      throw new Error('네이버 오픈API 키가 설정되지 않았습니다.');
+    }
+
+    // 첫 번째 사용 가능한 API 키 사용
+    const apiKey = openApiKeys[0];
+    console.log(`Using Naver OpenAPI key: ${apiKey.key.substring(0, 8)}...`);
+
+    const docCounts: { [key: string]: number } = {
+      blog_total: 0,
+      cafe_total: 0,
+      web_total: 0,
+      news_total: 0
+    };
+
+    // 각 검색 타입별로 문서 수 수집
+    const searchTypes = [
+      { type: 'blog', field: 'blog_total' },
+      { type: 'cafearticle', field: 'cafe_total' },
+      { type: 'webkr', field: 'web_total' },
+      { type: 'news', field: 'news_total' }
+    ];
+
+    for (const searchType of searchTypes) {
+      try {
+        const apiUrl = `https://openapi.naver.com/v1/search/${searchType.type}.json`;
+        const params = new URLSearchParams({
+          query: keyword,
+          display: '1', // 문서 수만 필요하므로 최소한으로 설정
+          start: '1'
+        });
+
+        const response = await fetch(`${apiUrl}?${params}`, {
+          method: 'GET',
+          headers: {
+            'X-Naver-Client-Id': apiKey.key,
+            'X-Naver-Client-Secret': apiKey.secret
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          docCounts[searchType.field] = parseInt(data.total) || 0;
+          console.log(`${searchType.type} total: ${docCounts[searchType.field]}`);
+        } else {
+          console.error(`Failed to get ${searchType.type} count: ${response.status}`);
+          docCounts[searchType.field] = 0;
+        }
+
+        // API 호출 간격 조절 (Rate Limit 방지)
+        await new Promise(resolve => setTimeout(resolve, 100));
+
+      } catch (error: any) {
+        console.error(`Error collecting ${searchType.type} count:`, error);
+        docCounts[searchType.field] = 0;
+      }
+    }
+
+    console.log(`Collected document counts for "${keyword}":`, docCounts);
+    return docCounts;
+
+  } catch (error: any) {
+    console.error('Error collecting document counts from Naver OpenAPI:', error);
+    throw new Error(`네이버 오픈API 호출 실패: ${error.message}`);
+  }
 }
