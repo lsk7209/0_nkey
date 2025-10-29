@@ -95,40 +95,81 @@ export async function onRequest(context: any) {
 
     for (const keyword of keywords) {
       try {
+        // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
         const existing = await db.prepare(
           'SELECT id FROM keywords WHERE keyword = ?'
         ).bind(keyword.keyword).first();
 
         if (existing) {
+          // 기존 키워드 업데이트 - 스키마에 맞게 컬럼명 수정
           await db.prepare(`
             UPDATE keywords SET 
-              pc_search = ?, mobile_search = ?, avg_monthly_search = ?,
-              monthly_click_pc = ?, monthly_click_mo = ?, ctr_pc = ?, ctr_mo = ?,
-              ad_count = ?, comp_idx = ?, updated_at = ?
+              monthly_search_pc = ?, monthly_search_mob = ?, avg_monthly_search = ?,
+              seed_keyword_text = ?, comp_index = ?, updated_at = ?
             WHERE keyword = ?
           `).bind(
             keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search,
-            keyword.monthly_click_pc, keyword.monthly_click_mo, keyword.ctr_pc, keyword.ctr_mo,
-            keyword.ad_count, keyword.comp_idx, new Date().toISOString(),
+            seed.trim(), keyword.comp_idx || 0, new Date().toISOString(),
             keyword.keyword
           ).run();
+
+          // keyword_metrics 테이블 업데이트 또는 삽입
+          const existingMetrics = await db.prepare(
+            'SELECT id FROM keyword_metrics WHERE keyword_id = ?'
+          ).bind(existing.id).first();
+
+          if (existingMetrics) {
+            await db.prepare(`
+              UPDATE keyword_metrics SET
+                monthly_click_pc = ?, monthly_click_mobile = ?, ctr_pc = ?, ctr_mobile = ?, ad_count = ?
+              WHERE keyword_id = ?
+            `).bind(
+              keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+              keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0,
+              existing.id
+            ).run();
+          } else {
+            await db.prepare(`
+              INSERT INTO keyword_metrics (
+                keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(
+              existing.id,
+              keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+              keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
+            ).run();
+          }
           updatedCount++;
         } else {
-          await db.prepare(`
+          // 새 키워드 삽입 - 스키마에 맞게 컬럼명 수정
+          const insertResult = await db.prepare(`
             INSERT INTO keywords (
-              keyword, pc_search, mobile_search, avg_monthly_search,
-              monthly_click_pc, monthly_click_mo, ctr_pc, ctr_mo,
-              ad_count, comp_idx, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob, 
+              avg_monthly_search, comp_index, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `).bind(
-            keyword.keyword, keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search,
-            keyword.monthly_click_pc, keyword.monthly_click_mo, keyword.ctr_pc, keyword.ctr_mo,
-            keyword.ad_count, keyword.comp_idx, new Date().toISOString(), new Date().toISOString()
+            keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
+            keyword.avg_monthly_search, keyword.comp_idx || 0,
+            new Date().toISOString(), new Date().toISOString()
+          ).run();
+
+          const keywordId = insertResult.meta.last_row_id;
+
+          // keyword_metrics 테이블에 메트릭 데이터 삽입
+          await db.prepare(`
+            INSERT INTO keyword_metrics (
+              keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
+            ) VALUES (?, ?, ?, ?, ?, ?)
+          `).bind(
+            keywordId,
+            keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+            keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
           ).run();
           savedCount++;
         }
-      } catch (dbError) {
+      } catch (dbError: any) {
         console.error(`데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
+        console.error('에러 상세:', dbError.message, dbError.stack);
       }
     }
 
