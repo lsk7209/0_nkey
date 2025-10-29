@@ -367,11 +367,20 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
       showDetail: '1'
     });
 
-    // HMAC-SHA256 시그니처 생성
+    // HMAC-SHA256 시그니처 생성 (네이버 공식 문서 기준)
     const timestamp = Date.now().toString();
     const method = 'GET';
     const uri = '/keywordstool';
     const message = `${timestamp}.${method}.${uri}`;
+    
+    console.log('Signature generation details:', {
+      timestamp,
+      method,
+      uri,
+      message,
+      secret: apiKey.secret.substring(0, 8) + '...'
+    });
+    
     const signature = await generateHMACSignature(apiKey.secret, message);
 
     console.log(`네이버 API 호출 시작:`, {
@@ -450,20 +459,22 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
       }
     }
 
-// HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용)
+// HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용 - 공식 문서 기준)
 async function generateHMACSignature(secret: string, message: string): Promise<string> {
   try {
-    console.log('Generating HMAC signature:', {
+    console.log('Generating HMAC signature (Naver official method):', {
       secret: secret.substring(0, 8) + '...',
       message,
       secretLength: secret.length,
       messageLength: message.length
     });
 
-    // 네이버 API는 secret을 직접 사용 (Base64 디코딩하지 않음)
-    const secretBytes = new TextEncoder().encode(secret);
+    // 네이버 API 공식 문서에 따른 시그니처 생성
+    // 1. secret을 Base64 디코딩
+    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
     const messageBytes = new TextEncoder().encode(message);
     
+    // 2. HMAC-SHA256 생성
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       secretBytes,
@@ -474,10 +485,10 @@ async function generateHMACSignature(secret: string, message: string): Promise<s
     
     const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
     
-    // Base64 인코딩
+    // 3. Base64 인코딩
     const base64String = btoa(String.fromCharCode(...new Uint8Array(signature)));
     
-    console.log('Generated signature:', base64String.substring(0, 20) + '...');
+    console.log('Generated signature (Base64):', base64String.substring(0, 20) + '...');
     return base64String;
   } catch (error: any) {
     console.error('HMAC signature generation error:', error);
