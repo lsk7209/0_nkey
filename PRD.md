@@ -5,6 +5,38 @@
 
 ---
 
+## 📋 네이버 오픈API 공식 문서
+
+> **⚠️ 중요**: 네이버 오픈API 구현은 반드시 다음 공식 문서를 따라야 합니다.
+> **절대 변경 금지**: 이 문서의 규칙은 절대 변경되거나 무시되어서는 안 됩니다.
+
+### 📄 공식 문서 위치
+- **파일**: `NAVER_OPENAPI_OFFICIAL_DOCS.md`
+- **깃허브**: https://github.com/lsk7209/0_nkey/blob/main/NAVER_OPENAPI_OFFICIAL_DOCS.md
+- **상태**: 절대 변경 금지 문서
+
+### 🔑 핵심 규칙 요약
+1. **Base URL**: `https://openapi.naver.com`
+2. **인증**: X-Naver-Client-Id, X-Naver-Client-Secret 헤더 필수
+3. **메서드**: GET
+4. **쿼터**: 하루 25,000회 (검색 API 전체 합산)
+5. **주요 서비스**: 블로그, 카페글, 웹문서, 뉴스 검색
+6. **응답**: total 필드로 문서수 확인
+7. **보안**: 프론트에서 직접 호출 금지, 백엔드 프록시 필수
+
+### ✅ 구현 상태
+- [x] 환경변수 설정 완료 (NAVER_OPENAPI_KEY_1~9, NAVER_OPENAPI_SECRET_1~9)
+- [x] 인증 헤더 구현 완료 (X-Naver-Client-Id, X-Naver-Client-Secret)
+- [x] 블로그 검색 API 구현 완료
+- [x] 카페글 검색 API 구현 완료
+- [x] 웹문서 검색 API 구현 완료
+- [x] 뉴스 검색 API 구현 완료
+- [x] 문서수 자동 수집 구현 완료
+- [x] 에러 처리 및 재시도 로직 구현 완료
+- [x] Cloudflare Workers 배포 완료
+
+---
+
 ## 📋 네이버 검색광고 API 공식 문서
 
 > **⚠️ 중요**: 네이버 검색광고 API 구현은 반드시 다음 공식 문서를 따라야 합니다.
