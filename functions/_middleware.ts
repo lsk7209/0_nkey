@@ -10,6 +10,6 @@ export async function onRequest(context: any) {
     return handler.fetch(request, env, context);
   }
   
-  // 기본 응답
-  return new Response('Not Found', { status: 404 });
+  // 정적 파일 요청은 그대로 통과
+  return context.next();
 }
