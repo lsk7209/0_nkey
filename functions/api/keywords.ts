@@ -42,9 +42,23 @@ export async function onRequest(context: any) {
 
     console.log('🔍 Pages Functions - 키워드 조회 시작');
 
-    // 🚨 강제 에러 발생 - Pages Functions 실행 확인
-    console.log('💥 Pages Functions에서 강제 에러 발생 시도...');
-    throw new Error('🚨 Pages Functions keywords에서 강제 에러 발생 - 이 메시지가 보이면 Pages Functions가 실행되고 있습니다!');
+    // D1 데이터베이스에서 키워드 조회
+    const db = env.DB;
+    const result = await db.prepare(
+      'SELECT * FROM keywords ORDER BY avg_monthly_search DESC LIMIT 100'
+    ).all();
+
+    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        keywords: result.results || [],
+        total: result.results?.length || 0,
+        message: `${result.results?.length || 0}개의 키워드를 조회했습니다.`
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
   } catch (error: any) {
     console.error('💥 Pages Functions keywords 에러 발생!');
