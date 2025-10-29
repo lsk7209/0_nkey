@@ -1,10 +1,12 @@
 // Cloudflare Workers용 키워드 수집 API
 export default {
   async fetch(request: Request, env: any, ctx: any) {
-    console.log('🌐 메인 라우터 실행!');
-    console.log('📅 요청 시간:', new Date().toISOString());
-    console.log('🔗 요청 URL:', request.url);
-    console.log('📝 요청 메서드:', request.method);
+    const uniqueId = Math.random().toString(36).substring(7);
+    console.log(`🌐 [${uniqueId}] 메인 라우터 실행!`);
+    console.log(`📅 [${uniqueId}] 요청 시간:`, new Date().toISOString());
+    console.log(`🔗 [${uniqueId}] 요청 URL:`, request.url);
+    console.log(`📝 [${uniqueId}] 요청 메서드:`, request.method);
+    console.log(`🚨 [${uniqueId}] 고유 ID: ${uniqueId} - 이 로그가 보이면 우리 코드가 실행되고 있습니다!`);
     
     // CORS 헤더 설정
     const corsHeaders = {
@@ -15,14 +17,14 @@ export default {
 
     // OPTIONS 요청 처리
     if (request.method === 'OPTIONS') {
-      console.log('🔄 OPTIONS 요청 처리');
+      console.log(`🔄 [${uniqueId}] OPTIONS 요청 처리`);
       return new Response(null, { status: 200, headers: corsHeaders });
     }
 
     try {
       const url = new URL(request.url);
       const path = url.pathname;
-      console.log('🛤️ 요청 경로:', path);
+      console.log(`🛤️ [${uniqueId}] 요청 경로:`, path);
 
           // 인증 확인
           const adminKey = request.headers.get('x-admin-key');
@@ -54,8 +56,13 @@ export default {
                 { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
         case '/api/debug/env':
+          console.log('🎯 /api/debug/env 라우트 선택됨');
           return await handleDebugEnv(request, env, corsHeaders);
+        case '/api/debug/logs':
+          console.log('🎯 /api/debug/logs 라우트 선택됨');
+          return await handleDebugLogs(request, env, corsHeaders);
         default:
+          console.log('❌ 알 수 없는 경로:', path);
           return new Response(
             JSON.stringify({ error: 'Not Found' }),
             { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -930,6 +937,37 @@ async function handleTestNaverAPI(request: Request, env: any, corsHeaders: any) 
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+}
+
+// 로그 디버그 함수
+async function handleDebugLogs(request: Request, env: any, corsHeaders: any) {
+  if (request.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: 'Method Not Allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const logInfo = {
+    timestamp: new Date().toISOString(),
+    message: '로그 디버그 엔드포인트 호출됨',
+    request_url: request.url,
+    request_method: request.method,
+    user_agent: request.headers.get('user-agent'),
+    admin_key: request.headers.get('x-admin-key'),
+    test_message: '🚨 이 메시지가 보이면 우리 코드가 실행되고 있습니다!'
+  };
+
+  console.log('🔍 로그 디버그 함수 실행:', logInfo);
+
+  return new Response(
+    JSON.stringify({
+      message: '로그 디버그 정보',
+      logs: logInfo,
+      recommendation: '이 응답이 보이면 우리가 수정한 코드가 실행되고 있습니다.'
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 // 환경변수 디버그 함수
