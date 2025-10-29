@@ -29,13 +29,13 @@ export default function Home() {
     setKeywords([]) // 기존 키워드 초기화
 
     try {
-      // 공식 네이버 SearchAd API 호출 (Cloudflare Workers를 통한 프록시)
-      console.log('공식 네이버 SearchAd API 호출 시작:', {
-        url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver',
-        seed: seed.trim()
-      })
+            // 공식 네이버 SearchAd API 호출 (Cloudflare Pages Functions를 통한 프록시)
+            console.log('공식 네이버 SearchAd API 호출 시작:', {
+              url: 'https://0-nkey.pages.dev/api/collect-naver',
+              seed: seed.trim()
+            })
 
-      const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver', {
+            const response = await fetch('https://0-nkey.pages.dev/api/collect-naver', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,8 +96,8 @@ export default function Home() {
 
   const handleLoadStored = async () => {
     try {
-      // 클라우드플레어 D1 데이터베이스에서 키워드 조회
-      const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords', {
+        // 클라우드플레어 D1 데이터베이스에서 키워드 조회
+        const response = await fetch('https://0-nkey.pages.dev/api/keywords', {
         method: 'GET',
         headers: {
           'x-admin-key': 'dev-key-2024'
