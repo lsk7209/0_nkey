@@ -10,6 +10,4 @@ binding = "DB"
 database_name = "0_nkey_db"
 database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
 
-# 환경 변수
-[vars]
-NAVER_ADMIN_KEY = "dev-key-2024"
+# 환경 변수는 Cloudflare Pages 대시보드에서 관리
