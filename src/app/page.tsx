@@ -17,30 +17,6 @@ export default function Home() {
   const [message, setMessage] = useState('')
   const [keywords, setKeywords] = useState<KeywordData[]>([])
 
-  // 시뮬레이션 데이터 생성 함수
-  const generateMockKeywords = (seedKeyword: string): KeywordData[] => {
-    const mockPatterns = [
-      { suffix: '맛집', pc: 10000, mob: 20000, cpc: 1000, comp: 90 },
-      { suffix: '카페', pc: 5000, mob: 10000, cpc: 800, comp: 85 },
-      { suffix: '데이트', pc: 3000, mob: 7000, cpc: 700, comp: 80 },
-      { suffix: '가볼만한곳', pc: 2000, mob: 5000, cpc: 600, comp: 75 },
-      { suffix: '추천', pc: 1500, mob: 4000, cpc: 550, comp: 70 },
-      { suffix: '존맛탱', pc: 1000, mob: 3000, cpc: 500, comp: 65 },
-      { suffix: '술집', pc: 800, mob: 2500, cpc: 450, comp: 60 },
-      { suffix: '파스타', pc: 700, mob: 2000, cpc: 400, comp: 55 },
-      { suffix: '스테이크', pc: 600, mob: 1800, cpc: 380, comp: 50 },
-      { suffix: '혼밥', pc: 500, mob: 1500, cpc: 350, comp: 45 },
-    ]
-
-    return mockPatterns.map(pattern => ({
-      keyword: `${seedKeyword} ${pattern.suffix}`,
-      monthly_search_pc: pattern.pc,
-      monthly_search_mob: pattern.mob,
-      avg_monthly_search: pattern.pc + pattern.mob,
-      cpc: pattern.cpc,
-      comp_index: pattern.comp
-    }))
-  }
 
   const handleCollect = async () => {
     if (!seed.trim()) {
@@ -50,68 +26,69 @@ export default function Home() {
 
     setLoading(true)
     setMessage('')
+    setKeywords([]) // 기존 키워드 초기화
 
     try {
-      // 시뮬레이션 지연
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // 시뮬레이션 데이터 생성
-      const mockKeywords = generateMockKeywords(seed.trim())
-      
-      if (mockKeywords.length === 0) {
-        setMessage('수집된 연관검색어가 없습니다.')
-        setLoading(false)
-        return
-      }
+      // Cloudflare Workers API로 실제 네이버 API 호출
+      console.log('네이버 API 호출 시작:', {
+        url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver',
+        seed: seed.trim()
+      })
 
-      setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다.`)
-      setKeywords(mockKeywords)
-      
-          // Cloudflare Workers API로 실제 네이버 API 호출 시도
-          try {
-            console.log('네이버 API 호출 시작:', {
-              url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver',
-              seed: seed.trim()
-            })
+      const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'dev-key-2024'
+        },
+        body: JSON.stringify({
+          seed: seed.trim()
+        })
+      })
 
-            const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-admin-key': 'dev-key-2024'
-              },
-              body: JSON.stringify({
-                seed: seed.trim()
-              })
-            })
+      console.log('API 응답 상태:', response.status, response.statusText)
 
-        console.log('API 응답 상태:', response.status, response.statusText)
-
-        if (response.ok) {
-          const result = await response.json()
-          console.log('API 성공 응답:', result)
-          setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
-        } else {
-          const errorResult = await response.json()
-          console.error('API 에러 응답:', response.status, errorResult)
-          
-          // 네이버 API 키 문제인 경우 특별 처리
-          if (errorResult.error && errorResult.error.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
-            setMessage(`❌ 네이버 API 키 문제: ${errorResult.error}\n\n해결 방법: ${errorResult.solution || '관리자에게 문의하세요.'}`)
-          } else {
-            throw new Error(`API 저장 실패: ${response.status} - ${errorResult.message || 'Unknown error'}`)
-          }
-        }
-      } catch (apiError: any) {
-        console.error('API 호출 에러:', apiError)
+      if (response.ok) {
+        const result = await response.json()
+        console.log('API 성공 응답:', result)
         
-        // API 실패 시 에러 메시지 표시 (로컬 스토리지 저장 제거)
-        setMessage(`❌ 클라우드 데이터베이스 저장 실패: ${apiError?.message || 'Unknown error'}. 미리보기 데이터만 표시됩니다.`)
+        if (result.success) {
+          setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
+          
+          // 실제 수집된 키워드 데이터를 표시하기 위해 데이터베이스에서 조회
+          try {
+            const keywordsResponse = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords', {
+              method: 'GET',
+              headers: {
+                'x-admin-key': 'dev-key-2024'
+              }
+            })
+            
+            if (keywordsResponse.ok) {
+              const keywordsResult = await keywordsResponse.json()
+              setKeywords(keywordsResult.keywords || [])
+            }
+          } catch (error) {
+            console.error('키워드 조회 실패:', error)
+          }
+        } else {
+          setMessage(`❌ 실패: ${result.message}`)
+        }
+      } else {
+        const errorResult = await response.json()
+        console.error('API 에러 응답:', response.status, errorResult)
+        
+        // 네이버 API 키 문제인 경우 특별 처리
+        if (errorResult.error && errorResult.error.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
+          setMessage(`❌ 네이버 API 키 문제: ${errorResult.error}\n\n해결 방법: ${errorResult.solution || '관리자에게 문의하세요.'}`)
+        } else {
+          setMessage(`❌ API 호출 실패: ${errorResult.message || 'Unknown error'}`)
+        }
       }
       
     } catch (error) {
       console.error('키워드 수집 에러:', error)
-      setMessage('오류가 발생했습니다: ' + (error as Error).message)
+      setMessage('❌ 오류가 발생했습니다: ' + (error as Error).message)
     } finally {
       setLoading(false)
     }
