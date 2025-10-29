@@ -170,8 +170,10 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
     );
   }
 
+  let seed = '';
   try {
-    const { seed } = await request.json();
+    const body = await request.json();
+    seed = body.seed;
     
     if (!seed || typeof seed !== 'string') {
       return new Response(
