@@ -92,9 +92,15 @@ export default function Home() {
           console.log('API 성공 응답:', result)
           setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
         } else {
-          const errorText = await response.text()
-          console.error('API 에러 응답:', response.status, errorText)
-          throw new Error(`API 저장 실패: ${response.status} - ${errorText}`)
+          const errorResult = await response.json()
+          console.error('API 에러 응답:', response.status, errorResult)
+          
+          // 네이버 API 키 문제인 경우 특별 처리
+          if (errorResult.error && errorResult.error.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
+            setMessage(`❌ 네이버 API 키 문제: ${errorResult.error}\n\n해결 방법: ${errorResult.solution || '관리자에게 문의하세요.'}`)
+          } else {
+            throw new Error(`API 저장 실패: ${response.status} - ${errorResult.message || 'Unknown error'}`)
+          }
         }
       } catch (apiError: any) {
         console.error('API 호출 에러:', apiError)

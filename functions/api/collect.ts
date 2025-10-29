@@ -193,6 +193,21 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
       });
     } catch (error: any) {
       console.error('Naver API collection failed:', error);
+      
+      // 네이버 API 키 문제로 인한 실패인 경우 명확한 메시지 제공
+      if (error.message.includes('403') || error.message.includes('invalid-signature')) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            message: `❌ 네이버 API 키 인증 실패: ${error.message}`,
+            seed: seed.trim(),
+            error: '네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다. 관리자에게 문의하세요.',
+            solution: '네이버 검색광고 API 콘솔에서 키 상태를 확인하고 새로운 키를 발급받아주세요.'
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
       return new Response(
         JSON.stringify({ 
           success: false, 
