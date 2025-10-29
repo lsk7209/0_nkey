@@ -13,15 +13,15 @@ export async function onRequest(context: any) {
       // 특정 API 엔드포인트별 라우팅
       if (path === '/api/collect-naver') {
         console.log('🎯 collect-naver 라우트 선택');
-        const { default: handler } = await import('./api/collect-naver');
+        const handler = await import('./api/collect-naver');
         return handler.onRequest(context);
       } else if (path === '/api/keywords') {
         console.log('🎯 keywords 라우트 선택');
-        const { default: handler } = await import('./api/keywords');
+        const handler = await import('./api/keywords');
         return handler.onRequest(context);
       } else if (path === '/api/test') {
         console.log('🎯 test 라우트 선택');
-        const { default: handler } = await import('./api/test');
+        const handler = await import('./api/test');
         return handler.onRequest(context);
       } else if (path === '/api/collect') {
         console.log('🎯 collect 라우트 선택');
