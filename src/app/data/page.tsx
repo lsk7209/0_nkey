@@ -1,16 +1,31 @@
+/**
+ * ⚠️ 헌법 준수 필수 (CONSTITUTION.md)
+ * 
+ * 절대 변경 금지 사항:
+ * - Pages Functions URL 사용 (https://0-nkey.pages.dev/api/keywords)
+ * - 필드명 변경 금지 (pc_search, mobile_search 등)
+ * - D1 데이터베이스만 사용 (로컬 스토리지 제거)
+ * 
+ * 헌법 문서: CONSTITUTION.md (절대 변경 금지)
+ */
+
 'use client'
 
 import { useState, useEffect } from 'react'
 
 interface KeywordData {
   keyword: string
-  seed: string
-  monthly_search_pc: number
-  monthly_search_mob: number
+  pc_search: number
+  mobile_search: number
   avg_monthly_search: number
-  cpc?: number
-  comp_index?: number
-  created_at: string
+  monthly_click_pc?: number
+  monthly_click_mo?: number
+  ctr_pc?: number
+  ctr_mo?: number
+  ad_count?: number
+  comp_idx?: string | number
+  created_at?: string
+  updated_at?: string
 }
 
 export default function DataPage() {
@@ -26,41 +41,40 @@ export default function DataPage() {
 
   const loadKeywords = async () => {
     try {
-      // 먼저 클라우드 데이터베이스에서 시도
-      try {
-        const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords?page=1&limit=1000', {
-          headers: {
-            'x-admin-key': 'dev-key-2024'
-          }
-        })
-
-        if (response.ok) {
-      const data = await response.json()
-      setKeywords(data.keywords)
-          setMessage(`클라우드 데이터베이스에서 ${data.keywords.length}개의 키워드를 불러왔습니다.`)
-          return
+      setLoading(true)
+      // Pages Functions를 통해 D1 데이터베이스에서 키워드 조회
+      const response = await fetch('https://0-nkey.pages.dev/api/keywords', {
+        method: 'GET',
+        headers: {
+          'x-admin-key': 'dev-key-2024'
         }
-      } catch (apiError) {
-        console.log('API 호출 실패, 로컬 스토리지 사용:', apiError)
-      }
+      })
 
-      // API 실패 시 로컬 스토리지에서 로드
-      const storedData = JSON.parse(localStorage.getItem('keywords') || '[]')
-      setKeywords(storedData)
-      setMessage(`로컬 스토리지에서 ${storedData.length}개의 키워드를 불러왔습니다. (API 연결 실패)`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && Array.isArray(data.keywords)) {
+          setKeywords(data.keywords)
+          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개의 키워드를 불러왔습니다.`)
+        } else {
+          setKeywords([])
+          setMessage('키워드 데이터를 찾을 수 없습니다.')
+        }
+      } else {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `데이터 조회 실패: ${response.status}`)
+      }
     } catch (error) {
-      setMessage('저장된 키워드를 불러오는데 실패했습니다.')
+      console.error('키워드 조회 실패:', error)
+      setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${(error as Error).message}`)
+      setKeywords([])
     } finally {
       setLoading(false)
     }
   }
 
   const handleClearAll = () => {
-    if (confirm('모든 키워드를 삭제하시겠습니까?')) {
-      localStorage.removeItem('keywords')
-      setKeywords([])
-      setMessage('모든 키워드가 삭제되었습니다.')
-    }
+    // TODO: D1 데이터베이스 삭제 API 구현 필요
+    setMessage('❌ 삭제 기능은 아직 구현되지 않았습니다. D1 데이터베이스에서 직접 삭제해주세요.')
   }
 
   const handleExport = () => {
@@ -87,9 +101,10 @@ export default function DataPage() {
 
   // 통계 계산
   const totalKeywords = keywords.length
-  const totalSearchVolume = keywords.reduce((sum, k) => sum + k.avg_monthly_search, 0)
+  const totalSearchVolume = keywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
   const avgSearchVolume = totalKeywords > 0 ? Math.round(totalSearchVolume / totalKeywords) : 0
-  const uniqueSeeds = new Set(keywords.map(k => k.seed)).size
+  const totalPcSearch = keywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
+  const totalMobileSearch = keywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
 
   if (loading) {
     return (
@@ -128,8 +143,12 @@ export default function DataPage() {
             <p className="text-2xl font-bold text-purple-900">{avgSearchVolume.toLocaleString()}</p>
           </div>
           <div className="bg-orange-50 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-orange-800">시드 키워드 수</h3>
-            <p className="text-2xl font-bold text-orange-900">{uniqueSeeds}</p>
+            <h3 className="text-sm font-medium text-orange-800">PC/모바일 비율</h3>
+            <p className="text-2xl font-bold text-orange-900">
+              {totalPcSearch > 0 || totalMobileSearch > 0
+                ? `${Math.round((totalPcSearch / (totalPcSearch + totalMobileSearch)) * 100)}% / ${Math.round((totalMobileSearch / (totalPcSearch + totalMobileSearch)) * 100)}%`
+                : 'N/A'}
+            </p>
           </div>
         </div>
 
@@ -180,9 +199,6 @@ export default function DataPage() {
                     키워드
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      시드
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       PC 검색량
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -192,7 +208,7 @@ export default function DataPage() {
                       총 검색량
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      CPC
+                      광고수
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       경쟁도
@@ -209,25 +225,22 @@ export default function DataPage() {
                         {keyword.keyword}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.seed}
+                        {(keyword.pc_search || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.monthly_search_pc.toLocaleString()}
+                        {(keyword.mobile_search || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.monthly_search_mob.toLocaleString()}
+                        {(keyword.avg_monthly_search || 0).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.avg_monthly_search.toLocaleString()}
+                        {keyword.ad_count?.toLocaleString() || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.cpc?.toLocaleString() || 'N/A'}
+                        {keyword.comp_idx || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.comp_index || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(keyword.created_at).toLocaleDateString()}
+                        {keyword.created_at ? new Date(keyword.created_at).toLocaleDateString() : 'N/A'}
                     </td>
                   </tr>
                 ))}
@@ -281,10 +294,11 @@ export default function DataPage() {
       <div className="card">
         <h3 className="text-lg font-semibold text-gray-900 mb-4">데이터 관리</h3>
         <div className="space-y-2 text-sm text-gray-600">
-          <p>• 데이터는 브라우저 로컬 스토리지에 저장됩니다</p>
-          <p>• 브라우저를 삭제하거나 시크릿 모드를 사용하면 데이터가 사라집니다</p>
+          <p>• 데이터는 Cloudflare D1 데이터베이스에 안전하게 저장됩니다</p>
+          <p>• 홈 페이지에서 수집한 키워드는 자동으로 이 페이지에 표시됩니다</p>
+          <p>• "새로고침" 버튼을 클릭하여 최신 데이터를 불러올 수 있습니다</p>
           <p>• 중요한 데이터는 "JSON 내보내기" 기능으로 백업하세요</p>
-          <p>• 클라우드플레어 페이지는 정적 호스팅이므로 서버 사이드 저장이 불가능합니다</p>
+          <p>• 데이터는 Pages Functions를 통해 D1에서 조회됩니다</p>
         </div>
       </div>
     </div>
