@@ -189,9 +189,6 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
     // 공식 네이버 SearchAd API로 연관검색어 수집
     console.log('About to call official Naver SearchAd API...');
     
-    // 강제 에러 발생 테스트 - 실제 함수 실행 여부 확인
-    throw new Error('🚨 강제 에러 테스트 - 공식 API 함수가 실행되고 있는지 확인');
-    
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
     console.log(`Official Naver API collection completed:`, {
       keywordCount: keywords?.length || 0,
