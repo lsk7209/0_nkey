@@ -183,9 +183,9 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
     console.log(`Starting Naver API collection for seed: ${seed}`);
 
     // 네이버 검색광고 API로 연관검색어 수집
+    console.log('About to call collectKeywordsFromNaver...');
     const keywords = await collectKeywordsFromNaver(seed.trim(), env);
-    console.log(`Naver API collection result:`, {
-      success: true,
+    console.log(`Naver API collection completed successfully:`, {
       keywordCount: keywords?.length || 0,
       keywords: keywords?.slice(0, 3) || [] // 처음 3개만 로그
     });
@@ -359,6 +359,7 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 
     // 네이버 검색광고 API로 키워드 수집
     async function collectKeywordsFromNaver(seed: string, env: any) {
+      console.log('collectKeywordsFromNaver called with seed:', seed);
       try {
         // 사용 가능한 네이버 API 키 찾기
         const apiKeys = [
@@ -369,7 +370,9 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
           { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
         ].filter(api => api.key && api.secret && api.customerId);
 
+        console.log('Available API keys:', apiKeys.length);
         if (apiKeys.length === 0) {
+          console.error('No valid API keys found');
           throw new Error('네이버 API 키가 설정되지 않았습니다.');
         }
 
