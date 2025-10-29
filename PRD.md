@@ -5,6 +5,36 @@
 
 ---
 
+## 📋 네이버 검색광고 API 공식 문서
+
+> **⚠️ 중요**: 네이버 검색광고 API 구현은 반드시 다음 공식 문서를 따라야 합니다.
+> **절대 변경 금지**: 이 문서의 규칙은 절대 변경되거나 무시되어서는 안 됩니다.
+
+### 📄 공식 문서 위치
+- **파일**: `NAVER_SEARCHAD_API_OFFICIAL_DOCS.md`
+- **깃허브**: https://github.com/lsk7209/0_nkey/blob/main/NAVER_SEARCHAD_API_OFFICIAL_DOCS.md
+- **상태**: 절대 변경 금지 문서
+
+### 🔑 핵심 규칙 요약
+1. **엔드포인트**: `https://api.naver.com/keywordstool`
+2. **인증**: HMAC-SHA256 시그니처 필수
+3. **헤더**: X-Timestamp, X-API-KEY, X-Customer, X-Signature
+4. **파라미터**: hintKeywords(최대 5개), showDetail=1
+5. **응답**: keywordList 배열의 relKeyword, monthlyPcQcCnt 등
+6. **레이트 리밋**: 429 에러 시 5분 쿨다운 필수
+7. **데이터 정규화**: < 10 문자열 처리, CTR 백분율 변환
+
+### ✅ 구현 상태
+- [x] 환경변수 설정 완료
+- [x] HMAC-SHA256 시그니처 구현 완료
+- [x] 요청 빌더 구현 완료
+- [x] 응답 파서 구현 완료
+- [x] 데이터 정규화 구현 완료
+- [x] 에러 처리 구현 완료
+- [x] Cloudflare Workers 배포 완료
+
+---
+
 ## 0️⃣ 프로젝트 개요
 
 | 항목          | 내용                                                                      |
