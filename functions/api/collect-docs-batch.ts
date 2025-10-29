@@ -204,36 +204,80 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
     ];
 
     for (const searchType of searchTypes) {
-      try {
-        const apiUrl = `https://openapi.naver.com/v1/search/${searchType.type}.json`;
-        const params = new URLSearchParams({
-          query: keyword,
-          display: '1',
-          start: '1'
-        });
+      let retryCount = 0;
+      const maxRetries = 3;
+      let success = false;
 
-        const response = await fetch(`${apiUrl}?${params}`, {
-          method: 'GET',
-          headers: {
-            'X-Naver-Client-Id': apiKey.key,
-            'X-Naver-Client-Secret': apiKey.secret
+      while (retryCount < maxRetries && !success) {
+        try {
+          // 공식 문서 기준: query 파라미터는 UTF-8 인코딩 필수
+          const apiUrl = `https://openapi.naver.com/v1/search/${searchType.type}.json`;
+          const params = new URLSearchParams({
+            query: keyword, // URLSearchParams가 자동으로 인코딩
+            display: '1', // 공식 문서: 1~100
+            start: '1' // 공식 문서: 1~1000
+          });
+
+          const response = await fetch(`${apiUrl}?${params}`, {
+            method: 'GET',
+            headers: {
+              'X-Naver-Client-Id': apiKey.key,
+              'X-Naver-Client-Secret': apiKey.secret,
+              'Content-Type': 'application/json; charset=UTF-8'
+            }
+          });
+
+          // 응답 상태 코드별 처리 (공식 문서 기준)
+          if (response.ok) {
+            const data = await response.json();
+            
+            // 응답 타입 검증 (공식 문서 구조)
+            if (typeof data === 'object' && 'total' in data) {
+              docCounts[searchType.field] = parseInt(String(data.total)) || 0;
+              success = true;
+            } else {
+              console.warn(`⚠️ ${searchType.type} 응답 구조 이상:`, data);
+              docCounts[searchType.field] = 0;
+              success = true;
+            }
+          } else {
+            // 에러 응답 본문 읽기 (공식 문서: 4xx, 429, 500 처리)
+            const errorText = await response.text().catch(() => 'Unknown error');
+            console.error(`❌ ${searchType.type} API 호출 실패 (${response.status}):`, errorText);
+
+            // 429 Rate Limit 또는 500 서버 에러 시 재시도 (공식 문서: 지수백오프)
+            if (response.status === 429 || response.status === 500) {
+              retryCount++;
+              if (retryCount < maxRetries) {
+                const backoffMs = Math.min(300 * Math.pow(2, retryCount - 1), 1200); // 300ms → 600ms → 1200ms
+                console.log(`🔄 ${searchType.type} 재시도 ${retryCount}/${maxRetries} (${backoffMs}ms 대기)`);
+                await new Promise(resolve => setTimeout(resolve, backoffMs));
+                continue; // 재시도
+              }
+            }
+            
+            // 4xx 에러는 재시도하지 않음 (공식 문서: 사용자 입력 검증)
+            docCounts[searchType.field] = 0;
+            success = true;
           }
-        });
 
-        if (response.ok) {
-          const data = await response.json();
-          docCounts[searchType.field] = parseInt(data.total) || 0;
-        } else {
-          console.error(`Failed to get ${searchType.type} count: ${response.status}`);
-          docCounts[searchType.field] = 0;
+        } catch (error: any) {
+          retryCount++;
+          console.error(`❌ ${searchType.type} 에러 (시도 ${retryCount}/${maxRetries}):`, error.message);
+          
+          if (retryCount < maxRetries) {
+            const backoffMs = Math.min(300 * Math.pow(2, retryCount - 1), 1200);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
+          } else {
+            docCounts[searchType.field] = 0;
+            success = true;
+          }
         }
+      }
 
-        // API 호출 간격 조절 (Rate Limit 방지)
+      // API 호출 간격 조절 (Rate Limit 방지, 공식 문서: 쿼터 25,000회/일)
+      if (success) {
         await new Promise(resolve => setTimeout(resolve, 100));
-
-      } catch (error: any) {
-        console.error(`Error collecting ${searchType.type} count:`, error);
-        docCounts[searchType.field] = 0;
       }
     }
 
