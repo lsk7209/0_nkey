@@ -460,8 +460,8 @@ async function generateHMACSignature(secret: string, message: string): Promise<s
       messageLength: message.length
     });
 
-    // 네이버 API는 secret을 Base64 디코딩해서 사용해야 함
-    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    // 네이버 API는 secret을 직접 사용 (Base64 디코딩하지 않음)
+    const secretBytes = new TextEncoder().encode(secret);
     const messageBytes = new TextEncoder().encode(message);
     
     const cryptoKey = await crypto.subtle.importKey(
