@@ -35,11 +35,13 @@ export default {
           return await handleCollectDocs(request, env, corsHeaders);
         case '/api/keywords':
           return await handleGetKeywords(request, env, corsHeaders);
-        case '/api/health':
-          return new Response(
-            JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
-            { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
+            case '/api/health':
+              return new Response(
+                JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
+                { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              );
+            case '/api/test-naver':
+              return await handleTestNaverAPI(request, env, corsHeaders);
         default:
           return new Response(
             JSON.stringify({ error: 'Not Found' }),
@@ -333,104 +335,170 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
   }
 }
 
-// 네이버 검색광고 API로 키워드 수집
-async function collectKeywordsFromNaver(seed: string, env: any) {
-  try {
-    // 사용 가능한 네이버 API 키 찾기
-    const apiKeys = [
-      { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
-      { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
-      { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
-      { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
-      { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
-    ].filter(api => api.key && api.secret && api.customerId);
+    // 네이버 검색광고 API로 키워드 수집
+    async function collectKeywordsFromNaver(seed: string, env: any) {
+      try {
+        // 사용 가능한 네이버 API 키 찾기
+        const apiKeys = [
+          { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
+          { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
+          { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
+          { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
+          { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
+        ].filter(api => api.key && api.secret && api.customerId);
 
-    if (apiKeys.length === 0) {
-      throw new Error('네이버 API 키가 설정되지 않았습니다.');
-    }
+        if (apiKeys.length === 0) {
+          throw new Error('네이버 API 키가 설정되지 않았습니다.');
+        }
 
-    // 첫 번째 사용 가능한 API 키 사용
-    const apiKey = apiKeys[0];
-    console.log(`Using Naver API key: ${apiKey.key.substring(0, 8)}...`);
+        // 첫 번째 사용 가능한 API 키 사용
+        const apiKey = apiKeys[0];
+        console.log(`Using Naver API key: ${apiKey.key.substring(0, 8)}...`);
+        console.log(`Customer ID: ${apiKey.customerId}`);
+        console.log(`Secret key: ${apiKey.secret.substring(0, 8)}...`);
 
-    // 네이버 검색광고 API 엔드포인트
-    const apiUrl = 'https://api.naver.com/searchad/relkeyword';
-    
-    // 요청 데이터
-    const requestData = {
-      siteId: apiKey.customerId,
-      hintKeywords: seed, // 배열 대신 단일 문자열로 변경
-      showDetail: '1'
-    };
+        // 네이버 검색광고 API 엔드포인트 (올바른 엔드포인트)
+        const apiUrl = 'https://api.naver.com/keywordstool';
+        
+        // 요청 파라미터
+        const params = new URLSearchParams({
+          hintKeywords: seed,
+          showDetail: '1'
+        });
 
-    // OAuth 1.0 인증 헤더 생성
-    const authHeader = generateOAuthHeader(apiKey.key, apiKey.secret, 'GET', apiUrl, requestData);
+        // HMAC-SHA256 시그니처 생성
+        const timestamp = Date.now().toString();
+        const method = 'GET';
+        const uri = '/keywordstool';
+        const message = `${timestamp}.${method}.${uri}`;
+        const signature = await generateHMACSignature(apiKey.secret, message);
 
-    // API 호출
-    const response = await fetch(`${apiUrl}?${new URLSearchParams(requestData)}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': authHeader,
-        'Content-Type': 'application/json'
+        // API 호출
+        const response = await fetch(`${apiUrl}?${params}`, {
+          method: 'GET',
+          headers: {
+            'X-Timestamp': timestamp,
+            'X-API-KEY': apiKey.key,
+            'X-Customer': apiKey.customerId,
+            'X-Signature': signature,
+            'Content-Type': 'application/json; charset=UTF-8'
+          }
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
+          console.error(`Request URL: ${apiUrl}?${params}`);
+          console.error(`Headers:`, {
+            'X-Timestamp': timestamp,
+            'X-API-KEY': apiKey.key.substring(0, 8) + '...',
+            'X-Customer': apiKey.customerId,
+            'X-Signature': signature.substring(0, 20) + '...'
+          });
+          throw new Error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+        console.log('Naver API response:', JSON.stringify(data, null, 2));
+
+        // 응답 데이터 파싱 (올바른 필드명)
+        if (!data.keywordList || !Array.isArray(data.keywordList)) {
+          console.log('No keywordList data found in response');
+          return [];
+        }
+
+        // 키워드 데이터 변환 (올바른 필드 매핑)
+        const keywords = data.keywordList.map((item: any) => ({
+          keyword: item.relKeyword || '',
+          monthly_search_pc: normalizeSearchCount(item.monthlyPcQcCnt),
+          monthly_search_mob: normalizeSearchCount(item.monthlyMobileQcCnt),
+          avg_monthly_search: normalizeSearchCount(item.monthlyPcQcCnt) + normalizeSearchCount(item.monthlyMobileQcCnt),
+          cpc: parseFloat(item.plAvgBid) || 0,
+          comp_index: parseCompIndex(item.compIdx),
+          // 추가 네이버 API 필드들
+          monthly_click_pc: parseFloat(item.monthlyAvePcClkCnt) || 0,
+          monthly_click_mobile: parseFloat(item.monthlyAveMobileClkCnt) || 0,
+          ctr_pc: parseFloat(item.monthlyAvePcCtr) || 0,
+          ctr_mobile: parseFloat(item.monthlyAveMobileCtr) || 0,
+          ad_count: parseInt(item.plAvgDepth) || 0
+        })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
+
+        console.log(`Collected ${keywords.length} keywords from Naver API`);
+        return keywords;
+
+      } catch (error: any) {
+        console.error('Error collecting from Naver API:', error);
+        console.error('Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name
+        });
+        
+        // API 실패 시 샘플 데이터로 폴백
+        console.log('Falling back to sample data due to API error');
+        return generateSampleKeywords(seed);
       }
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log('Naver API response:', JSON.stringify(data, null, 2));
-
-    // 응답 데이터 파싱
-    if (!data.relkeyword || !Array.isArray(data.relkeyword)) {
-      console.log('No relkeyword data found in response');
-      return [];
-    }
-
-    // 키워드 데이터 변환
-    const keywords = data.relkeyword.map((item: any) => ({
-      keyword: item.relKeyword || '',
-      monthly_search_pc: parseInt(item.monthlyPcQcCnt) || 0,
-      monthly_search_mob: parseInt(item.monthlyMobileQcCnt) || 0,
-      avg_monthly_search: (parseInt(item.monthlyPcQcCnt) || 0) + (parseInt(item.monthlyMobileQcCnt) || 0),
-      cpc: parseInt(item.plAvgBid) || 0,
-      comp_index: parseInt(item.compIdx) || 0
-    })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
-
-    console.log(`Collected ${keywords.length} keywords from Naver API`);
-    return keywords;
-
-  } catch (error: any) {
-    console.error('Error collecting from Naver API:', error);
+// HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용)
+async function generateHMACSignature(secret: string, message: string): Promise<string> {
+  // Secret을 직접 사용 (Base64 디코딩하지 않음)
+  const secretBytes = new TextEncoder().encode(secret);
+  const messageBytes = new TextEncoder().encode(message);
+  
+  const cryptoKey = await crypto.subtle.importKey(
+    'raw',
+    secretBytes,
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
+  const signatureArray = new Uint8Array(signature);
+  
+  // Base64 인코딩
+  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  let i = 0;
+  
+  while (i < signatureArray.length) {
+    const a = signatureArray[i++];
+    const b = i < signatureArray.length ? signatureArray[i++] : 0;
+    const c = i < signatureArray.length ? signatureArray[i++] : 0;
     
-    // API 실패 시 샘플 데이터로 폴백
-    console.log('Falling back to sample data due to API error');
-    return generateSampleKeywords(seed);
+    const bitmap = (a << 16) | (b << 8) | c;
+    
+    result += base64Chars.charAt((bitmap >> 18) & 63);
+    result += base64Chars.charAt((bitmap >> 12) & 63);
+    result += i - 2 < signatureArray.length ? base64Chars.charAt((bitmap >> 6) & 63) : '=';
+    result += i - 1 < signatureArray.length ? base64Chars.charAt(bitmap & 63) : '=';
   }
+  
+  return result;
 }
 
-// OAuth 1.0 헤더 생성 (간단한 버전)
-function generateOAuthHeader(apiKey: string, apiSecret: string, method: string, url: string, params: any) {
-  const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = Math.random().toString(36).substring(2, 15);
+// 검색 수 정규화 (< 10 같은 문자열 처리)
+function normalizeSearchCount(value: string): number {
+  if (!value || typeof value !== 'string') return 0;
   
-  // 간단한 OAuth 1.0 헤더 (실제로는 더 복잡한 서명이 필요할 수 있음)
-  const oauthParams = {
-    oauth_consumer_key: apiKey,
-    oauth_nonce: nonce,
-    oauth_signature_method: 'HMAC-SHA1',
-    oauth_timestamp: timestamp,
-    oauth_version: '1.0'
-  };
+  // < 10 같은 문자열 처리
+  const cleaned = value.replace(/[<>]/g, '').trim();
+  const parsed = parseInt(cleaned);
+  
+  return isNaN(parsed) ? 0 : parsed;
+}
 
-  const paramString = Object.entries(oauthParams)
-    .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
-    .sort()
-    .join('&');
-
-  return `OAuth ${paramString}`;
+// 경쟁 지수 정규화 (낮음/중간/높음 → 숫자)
+function parseCompIndex(value: string): number {
+  if (!value) return 0;
+  
+  switch (value) {
+    case '낮음': return 1;
+    case '중간': return 2;
+    case '높음': return 3;
+    default: return 0;
+  }
 }
 
 // 네이버 오픈API로 문서 수 수집 처리
@@ -663,6 +731,120 @@ function generateSampleKeywords(seed: string) {
     cpc: pattern.cpc,
     comp_index: pattern.comp
   }));
+}
+
+// 네이버 API 테스트 처리
+async function handleTestNaverAPI(request: Request, env: any, corsHeaders: any) {
+  if (request.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: 'Method Not Allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  try {
+    // 환경변수 확인 및 디버깅
+    console.log('Environment variables:', {
+      NAVER_API_KEY_1: env.NAVER_API_KEY_1 ? 'SET' : 'NOT SET',
+      NAVER_API_SECRET_1: env.NAVER_API_SECRET_1 ? 'SET' : 'NOT SET',
+      NAVER_CUSTOMER_ID_1: env.NAVER_CUSTOMER_ID_1 ? 'SET' : 'NOT SET',
+      ADMIN_KEY: env.ADMIN_KEY ? 'SET' : 'NOT SET'
+    });
+
+    // 임시로 하드코딩된 API 키 사용 (테스트용)
+    const hardcodedApiKeys = [
+      { 
+        key: '0100000000d027bb5287da074c48fc79503e97ae8e4bb0e7e928b39108e0b4dd6ce3950b7f', 
+        secret: 'AQAAAADQJ7tSh9oHTEj8eVA+l66OGm0FwBl/Ejg+WP/5GntSew==', 
+        customerId: '4129627' 
+      }
+    ];
+
+    const envApiKeys = [
+      { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
+      { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
+      { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
+      { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
+      { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
+    ].filter(api => api.key && api.secret && api.customerId);
+
+    // 환경변수가 없으면 하드코딩된 키 사용
+    const apiKeys = envApiKeys.length > 0 ? envApiKeys : hardcodedApiKeys;
+
+    console.log(`Found ${apiKeys.length} valid API keys (${envApiKeys.length} from env, ${hardcodedApiKeys.length} hardcoded)`);
+
+    if (apiKeys.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: '네이버 API 키가 설정되지 않았습니다.',
+          availableKeys: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const apiKey = apiKeys[0];
+    
+    // 실제 네이버 API 호출 테스트
+    const apiUrl = 'https://api.naver.com/keywordstool';
+    const params = new URLSearchParams({
+      hintKeywords: '테스트',
+      showDetail: '1'
+    });
+
+    const timestamp = Date.now().toString();
+    const method = 'GET';
+    const uri = '/keywordstool';
+    const message = `${timestamp}.${method}.${uri}`;
+    const signature = await generateHMACSignature(apiKey.secret, message);
+
+    console.log('Testing Naver API with:', {
+      url: `${apiUrl}?${params}`,
+      timestamp,
+      customerId: apiKey.customerId,
+      apiKey: apiKey.key.substring(0, 8) + '...',
+      signature: signature.substring(0, 20) + '...'
+    });
+
+    const response = await fetch(`${apiUrl}?${params}`, {
+      method: 'GET',
+      headers: {
+        'X-Timestamp': timestamp,
+        'X-API-KEY': apiKey.key,
+        'X-Customer': apiKey.customerId,
+        'X-Signature': signature,
+        'Content-Type': 'application/json; charset=UTF-8'
+      }
+    });
+
+    const responseText = await response.text();
+    
+    return new Response(
+      JSON.stringify({
+        success: response.ok,
+        status: response.status,
+        statusText: response.statusText,
+        responseText: responseText.substring(0, 500), // 처음 500자만
+        apiKey: apiKey.key.substring(0, 8) + '...',
+        customerId: apiKey.customerId,
+        timestamp,
+        signature: signature.substring(0, 20) + '...'
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('Test Naver API error:', error);
+    return new Response(
+      JSON.stringify({ 
+        success: false, 
+        error: error.message,
+        stack: error.stack
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }
 
 // 키워드 조회 처리
