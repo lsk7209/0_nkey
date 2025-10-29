@@ -183,7 +183,26 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
     console.log(`Starting Naver API collection for seed: ${seed}`);
 
     // 네이버 검색광고 API로 연관검색어 수집
-    const keywords = await collectKeywordsFromNaver(seed.trim(), env);
+    let keywords;
+    try {
+      keywords = await collectKeywordsFromNaver(seed.trim(), env);
+      console.log(`Naver API collection result:`, {
+        success: true,
+        keywordCount: keywords?.length || 0,
+        keywords: keywords?.slice(0, 3) || [] // 처음 3개만 로그
+      });
+    } catch (error: any) {
+      console.error('Naver API collection failed:', error);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `네이버 API 호출 실패: ${error.message}`,
+          seed: seed.trim(),
+          error: error.toString()
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     
     if (!keywords || keywords.length === 0) {
       return new Response(
@@ -470,11 +489,20 @@ async function generateHMACSignature(secret: string, message: string): Promise<s
     });
 
     // 네이버 API 공식 문서에 따른 시그니처 생성
-    // 1. secret을 Base64 디코딩
-    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    // 방법 1: secret을 Base64 디코딩해서 사용
+    let secretBytes;
+    try {
+      secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+      console.log('Using Base64 decoded secret');
+    } catch (e) {
+      // Base64 디코딩 실패 시 원본 secret 사용
+      secretBytes = new TextEncoder().encode(secret);
+      console.log('Using raw secret (Base64 decode failed)');
+    }
+    
     const messageBytes = new TextEncoder().encode(message);
     
-    // 2. HMAC-SHA256 생성
+    // HMAC-SHA256 생성
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       secretBytes,
@@ -485,7 +513,7 @@ async function generateHMACSignature(secret: string, message: string): Promise<s
     
     const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
     
-    // 3. Base64 인코딩
+    // Base64 인코딩
     const base64String = btoa(String.fromCharCode(...new Uint8Array(signature)));
     
     console.log('Generated signature (Base64):', base64String.substring(0, 20) + '...');
