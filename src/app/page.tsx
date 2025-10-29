@@ -99,16 +99,8 @@ export default function Home() {
       } catch (apiError: any) {
         console.error('API 호출 에러:', apiError)
         
-        // API 실패 시 로컬 스토리지에 저장
-        const existingData = JSON.parse(localStorage.getItem('keywords') || '[]')
-        const newData = [...existingData, ...mockKeywords.map(k => ({
-          ...k,
-          seed: seed.trim(),
-          created_at: new Date().toISOString()
-        }))]
-        localStorage.setItem('keywords', JSON.stringify(newData))
-        
-        setMessage(`총 ${mockKeywords.length}개의 연관검색어를 찾았습니다. (로컬 저장 완료 - API 연결 실패: ${apiError?.message || 'Unknown error'})`)
+        // API 실패 시 에러 메시지 표시 (로컬 스토리지 저장 제거)
+        setMessage(`❌ 클라우드 데이터베이스 저장 실패: ${apiError?.message || 'Unknown error'}. 미리보기 데이터만 표시됩니다.`)
       }
       
     } catch (error) {
@@ -119,25 +111,31 @@ export default function Home() {
     }
   }
 
-  const handleLoadStored = () => {
+  const handleLoadStored = async () => {
     try {
-      const storedData = JSON.parse(localStorage.getItem('keywords') || '[]')
-      if (storedData.length === 0) {
-        setMessage('저장된 키워드가 없습니다.')
-        return
+      // 클라우드플레어 D1 데이터베이스에서 키워드 조회
+      const response = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords', {
+        method: 'GET',
+        headers: {
+          'x-admin-key': 'dev-key-2024'
+        }
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        setKeywords(result.keywords || [])
+        setMessage(`✅ 클라우드 데이터베이스에서 ${result.keywords?.length || 0}개의 키워드를 불러왔습니다.`)
+      } else {
+        throw new Error(`데이터 조회 실패: ${response.status}`)
       }
-      
-      setKeywords(storedData.slice(-20)) // 최근 20개만 표시
-      setMessage(`저장된 키워드 ${storedData.length}개 중 최근 20개를 불러왔습니다.`)
     } catch (error) {
-      setMessage('저장된 키워드를 불러오는데 실패했습니다.')
+      setMessage('❌ 저장된 키워드를 불러오는데 실패했습니다: ' + (error as Error).message)
     }
   }
 
   const handleClearStorage = () => {
-    localStorage.removeItem('keywords')
     setKeywords([])
-    setMessage('저장된 키워드를 모두 삭제했습니다.')
+    setMessage('화면에서 키워드 목록을 지웠습니다. (실제 데이터베이스는 변경되지 않음)')
   }
 
   return (
@@ -170,13 +168,13 @@ export default function Home() {
               onClick={handleLoadStored}
               className="btn-secondary"
             >
-              저장된 키워드 불러오기
+              클라우드 DB에서 불러오기
             </button>
             <button
               onClick={handleClearStorage}
               className="btn-danger"
             >
-              저장된 키워드 삭제
+              화면에서 지우기
             </button>
           </div>
           {message && (
@@ -254,13 +252,13 @@ export default function Home() {
         <div className="space-y-2 text-sm text-gray-600">
           <p>1. 시드 키워드를 입력하세요</p>
           <p>2. "연관검색어 수집" 버튼을 클릭하세요</p>
-          <p>3. 수집된 키워드가 브라우저 로컬 스토리지에 저장됩니다</p>
-          <p>4. "저장된 키워드 불러오기"로 이전 데이터를 확인할 수 있습니다</p>
+          <p>3. 수집된 키워드가 클라우드플레어 D1 데이터베이스에 저장됩니다</p>
+          <p>4. "클라우드 DB에서 불러오기"로 저장된 데이터를 확인할 수 있습니다</p>
         </div>
-        <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>참고:</strong> 클라우드플레어 페이지는 정적 호스팅이므로 서버 사이드 API가 작동하지 않습니다. 
-            대신 브라우저 로컬 스토리지를 사용하여 데이터를 저장합니다.
+        <div className="mt-4 p-3 bg-green-50 rounded-lg">
+          <p className="text-sm text-green-800">
+            <strong>✅ 데이터 저장:</strong> 모든 키워드 데이터는 클라우드플레어 D1 데이터베이스에 안전하게 저장됩니다. 
+            클라우드플레어 Workers를 통해 서버사이드 API가 정상 작동합니다.
           </p>
         </div>
       </div>
