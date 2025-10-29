@@ -52,6 +52,7 @@ export async function onRequest(context: any) {
     }
 
     console.log(`🚀 Pages Functions - 네이버 API 수집 시작: ${seed}`);
+    console.log(`🆔 코드 버전: v2.0 - 실제 네이버 API 구현 (${new Date().toISOString()})`);
 
     // 실제 네이버 SearchAd API 호출
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
@@ -119,7 +120,9 @@ export async function onRequest(context: any) {
         totalSavedOrUpdated: savedCount + updatedCount,
         savedCount,
         updatedCount,
-        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.`
+        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.`,
+        version: 'v2.0 - 실제 네이버 API 구현',
+        timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -138,7 +141,8 @@ export async function onRequest(context: any) {
         message: error?.message || 'Unknown error',
         details: error?.toString(),
         timestamp: new Date().toISOString(),
-        source: 'Pages Functions'
+        source: 'Pages Functions',
+        version: 'v2.0 - 실제 네이버 API 구현'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
