@@ -358,46 +358,56 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
         console.log(`Customer ID: ${apiKey.customerId}`);
         console.log(`Secret key: ${apiKey.secret.substring(0, 8)}...`);
 
-        // 네이버 검색광고 API 엔드포인트 (올바른 엔드포인트)
-        const apiUrl = 'https://api.naver.com/keywordstool';
-        
-        // 요청 파라미터
-        const params = new URLSearchParams({
-          hintKeywords: seed,
-          showDetail: '1'
-        });
+    // 네이버 검색광고 API 엔드포인트 (올바른 엔드포인트)
+    const apiUrl = 'https://api.naver.com/keywordstool';
+    
+    // 요청 파라미터
+    const params = new URLSearchParams({
+      hintKeywords: seed,
+      showDetail: '1'
+    });
 
-        // HMAC-SHA256 시그니처 생성
-        const timestamp = Date.now().toString();
-        const method = 'GET';
-        const uri = '/keywordstool';
-        const message = `${timestamp}.${method}.${uri}`;
-        const signature = await generateHMACSignature(apiKey.secret, message);
+    // HMAC-SHA256 시그니처 생성
+    const timestamp = Date.now().toString();
+    const method = 'GET';
+    const uri = '/keywordstool';
+    const message = `${timestamp}.${method}.${uri}`;
+    const signature = await generateHMACSignature(apiKey.secret, message);
 
-        // API 호출
-        const response = await fetch(`${apiUrl}?${params}`, {
-          method: 'GET',
-          headers: {
-            'X-Timestamp': timestamp,
-            'X-API-KEY': apiKey.key,
-            'X-Customer': apiKey.customerId,
-            'X-Signature': signature,
-            'Content-Type': 'application/json; charset=UTF-8'
-          }
-        });
+    console.log(`네이버 API 호출 시작:`, {
+      url: `${apiUrl}?${params}`,
+      timestamp,
+      customerId: apiKey.customerId,
+      apiKey: apiKey.key.substring(0, 8) + '...',
+      signature: signature.substring(0, 20) + '...'
+    });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
-          console.error(`Request URL: ${apiUrl}?${params}`);
-          console.error(`Headers:`, {
-            'X-Timestamp': timestamp,
-            'X-API-KEY': apiKey.key.substring(0, 8) + '...',
-            'X-Customer': apiKey.customerId,
-            'X-Signature': signature.substring(0, 20) + '...'
-          });
-          throw new Error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
-        }
+    // API 호출
+    const response = await fetch(`${apiUrl}?${params}`, {
+      method: 'GET',
+      headers: {
+        'X-Timestamp': timestamp,
+        'X-API-KEY': apiKey.key,
+        'X-Customer': apiKey.customerId,
+        'X-Signature': signature,
+        'Content-Type': 'application/json; charset=UTF-8'
+      }
+    });
+
+    console.log(`네이버 API 응답 상태: ${response.status}`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
+      console.error(`Request URL: ${apiUrl}?${params}`);
+      console.error(`Headers:`, {
+        'X-Timestamp': timestamp,
+        'X-API-KEY': apiKey.key.substring(0, 8) + '...',
+        'X-Customer': apiKey.customerId,
+        'X-Signature': signature.substring(0, 20) + '...'
+      });
+      throw new Error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
+    }
 
         const data = await response.json();
         console.log('Naver API response:', JSON.stringify(data, null, 2));
@@ -435,9 +445,8 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
           name: error.name
         });
         
-        // API 실패 시 샘플 데이터로 폴백
-        console.log('Falling back to sample data due to API error');
-        return generateSampleKeywords(seed);
+        // API 실패 시 에러를 그대로 전파 (샘플 데이터 폴백 제거)
+        throw new Error(`네이버 API 호출 실패: ${error.message}`);
       }
     }
 
