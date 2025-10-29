@@ -1,3 +1,14 @@
+/**
+ * ⚠️ 헌법 준수 필수 (CONSTITUTION.md)
+ * 
+ * 절대 변경 금지 사항:
+ * - 파일 위치 변경 금지 (functions/_middleware.ts)
+ * - 라우팅 로직 변경 금지 (onRequest 핸들러 직접 호출)
+ * - Pages Functions 구조 변경 금지
+ * 
+ * 헌법 문서: CONSTITUTION.md (절대 변경 금지)
+ */
+
 // Cloudflare Pages Functions 라우트 설정
 export async function onRequest(context: any) {
   const { request, env } = context;

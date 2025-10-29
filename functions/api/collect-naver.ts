@@ -1,3 +1,15 @@
+/**
+ * ⚠️ 헌법 준수 필수 (CONSTITUTION.md)
+ * 
+ * 절대 변경 금지 사항:
+ * - API 응답에 keywords 배열 필수 포함
+ * - 필드명 변경 금지 (pc_search, mobile_search 등)
+ * - 네이버 API 호출 로직 변경 금지
+ * - 샘플 데이터 반환 금지
+ * 
+ * 헌법 문서: CONSTITUTION.md (절대 변경 금지)
+ */
+
 // Cloudflare Pages Functions용 네이버 API 키워드 수집
 export async function onRequest(context: any) {
   const { request, env } = context;

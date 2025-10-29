@@ -1,3 +1,14 @@
+/**
+ * ⚠️ 헌법 준수 필수 (CONSTITUTION.md)
+ * 
+ * 절대 변경 금지 사항:
+ * - API 응답에서 keywords 배열 직접 사용 (샘플 데이터 생성 금지)
+ * - 필드명 변경 금지 (pc_search, mobile_search 등)
+ * - 별도 API 호출 금지 (API 응답에서 직접 사용)
+ * 
+ * 헌법 문서: CONSTITUTION.md (절대 변경 금지)
+ */
+
 'use client'
 
 import { useState } from 'react'

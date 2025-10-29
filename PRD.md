@@ -5,6 +5,47 @@
 
 ---
 
+## 🏛️ 헌법 (Constitution) - 절대 불변 규칙
+
+> **⚠️ 최우선 중요**: 모든 개발자는 반드시 헌법을 먼저 확인하고 준수해야 합니다.
+
+### 📄 헌법 문서 위치
+- **파일**: `CONSTITUTION.md`
+- **깃허브**: https://github.com/lsk7209/0_nkey/blob/main/CONSTITUTION.md
+- **상태**: 절대 변경 금지 문서
+- **작성 일자**: 2025년 10월 29일
+- **작동 확인**: ✅ 정상 작동 확인 완료
+
+### 🔑 핵심 헌법 원칙
+1. **아키텍처**: Cloudflare Pages Functions 사용 (절대 Workers 단독 배포 아님)
+2. **API 응답**: `keywords` 배열 필수 포함 (절대 제거 금지)
+3. **필드명**: `pc_search`, `mobile_search` 등 절대 변경 금지
+4. **프론트엔드**: API 응답에서 직접 키워드 사용 (샘플 데이터 생성 금지)
+5. **네이버 API**: 공식 문서 준수 (절대 변경 금지)
+6. **파일 구조**: `functions/_middleware.ts` 등 절대 변경 금지
+
+### ✅ 헌법 준수 체크리스트
+- [ ] 헌법 문서 확인 완료
+- [ ] API 응답 구조 확인 (`keywords` 배열 포함)
+- [ ] 필드명 매핑 확인 (`pc_search`, `mobile_search` 등)
+- [ ] 프론트엔드 데이터 흐름 확인 (API 응답 직접 사용)
+- [ ] Pages Functions 구조 확인 (`functions/_middleware.ts` 등)
+- [ ] 환경변수 확인 (`NAVER_API_KEY_1` 등)
+- [ ] 네이버 API 공식 문서 준수 확인
+
+### 📚 관련 문서
+- **아키텍처 문서**: `ARCHITECTURE.md` - 시스템 구조 상세 설명
+- **네이버 SearchAd API**: `NAVER_SEARCHAD_API_OFFICIAL_DOCS.md` - 공식 문서
+- **네이버 OpenAPI**: `NAVER_OPENAPI_OFFICIAL_DOCS.md` - 공식 문서
+
+### 🚨 헌법 위반 시
+1. 즉시 변경 사항 롤백
+2. 헌법 문서 확인
+3. 올바른 구조로 재작성
+4. 테스트 후 재배포
+
+---
+
 ## 📋 네이버 오픈API 공식 문서
 
 > **⚠️ 중요**: 네이버 오픈API 구현은 반드시 다음 공식 문서를 따라야 합니다.
