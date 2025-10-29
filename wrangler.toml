@@ -12,4 +12,4 @@ database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
 
 # 환경 변수
 [vars]
-ADMIN_KEY = "dev-key-2024"
+NAVER_ADMIN_KEY = "dev-key-2024"
