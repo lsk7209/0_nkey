@@ -92,6 +92,15 @@ export async function onRequest(context: any) {
     const db = env.DB;
     let savedCount = 0;
     let updatedCount = 0;
+    let docCountsCollected = 0;
+    const maxDocCountsToCollect = 10;
+
+    // 네이버 오픈API 키 확인
+    const hasOpenApiKeys = [
+      env.NAVER_OPENAPI_KEY_1, env.NAVER_OPENAPI_KEY_2, env.NAVER_OPENAPI_KEY_3,
+      env.NAVER_OPENAPI_KEY_4, env.NAVER_OPENAPI_KEY_5
+    ].some(key => key);
+    console.log(`📄 네이버 오픈API 키 확인: ${hasOpenApiKeys ? '설정됨' : '미설정'}`);
 
     for (const keyword of keywords) {
       try {
@@ -100,7 +109,10 @@ export async function onRequest(context: any) {
           'SELECT id FROM keywords WHERE keyword = ?'
         ).bind(keyword.keyword).first();
 
+        let keywordId: number | null = null;
+
         if (existing) {
+          keywordId = existing.id as number;
           // 기존 키워드 업데이트 - 스키마에 맞게 컬럼명 수정
           await db.prepare(`
             UPDATE keywords SET 
@@ -153,7 +165,7 @@ export async function onRequest(context: any) {
             new Date().toISOString(), new Date().toISOString()
           ).run();
 
-          const keywordId = insertResult.meta.last_row_id;
+          keywordId = insertResult.meta.last_row_id;
 
           // keyword_metrics 테이블에 메트릭 데이터 삽입
           await db.prepare(`
@@ -169,51 +181,59 @@ export async function onRequest(context: any) {
         }
 
         // 문서수 수집 (최대 10개까지, API 제한 고려)
-        if (savedCount + updatedCount <= 10) {
+        if (docCountsCollected < maxDocCountsToCollect && hasOpenApiKeys && keywordId) {
           try {
+            console.log(`📄 문서수 수집 시작: ${keyword.keyword} (${docCountsCollected + 1}/${maxDocCountsToCollect})`);
             const docCounts = await collectDocCountsFromNaver(keyword.keyword, env);
+            
             if (docCounts) {
-              const keywordRecord = await db.prepare(
-                'SELECT id FROM keywords WHERE keyword = ?'
-              ).bind(keyword.keyword).first();
+              console.log(`✅ 문서수 수집 완료 (${keyword.keyword}):`, docCounts);
+              
+              const existingDocCount = await db.prepare(
+                'SELECT id FROM naver_doc_counts WHERE keyword_id = ?'
+              ).bind(keywordId).first();
 
-              if (keywordRecord) {
-                const existingDocCount = await db.prepare(
-                  'SELECT id FROM naver_doc_counts WHERE keyword_id = ?'
-                ).bind(keywordRecord.id).first();
-
-                if (existingDocCount) {
-                  await db.prepare(`
-                    UPDATE naver_doc_counts 
-                    SET blog_total = ?, cafe_total = ?, web_total = ?, news_total = ?, collected_at = CURRENT_TIMESTAMP
-                    WHERE keyword_id = ?
-                  `).bind(
-                    docCounts.blog_total || 0,
-                    docCounts.cafe_total || 0,
-                    docCounts.web_total || 0,
-                    docCounts.news_total || 0,
-                    keywordRecord.id
-                  ).run();
-                } else {
-                  await db.prepare(`
-                    INSERT INTO naver_doc_counts (keyword_id, blog_total, cafe_total, web_total, news_total)
-                    VALUES (?, ?, ?, ?, ?)
-                  `).bind(
-                    keywordRecord.id,
-                    docCounts.blog_total || 0,
-                    docCounts.cafe_total || 0,
-                    docCounts.web_total || 0,
-                    docCounts.news_total || 0
-                  ).run();
-                }
+              if (existingDocCount) {
+                await db.prepare(`
+                  UPDATE naver_doc_counts 
+                  SET blog_total = ?, cafe_total = ?, web_total = ?, news_total = ?, collected_at = CURRENT_TIMESTAMP
+                  WHERE keyword_id = ?
+                `).bind(
+                  docCounts.blog_total || 0,
+                  docCounts.cafe_total || 0,
+                  docCounts.web_total || 0,
+                  docCounts.news_total || 0,
+                  keywordId
+                ).run();
+                console.log(`📄 문서수 업데이트 완료: ${keyword.keyword}`);
+              } else {
+                await db.prepare(`
+                  INSERT INTO naver_doc_counts (keyword_id, blog_total, cafe_total, web_total, news_total)
+                  VALUES (?, ?, ?, ?, ?)
+                `).bind(
+                  keywordId,
+                  docCounts.blog_total || 0,
+                  docCounts.cafe_total || 0,
+                  docCounts.web_total || 0,
+                  docCounts.news_total || 0
+                ).run();
+                console.log(`📄 문서수 저장 완료: ${keyword.keyword}`);
               }
+              docCountsCollected++;
+            } else {
+              console.warn(`⚠️ 문서수 수집 결과 없음: ${keyword.keyword}`);
             }
             // API 호출 간격 조절 (Rate Limit 방지)
             await new Promise(resolve => setTimeout(resolve, 300));
           } catch (docError: any) {
-            console.error(`문서수 수집 실패 (${keyword.keyword}):`, docError.message);
+            console.error(`❌ 문서수 수집 실패 (${keyword.keyword}):`, docError.message);
+            console.error('에러 상세:', docError.stack);
             // 문서수 수집 실패해도 키워드 저장은 성공으로 처리
           }
+        } else if (!hasOpenApiKeys) {
+          console.warn('⚠️ 네이버 오픈API 키가 설정되지 않아 문서수 수집을 건너뜁니다.');
+        } else if (docCountsCollected >= maxDocCountsToCollect) {
+          console.log(`📄 문서수 수집 제한 도달 (${maxDocCountsToCollect}개), 나머지 건너뜀`);
         }
       } catch (dbError: any) {
         console.error(`데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
@@ -230,8 +250,10 @@ export async function onRequest(context: any) {
         savedCount,
         updatedCount,
         keywords: keywords, // 실제 수집된 키워드 데이터 반환
-        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.`,
-        version: 'v4.0 - 환경변수 디버그',
+        docCountsCollected, // 문서수 수집된 키워드 수
+        hasOpenApiKeys, // 네이버 오픈API 키 설정 여부
+        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집 완료.` : hasOpenApiKeys ? '' : ' (네이버 오픈API 키 미설정으로 문서수 수집 건너뜀)'}`,
+        version: 'v5.0 - 문서수 수집 로직 개선',
         timestamp: new Date().toISOString(),
         api_implementation: {
           endpoint: 'https://api.naver.com/keywordstool',
@@ -260,7 +282,7 @@ export async function onRequest(context: any) {
         details: error?.toString(),
         timestamp: new Date().toISOString(),
         source: 'Pages Functions',
-        version: 'v4.0 - 환경변수 디버그'
+        version: 'v5.0 - 문서수 수집 로직 개선'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
