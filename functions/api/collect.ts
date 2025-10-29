@@ -213,15 +213,14 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 
     console.log(`🚀 Starting Naver API collection for seed: ${seed}`);
     console.log('⏰ 현재 시간:', new Date().toISOString());
+    console.log('🆔 코드 버전: v3.0 - collect.ts 강제 에러 제거');
 
     // 공식 네이버 SearchAd API로 연관검색어 수집
     console.log('📞 About to call official Naver SearchAd API...');
     console.log('🔍 환경변수 확인 시작...');
     
-    // 🚨 강제 에러 발생 - 실제 함수 실행 여부 확인
-    console.log('💥 강제 에러 발생 시도...');
-    throw new Error('🚨 강제 에러 발생 - 이 메시지가 보이면 우리 코드가 실행되고 있습니다!');
-    
+    // 실제 네이버 SearchAd API 호출
+    console.log('🚀 실제 네이버 SearchAd API 호출 시작...');
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
     console.log(`Official Naver API collection completed:`, {
       keywordCount: keywords?.length || 0,
@@ -361,7 +360,9 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
         savedCount,
         updatedCount,
         docCountsCollected,
-        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다. ${docCountsCollected}개의 키워드 문서 수도 수집했습니다.`
+        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다. ${docCountsCollected}개의 키워드 문서 수도 수집했습니다.`,
+        version: 'v3.0 - collect.ts 강제 에러 제거',
+        timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
