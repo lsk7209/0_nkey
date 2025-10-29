@@ -41,8 +41,8 @@ export default {
                 JSON.stringify({ status: 'ok', timestamp: new Date().toISOString() }),
                 { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
               );
-            case '/api/test-naver':
-              return await handleTestNaverAPI(request, env, corsHeaders);
+        case '/api/debug/env':
+          return await handleDebugEnv(request, env, corsHeaders);
         default:
           return new Response(
             JSON.stringify({ error: 'Not Found' }),
@@ -366,15 +366,27 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
       console.log('🚀 Official Naver SearchAd API called with seed:', seed);
       
       try {
-        // 환경변수에서 공식 API 키 가져오기
-        const BASE = env.SEARCHAD_BASE || 'https://api.naver.com';
-        const KEY = env.SEARCHAD_API_KEY;
-        const SECRET = env.SEARCHAD_SECRET;
-        const CID = env.SEARCHAD_CUSTOMER_ID;
+        // 기존 환경변수에서 API 키 가져오기 (공식 API 사용)
+        const BASE = 'https://api.naver.com';
+        
+        // 사용 가능한 네이버 API 키 찾기
+        const apiKeys = [
+          { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
+          { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
+          { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
+          { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
+          { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
+        ].filter(api => api.key && api.secret && api.customerId);
 
-        if (!KEY || !SECRET || !CID) {
-          throw new Error('공식 네이버 SearchAd API 키가 설정되지 않았습니다.');
+        if (apiKeys.length === 0) {
+          throw new Error('네이버 API 키가 설정되지 않았습니다.');
         }
+
+        // 첫 번째 사용 가능한 API 키 사용
+        const apiKey = apiKeys[0];
+        const KEY = apiKey.key;
+        const SECRET = apiKey.secret;
+        const CID = apiKey.customerId;
 
         console.log('Using official Naver SearchAd API:', {
           base: BASE,
@@ -883,6 +895,40 @@ async function handleTestNaverAPI(request: Request, env: any, corsHeaders: any) 
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
+}
+
+// 환경변수 디버그 함수
+async function handleDebugEnv(request: Request, env: any, corsHeaders: any) {
+  if (request.method !== 'GET') {
+    return new Response(
+      JSON.stringify({ error: 'Method Not Allowed' }),
+      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const envStatus = {
+    // 기존 환경변수들 확인
+    NAVER_API_KEY_1: env.NAVER_API_KEY_1 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_API_SECRET_1: env.NAVER_API_SECRET_1 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_CUSTOMER_ID_1: env.NAVER_CUSTOMER_ID_1 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_API_KEY_2: env.NAVER_API_KEY_2 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_API_SECRET_2: env.NAVER_API_SECRET_2 ? '✅ 설정됨' : '❌ 미설정',
+    NAVER_CUSTOMER_ID_2: env.NAVER_CUSTOMER_ID_2 ? '✅ 설정됨' : '❌ 미설정',
+    // 공식 API 환경변수들 (선택사항)
+    SEARCHAD_BASE: env.SEARCHAD_BASE ? '✅ 설정됨' : '❌ 미설정 (기본값 사용)',
+    SEARCHAD_API_KEY: env.SEARCHAD_API_KEY ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)',
+    SEARCHAD_SECRET: env.SEARCHAD_SECRET ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)',
+    SEARCHAD_CUSTOMER_ID: env.SEARCHAD_CUSTOMER_ID ? '✅ 설정됨' : '❌ 미설정 (기존 키 사용)'
+  };
+
+  return new Response(
+    JSON.stringify({
+      message: '환경변수 상태 확인',
+      environment_status: envStatus,
+      recommendation: '기존 NAVER_API_KEY_1, NAVER_API_SECRET_1, NAVER_CUSTOMER_ID_1을 사용하여 공식 네이버 SearchAd API를 호출합니다.'
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 }
 
 // 키워드 조회 처리
