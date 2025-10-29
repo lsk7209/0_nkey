@@ -34,10 +34,10 @@ export async function onRequest(context: any) {
           { status: 404, headers: { 'Content-Type': 'application/json' } }
         );
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('🚨 Middleware 에러:', error);
       return new Response(
-        JSON.stringify({ error: 'Middleware Error', message: error?.message }),
+        JSON.stringify({ error: 'Middleware Error', message: error?.message || 'Unknown error' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
