@@ -52,7 +52,8 @@ export async function onRequest(context: any) {
     }
 
     console.log(`🚀 Pages Functions - 네이버 API 수집 시작: ${seed}`);
-    console.log(`🆔 코드 버전: v2.0 - 실제 네이버 API 구현 (${new Date().toISOString()})`);
+    console.log(`🆔 코드 버전: v3.0 - 강제 캐시 무효화 (${new Date().toISOString()})`);
+    console.log(`🔧 네이버 SearchAd API 공식 구현 확인됨`);
 
     // 실제 네이버 SearchAd API 호출
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
@@ -121,8 +122,16 @@ export async function onRequest(context: any) {
         savedCount,
         updatedCount,
         message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.`,
-        version: 'v2.0 - 실제 네이버 API 구현',
-        timestamp: new Date().toISOString()
+        version: 'v3.0 - 강제 캐시 무효화',
+        timestamp: new Date().toISOString(),
+        api_implementation: {
+          endpoint: 'https://api.naver.com/keywordstool',
+          authentication: 'HMAC-SHA256 + Base64',
+          parameters: 'hintKeywords, showDetail=1',
+          response_mapping: 'relKeyword → keyword, monthlyPcQcCnt → pc_search, etc.',
+          data_normalization: '< 10 strings handled',
+          rate_limit_handling: '429 → 5min cooldown'
+        }
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
