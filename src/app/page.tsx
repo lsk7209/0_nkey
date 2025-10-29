@@ -29,8 +29,8 @@ export default function Home() {
     setKeywords([]) // 기존 키워드 초기화
 
     try {
-      // Cloudflare Workers API로 실제 네이버 API 호출
-      console.log('네이버 API 호출 시작:', {
+      // 공식 네이버 SearchAd API 호출 (Cloudflare Workers를 통한 프록시)
+      console.log('공식 네이버 SearchAd API 호출 시작:', {
         url: 'https://0_nkey-api.lsk7209-5f4.workers.dev/api/collect-naver',
         seed: seed.trim()
       })

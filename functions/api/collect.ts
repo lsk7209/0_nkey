@@ -186,14 +186,10 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 
     console.log(`Starting Naver API collection for seed: ${seed}`);
 
-    // 네이버 검색광고 API로 연관검색어 수집
-    console.log('About to call collectKeywordsFromNaver...');
-    
-    // 강제로 에러 발생 테스트
-    throw new Error('강제 에러 테스트 - 실제 네이버 API 호출 상태 확인');
-    
-    const keywords = await collectKeywordsFromNaver(seed.trim(), env);
-    console.log(`Naver API collection completed successfully:`, {
+    // 공식 네이버 SearchAd API로 연관검색어 수집
+    console.log('About to call official Naver SearchAd API...');
+    const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
+    console.log(`Official Naver API collection completed:`, {
       keywordCount: keywords?.length || 0,
       keywords: keywords?.slice(0, 3) || [] // 처음 3개만 로그
     });
@@ -365,134 +361,155 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
   }
 }
 
-    // 네이버 검색광고 API로 키워드 수집
-    async function collectKeywordsFromNaver(seed: string, env: any) {
-      console.log('collectKeywordsFromNaver called with seed:', seed);
+    // 공식 네이버 SearchAd API로 키워드 수집
+    async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
+      console.log('🚀 Official Naver SearchAd API called with seed:', seed);
+      
       try {
-        // 사용 가능한 네이버 API 키 찾기
-        const apiKeys = [
-          { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
-          { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
-          { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
-          { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
-          { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
-        ].filter(api => api.key && api.secret && api.customerId);
+        // 환경변수에서 공식 API 키 가져오기
+        const BASE = env.SEARCHAD_BASE || 'https://api.naver.com';
+        const KEY = env.SEARCHAD_API_KEY;
+        const SECRET = env.SEARCHAD_SECRET;
+        const CID = env.SEARCHAD_CUSTOMER_ID;
 
-        console.log('Available API keys:', apiKeys.length);
-        if (apiKeys.length === 0) {
-          console.error('No valid API keys found');
-          throw new Error('네이버 API 키가 설정되지 않았습니다.');
+        if (!KEY || !SECRET || !CID) {
+          throw new Error('공식 네이버 SearchAd API 키가 설정되지 않았습니다.');
         }
 
-        // 첫 번째 사용 가능한 API 키 사용
-        const apiKey = apiKeys[0];
-        console.log(`Using Naver API key: ${apiKey.key.substring(0, 8)}...`);
-        console.log(`Customer ID: ${apiKey.customerId}`);
-        console.log(`Secret key: ${apiKey.secret.substring(0, 8)}...`);
+        console.log('Using official Naver SearchAd API:', {
+          base: BASE,
+          key: KEY.substring(0, 8) + '...',
+          customerId: CID
+        });
 
-    // 네이버 검색광고 API 엔드포인트 (올바른 엔드포인트)
-    const apiUrl = 'https://api.naver.com/keywordstool';
-    
-    // 요청 파라미터
-    const params = new URLSearchParams({
-      hintKeywords: seed,
-      showDetail: '1'
-    });
+        // 공식 API 엔드포인트 및 파라미터
+        const uri = '/keywordstool';
+        const qs = new URLSearchParams({ 
+          hintKeywords: seed, 
+          showDetail: '1' 
+        });
+        const ts = Date.now().toString();
+        
+        // HMAC-SHA256 시그니처 생성 (공식 문서 기준)
+        const sig = await generateOfficialHMACSignature(ts, 'GET', uri, SECRET);
 
-    // HMAC-SHA256 시그니처 생성 (네이버 공식 문서 기준)
-    const timestamp = Date.now().toString();
-    const method = 'GET';
-    const uri = '/keywordstool';
-    const message = `${timestamp}.${method}.${uri}`;
-    
-    console.log('Signature generation details:', {
-      timestamp,
-      method,
-      uri,
-      message,
-      secret: apiKey.secret.substring(0, 8) + '...'
-    });
-    
-    const signature = await generateHMACSignature(apiKey.secret, message);
+        console.log('Official API call details:', {
+          url: `${BASE}${uri}?${qs.toString()}`,
+          timestamp: ts,
+          signature: sig.substring(0, 20) + '...'
+        });
 
-    console.log(`네이버 API 호출 시작:`, {
-      url: `${apiUrl}?${params}`,
-      timestamp,
-      customerId: apiKey.customerId,
-      apiKey: apiKey.key.substring(0, 8) + '...',
-      signature: signature.substring(0, 20) + '...'
-    });
+        // 공식 API 호출
+        const res = await fetch(`${BASE}${uri}?${qs.toString()}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json; charset=UTF-8',
+            'X-Timestamp': ts,
+            'X-API-KEY': KEY,
+            'X-Customer': CID,
+            'X-Signature': sig,
+          },
+        });
 
-    // API 호출
-    const response = await fetch(`${apiUrl}?${params}`, {
-      method: 'GET',
-      headers: {
-        'X-Timestamp': timestamp,
-        'X-API-KEY': apiKey.key,
-        'X-Customer': apiKey.customerId,
-        'X-Signature': signature,
-        'Content-Type': 'application/json; charset=UTF-8'
-      }
-    });
+        console.log(`Official Naver API response status: ${res.status}`);
 
-    console.log(`네이버 API 응답 상태: ${response.status}`);
+        // 429 Rate Limit 처리
+        if (res.status === 429) {
+          console.warn('Rate limit reached. Cooling down for 5 minutes...');
+          await new Promise(r => setTimeout(r, 5 * 60 * 1000));
+          return fetchKeywordsFromOfficialNaverAPI(seed, env);
+        }
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
-      console.error(`Request URL: ${apiUrl}?${params}`);
-      console.error(`Headers:`, {
-        'X-Timestamp': timestamp,
-        'X-API-KEY': apiKey.key.substring(0, 8) + '...',
-        'X-Customer': apiKey.customerId,
-        'X-Signature': signature.substring(0, 20) + '...'
-      });
-      throw new Error(`네이버 API 호출 실패: ${response.status} - ${errorText}`);
-    }
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error(`Official Naver API Error: ${res.status} - ${errorText}`);
+          throw new Error(`공식 네이버 SearchAd API 호출 실패: ${res.status} - ${errorText}`);
+        }
 
-        const data = await response.json();
-        console.log('Naver API response:', JSON.stringify(data, null, 2));
+        const data = await res.json();
+        console.log('Official Naver API response:', JSON.stringify(data, null, 2));
 
-        // 응답 데이터 파싱 (올바른 필드명)
+        // 응답 데이터 매핑 (공식 필드명 사용)
         if (!data.keywordList || !Array.isArray(data.keywordList)) {
-          console.log('No keywordList data found in response');
+          console.log('No keywordList data found in official API response');
           return [];
         }
 
-        // 키워드 데이터 변환 (올바른 필드 매핑)
-        const keywords = data.keywordList.map((item: any) => ({
-          keyword: item.relKeyword || '',
-          monthly_search_pc: normalizeSearchCount(item.monthlyPcQcCnt),
-          monthly_search_mob: normalizeSearchCount(item.monthlyMobileQcCnt),
-          avg_monthly_search: normalizeSearchCount(item.monthlyPcQcCnt) + normalizeSearchCount(item.monthlyMobileQcCnt),
-          cpc: parseFloat(item.plAvgBid) || 0,
-          comp_index: parseCompIndex(item.compIdx),
-          // 추가 네이버 API 필드들
-          monthly_click_pc: parseFloat(item.monthlyAvePcClkCnt) || 0,
-          monthly_click_mobile: parseFloat(item.monthlyAveMobileClkCnt) || 0,
-          ctr_pc: parseFloat(item.monthlyAvePcCtr) || 0,
-          ctr_mobile: parseFloat(item.monthlyAveMobileCtr) || 0,
-          ad_count: parseInt(item.plAvgDepth) || 0
+        const keywords = data.keywordList.map((k: any) => ({
+          keyword: k.relKeyword,
+          pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+          mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+          avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+          monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+          monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+          ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+          ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+          ad_count: parseInt(k.plAvgDepth || '0'),
+          comp_idx: k.compIdx || null,
+          // 기존 필드명 호환성 유지
+          monthly_search_pc: normalizeSearchCount(k.monthlyPcQcCnt),
+          monthly_search_mob: normalizeSearchCount(k.monthlyMobileQcCnt),
+          cpc: parseFloat(k.plAvgBid) || 0,
+          comp_index: parseCompIndex(k.compIdx),
+          monthly_click_mobile: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+          ctr_mobile: parseFloat(k.monthlyAveMobileCtr || '0')
         })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
 
-        console.log(`Collected ${keywords.length} keywords from Naver API`);
+        console.log(`✅ Collected ${keywords.length} keywords from official Naver SearchAd API`);
         console.log('First few keywords:', keywords.slice(0, 3));
         return keywords;
 
       } catch (error: any) {
-        console.error('Error collecting from Naver API:', error);
+        console.error('❌ Error collecting from official Naver SearchAd API:', error);
         console.error('Error details:', {
           message: error.message,
           stack: error.stack,
           name: error.name
         });
         
-        // API 실패 시 에러를 그대로 전파 (샘플 데이터 폴백 제거)
-        throw new Error(`네이버 API 호출 실패: ${error.message}`);
+        throw new Error(`공식 네이버 SearchAd API 호출 실패: ${error.message}`);
       }
     }
 
-// HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용 - 공식 문서 기준)
+// 공식 네이버 SearchAd API용 HMAC-SHA256 시그니처 생성
+async function generateOfficialHMACSignature(timestamp: string, method: string, uri: string, secret: string): Promise<string> {
+  try {
+    const message = `${timestamp}.${method}.${uri}`;
+    console.log('Generating official HMAC signature:', {
+      timestamp,
+      method,
+      uri,
+      message,
+      secret: secret.substring(0, 8) + '...'
+    });
+
+    // 공식 문서 기준: secret을 그대로 사용 (Base64 디코딩하지 않음)
+    const secretBytes = new TextEncoder().encode(secret);
+    const messageBytes = new TextEncoder().encode(message);
+    
+    // HMAC-SHA256 생성
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      secretBytes,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
+    
+    // Base64 인코딩
+    const base64String = btoa(String.fromCharCode(...new Uint8Array(signature)));
+    
+    console.log('Generated official signature (Base64):', base64String.substring(0, 20) + '...');
+    return base64String;
+  } catch (error: any) {
+    console.error('Official HMAC signature generation error:', error);
+    throw new Error(`공식 시그니처 생성 실패: ${error.message}`);
+  }
+}
+
+// 기존 HMAC 시그니처 생성 함수 (호환성 유지)
 async function generateHMACSignature(secret: string, message: string): Promise<string> {
   try {
     console.log('Generating HMAC signature (Naver official method):', {
