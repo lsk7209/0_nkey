@@ -452,40 +452,45 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
 
 // HMAC-SHA256 시그니처 생성 (네이버 검색광고 API용)
 async function generateHMACSignature(secret: string, message: string): Promise<string> {
-  // Secret을 직접 사용 (Base64 디코딩하지 않음)
-  const secretBytes = new TextEncoder().encode(secret);
-  const messageBytes = new TextEncoder().encode(message);
-  
-  const cryptoKey = await crypto.subtle.importKey(
-    'raw',
-    secretBytes,
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  
-  const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
-  const signatureArray = new Uint8Array(signature);
-  
-  // Base64 인코딩
-  const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  let result = '';
-  let i = 0;
-  
-  while (i < signatureArray.length) {
-    const a = signatureArray[i++];
-    const b = i < signatureArray.length ? signatureArray[i++] : 0;
-    const c = i < signatureArray.length ? signatureArray[i++] : 0;
+  try {
+    // Secret을 Base64 디코딩 (네이버 API는 Base64로 인코딩된 secret을 사용)
+    const secretBytes = Uint8Array.from(atob(secret), c => c.charCodeAt(0));
+    const messageBytes = new TextEncoder().encode(message);
     
-    const bitmap = (a << 16) | (b << 8) | c;
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      secretBytes,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
     
-    result += base64Chars.charAt((bitmap >> 18) & 63);
-    result += base64Chars.charAt((bitmap >> 12) & 63);
-    result += i - 2 < signatureArray.length ? base64Chars.charAt((bitmap >> 6) & 63) : '=';
-    result += i - 1 < signatureArray.length ? base64Chars.charAt(bitmap & 63) : '=';
+    const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
+    const signatureArray = new Uint8Array(signature);
+    
+    // Base64 인코딩
+    const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    let result = '';
+    let i = 0;
+    
+    while (i < signatureArray.length) {
+      const a = signatureArray[i++];
+      const b = i < signatureArray.length ? signatureArray[i++] : 0;
+      const c = i < signatureArray.length ? signatureArray[i++] : 0;
+      
+      const bitmap = (a << 16) | (b << 8) | c;
+      
+      result += base64Chars.charAt((bitmap >> 18) & 63);
+      result += base64Chars.charAt((bitmap >> 12) & 63);
+      result += i - 2 < signatureArray.length ? base64Chars.charAt((bitmap >> 6) & 63) : '=';
+      result += i - 1 < signatureArray.length ? base64Chars.charAt(bitmap & 63) : '=';
+    }
+    
+    return result;
+  } catch (error: any) {
+    console.error('HMAC signature generation error:', error);
+    throw new Error(`시그니처 생성 실패: ${error.message}`);
   }
-  
-  return result;
 }
 
 // 검색 수 정규화 (< 10 같은 문자열 처리)
