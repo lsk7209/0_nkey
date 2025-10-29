@@ -128,6 +128,7 @@ export async function onRequest(context: any) {
         totalSavedOrUpdated: savedCount + updatedCount,
         savedCount,
         updatedCount,
+        keywords: keywords, // 실제 수집된 키워드 데이터 반환
         message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.`,
         version: 'v4.0 - 환경변수 디버그',
         timestamp: new Date().toISOString(),

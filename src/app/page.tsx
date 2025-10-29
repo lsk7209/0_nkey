@@ -4,11 +4,15 @@ import { useState } from 'react'
 
 interface KeywordData {
   keyword: string
-  monthly_search_pc: number
-  monthly_search_mob: number
+  pc_search: number
+  mobile_search: number
   avg_monthly_search: number
-  cpc?: number
-  comp_index?: number
+  monthly_click_pc?: number
+  monthly_click_mo?: number
+  ctr_pc?: number
+  ctr_mo?: number
+  ad_count?: number
+  comp_idx?: string | number
 }
 
 export default function Home() {
@@ -53,23 +57,15 @@ export default function Home() {
         console.log('API 성공 응답:', result)
         
         if (result.success) {
-          setMessage(`✅ 성공! ${result.totalSavedOrUpdated}개의 키워드가 클라우드 데이터베이스에 저장되었습니다.`)
+          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.`)
           
-          // 실제 수집된 키워드 데이터를 표시하기 위해 데이터베이스에서 조회
-          try {
-            const keywordsResponse = await fetch('https://0_nkey-api.lsk7209-5f4.workers.dev/api/keywords', {
-              method: 'GET',
-              headers: {
-                'x-admin-key': 'dev-key-2024'
-              }
-            })
-            
-            if (keywordsResponse.ok) {
-              const keywordsResult = await keywordsResponse.json()
-              setKeywords(keywordsResult.keywords || [])
-            }
-          } catch (error) {
-            console.error('키워드 조회 실패:', error)
+          // API 응답에서 직접 키워드 데이터 표시
+          if (result.keywords && Array.isArray(result.keywords)) {
+            console.log(`표시할 키워드 개수: ${result.keywords.length}`)
+            setKeywords(result.keywords)
+          } else {
+            console.warn('API 응답에 keywords 배열이 없습니다:', result)
+            setKeywords([])
           }
         } else {
           setMessage(`❌ 실패: ${result.message}`)
@@ -194,7 +190,7 @@ export default function Home() {
                     총 검색량
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    CPC
+                    광고수
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     경쟁도
@@ -208,19 +204,19 @@ export default function Home() {
                       {keyword.keyword}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {keyword.monthly_search_pc.toLocaleString()}
+                      {keyword.pc_search?.toLocaleString() || '0'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {keyword.monthly_search_mob.toLocaleString()}
+                      {keyword.mobile_search?.toLocaleString() || '0'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {keyword.avg_monthly_search.toLocaleString()}
+                      {keyword.avg_monthly_search?.toLocaleString() || '0'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {keyword.cpc?.toLocaleString() || 'N/A'}
+                      {keyword.ad_count?.toLocaleString() || 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {keyword.comp_index || 'N/A'}
+                      {keyword.comp_idx || 'N/A'}
                     </td>
                   </tr>
                 ))}
