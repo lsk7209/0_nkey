@@ -163,6 +163,8 @@ async function handleCollect(request: Request, env: any, corsHeaders: any) {
 
 // 네이버 API로 키워드 수집 처리
 async function handleCollectFromNaver(request: Request, env: any, corsHeaders: any) {
+  console.log('🚨 handleCollectFromNaver 함수가 실행되었습니다!');
+  
   if (request.method !== 'POST') {
     return new Response(
       JSON.stringify({ error: 'Method Not Allowed' }),
