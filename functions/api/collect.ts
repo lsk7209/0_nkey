@@ -470,6 +470,7 @@ async function handleCollectFromNaver(request: Request, env: any, corsHeaders: a
         })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
 
         console.log(`Collected ${keywords.length} keywords from Naver API`);
+        console.log('First few keywords:', keywords.slice(0, 3));
         return keywords;
 
       } catch (error: any) {
