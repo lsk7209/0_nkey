@@ -103,6 +103,8 @@ export async function onRequest(context: any) {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // D1 데이터베이스에서 키워드 조회 (문서수 포함, 필터 적용)
+    // collect-naver.ts에서 사용하는 컬럼명과 일치하도록 조회
+    // 실제 데이터는 keywords 테이블에 직접 저장되므로 keyword_metrics JOIN은 불필요
     const db = env.DB;
     const query = `
       SELECT 
@@ -128,10 +130,49 @@ export async function onRequest(context: any) {
     `;
 
     let result;
-    if (bindings.length > 0) {
-      result = await db.prepare(query).bind(...bindings).all();
-    } else {
-      result = await db.prepare(query).all();
+    try {
+      if (bindings.length > 0) {
+        result = await db.prepare(query).bind(...bindings).all();
+      } else {
+        result = await db.prepare(query).all();
+      }
+    } catch (queryError: any) {
+      // 컬럼명 에러인 경우 대체 쿼리 시도
+      if (queryError.message && queryError.message.includes('no such column')) {
+        console.error('컬럼명 에러 감지, 대체 쿼리 시도:', queryError.message);
+        // 대체 쿼리: schema.sql의 컬럼명 사용
+        const fallbackQuery = `
+          SELECT 
+            k.keyword,
+            k.avg_monthly_search,
+            k.monthly_search_pc as pc_search,
+            k.monthly_search_mob as mobile_search,
+            km.monthly_click_pc,
+            km.monthly_click_mobile as monthly_click_mo,
+            km.ctr_pc,
+            km.ctr_mobile as ctr_mo,
+            km.ad_count,
+            k.created_at,
+            COALESCE(ndc.blog_total, 0) as blog_total,
+            COALESCE(ndc.cafe_total, 0) as cafe_total,
+            COALESCE(ndc.web_total, 0) as web_total,
+            COALESCE(ndc.news_total, 0) as news_total
+          FROM keywords k
+          LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
+          LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+          ${whereClause}
+          ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
+          LIMIT 1000
+        `;
+        
+        if (bindings.length > 0) {
+          result = await db.prepare(fallbackQuery).bind(...bindings).all();
+        } else {
+          result = await db.prepare(fallbackQuery).all();
+        }
+      } else {
+        throw queryError;
+      }
     }
 
     console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
