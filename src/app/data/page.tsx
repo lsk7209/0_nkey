@@ -15,17 +15,19 @@ import { useState, useEffect } from 'react'
 
 interface KeywordData {
   keyword: string
-  pc_search: number
-  mobile_search: number
   avg_monthly_search: number
+  blog_total?: number
+  cafe_total?: number
+  web_total?: number
+  news_total?: number
   monthly_click_pc?: number
   monthly_click_mo?: number
   ctr_pc?: number
   ctr_mo?: number
   ad_count?: number
-  comp_idx?: string | number
+  pc_search: number
+  mobile_search: number
   created_at?: string
-  updated_at?: string
 }
 
 export default function DataPage() {
@@ -195,55 +197,97 @@ export default function DataPage() {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     키워드
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      PC 검색량
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    총검색량
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      모바일 검색량
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    카페문서수
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      총 검색량
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    블로그문서수
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      광고수
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    웹문서수
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      경쟁도
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    뉴스문서수
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      생성일
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    월클릭(pc)
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    월클릭(m)
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    월클릭률(pc)
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    월클릭률(m)
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    월광고수
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    PC 검색량
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    모바일 검색량
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    생성일
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                   {currentKeywords.map((keyword, index) => (
                     <tr key={index}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                         {keyword.keyword}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.pc_search || 0).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.mobile_search || 0).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {(keyword.avg_monthly_search || 0).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.cafe_total || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.blog_total || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.web_total || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.news_total || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {keyword.monthly_click_pc ? keyword.monthly_click_pc.toFixed(1) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {keyword.monthly_click_mo ? keyword.monthly_click_mo.toFixed(1) : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {keyword.ctr_pc ? `${keyword.ctr_pc.toFixed(2)}%` : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {keyword.ctr_mo ? `${keyword.ctr_mo.toFixed(2)}%` : 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {keyword.ad_count?.toLocaleString() || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.comp_idx || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.pc_search || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        {(keyword.mobile_search || 0).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                         {keyword.created_at ? new Date(keyword.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
           </div>

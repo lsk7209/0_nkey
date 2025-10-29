@@ -42,11 +42,29 @@ export async function onRequest(context: any) {
 
     console.log('🔍 Pages Functions - 키워드 조회 시작');
 
-    // D1 데이터베이스에서 키워드 조회
+    // D1 데이터베이스에서 키워드 조회 (문서수 포함)
     const db = env.DB;
-    const result = await db.prepare(
-      'SELECT * FROM keywords ORDER BY avg_monthly_search DESC LIMIT 100'
-    ).all();
+    const result = await db.prepare(`
+      SELECT 
+        k.keyword,
+        k.avg_monthly_search,
+        k.pc_search,
+        k.mobile_search,
+        k.monthly_click_pc,
+        k.monthly_click_mo,
+        k.ctr_pc,
+        k.ctr_mo,
+        k.ad_count,
+        k.created_at,
+        COALESCE(ndc.blog_total, 0) as blog_total,
+        COALESCE(ndc.cafe_total, 0) as cafe_total,
+        COALESCE(ndc.web_total, 0) as web_total,
+        COALESCE(ndc.news_total, 0) as news_total
+      FROM keywords k
+      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+      ORDER BY k.avg_monthly_search DESC
+      LIMIT 1000
+    `).all();
 
     console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
 
