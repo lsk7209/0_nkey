@@ -207,7 +207,7 @@ export async function onRequest(context: any) {
             keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
             keyword.avg_monthly_search, keyword.comp_idx || 0,
             new Date().toISOString(), new Date().toISOString()
-          ).run(), 'insert keywords');
+          ).run(), 'insert keywords') as { meta: { last_row_id: number } };
 
           keywordId = insertResult.meta.last_row_id;
 
