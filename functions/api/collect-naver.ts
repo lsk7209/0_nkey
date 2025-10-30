@@ -108,8 +108,33 @@ export async function onRequest(context: any) {
     const failedSamples: { keyword: string, error: string }[] = [];
 
     // DB 청크 크기 및 청크 간 대기(ms)
-    const CHUNK_SIZE = 50;
-    const CHUNK_DELAY_MS = 250;
+    const CHUNK_SIZE = 20;
+    const CHUNK_DELAY_MS = 500;
+
+    // D1 쓰기 재시도 유틸 (BUSY/LOCK 등 일시 오류 완화)
+    async function runWithRetry<T>(op: () => Promise<T>, label: string): Promise<T> {
+      const maxRetry = 3;
+      let attempt = 0;
+      let lastErr: any;
+      while (attempt < maxRetry) {
+        try {
+          return await op();
+        } catch (e: any) {
+          lastErr = e;
+          const msg = (e?.message || '').toLowerCase();
+          const transient = msg.includes('busy') || msg.includes('locked') || msg.includes('timeout');
+          attempt++;
+          if (!transient || attempt >= maxRetry) {
+            console.error(`❌ D1 ${label} 실패 (시도 ${attempt}/${maxRetry}):`, e?.message || e);
+            throw e;
+          }
+          const backoff = 200 * Math.pow(2, attempt - 1);
+          console.warn(`🔄 D1 ${label} 재시도 ${attempt}/${maxRetry} (${backoff}ms 대기)`);
+          await new Promise(r => setTimeout(r, backoff));
+        }
+      }
+      throw lastErr;
+    }
 
     // 네이버 오픈API 키 확인
     const hasOpenApiKeys = [
@@ -122,16 +147,17 @@ export async function onRequest(context: any) {
       const keyword = uniqueKeywords[i];
       try {
         // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
-        const existing = await db.prepare(
-          'SELECT id FROM keywords WHERE keyword = ?'
-        ).bind(keyword.keyword).first();
+        const existing = await runWithRetry(
+          () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+          'select keywords'
+        );
 
         let keywordId: number | null = null;
 
         if (existing) {
           keywordId = existing.id as number;
           // 기존 키워드 업데이트 - 스키마에 맞게 컬럼명 수정
-          await db.prepare(`
+          await runWithRetry(() => db.prepare(`
             UPDATE keywords SET 
               monthly_search_pc = ?, monthly_search_mob = ?, avg_monthly_search = ?,
               seed_keyword_text = ?, comp_index = ?, updated_at = ?
@@ -140,15 +166,16 @@ export async function onRequest(context: any) {
             keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search,
             seed.trim(), keyword.comp_idx || 0, new Date().toISOString(),
             keyword.keyword
-          ).run();
+          ).run(), 'update keywords');
 
           // keyword_metrics 테이블 업데이트 또는 삽입
-          const existingMetrics = await db.prepare(
-            'SELECT id FROM keyword_metrics WHERE keyword_id = ?'
-          ).bind(existing.id).first();
+          const existingMetrics = await runWithRetry(
+            () => db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?').bind(existing.id).first(),
+            'select keyword_metrics'
+          );
 
           if (existingMetrics) {
-            await db.prepare(`
+            await runWithRetry(() => db.prepare(`
               UPDATE keyword_metrics SET
                 monthly_click_pc = ?, monthly_click_mobile = ?, ctr_pc = ?, ctr_mobile = ?, ad_count = ?
               WHERE keyword_id = ?
@@ -156,9 +183,9 @@ export async function onRequest(context: any) {
               keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
               keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0,
               existing.id
-            ).run();
+            ).run(), 'update keyword_metrics');
           } else {
-            await db.prepare(`
+            await runWithRetry(() => db.prepare(`
               INSERT INTO keyword_metrics (
                 keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
               ) VALUES (?, ?, ?, ?, ?, ?)
@@ -166,12 +193,12 @@ export async function onRequest(context: any) {
               existing.id,
               keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
               keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
-            ).run();
+            ).run(), 'insert keyword_metrics');
           }
           updatedCount++;
         } else {
           // 새 키워드 삽입 - 스키마에 맞게 컬럼명 수정
-          const insertResult = await db.prepare(`
+          const insertResult = await runWithRetry(() => db.prepare(`
             INSERT INTO keywords (
               keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob, 
               avg_monthly_search, comp_index, created_at, updated_at
@@ -180,12 +207,12 @@ export async function onRequest(context: any) {
             keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
             keyword.avg_monthly_search, keyword.comp_idx || 0,
             new Date().toISOString(), new Date().toISOString()
-          ).run();
+          ).run(), 'insert keywords');
 
           keywordId = insertResult.meta.last_row_id;
 
           // keyword_metrics 테이블에 메트릭 데이터 삽입
-          await db.prepare(`
+          await runWithRetry(() => db.prepare(`
             INSERT INTO keyword_metrics (
               keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
             ) VALUES (?, ?, ?, ?, ?, ?)
@@ -193,7 +220,7 @@ export async function onRequest(context: any) {
             keywordId,
             keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
             keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
-          ).run();
+          ).run(), 'insert keyword_metrics');
           savedCount++;
         }
 
@@ -206,12 +233,13 @@ export async function onRequest(context: any) {
             if (docCounts) {
               console.log(`✅ 문서수 수집 완료 (${keyword.keyword}):`, docCounts);
               
-              const existingDocCount = await db.prepare(
-                'SELECT id FROM naver_doc_counts WHERE keyword_id = ?'
-              ).bind(keywordId).first();
+              const existingDocCount = await runWithRetry(
+                () => db.prepare('SELECT id FROM naver_doc_counts WHERE keyword_id = ?').bind(keywordId).first(),
+                'select naver_doc_counts'
+              );
 
               if (existingDocCount) {
-                await db.prepare(`
+                await runWithRetry(() => db.prepare(`
                   UPDATE naver_doc_counts 
                   SET blog_total = ?, cafe_total = ?, web_total = ?, news_total = ?, collected_at = CURRENT_TIMESTAMP
                   WHERE keyword_id = ?
@@ -221,10 +249,10 @@ export async function onRequest(context: any) {
                   docCounts.web_total || 0,
                   docCounts.news_total || 0,
                   keywordId
-                ).run();
+                ).run(), 'update naver_doc_counts');
                 console.log(`📄 문서수 업데이트 완료: ${keyword.keyword}`);
               } else {
-                await db.prepare(`
+                await runWithRetry(() => db.prepare(`
                   INSERT INTO naver_doc_counts (keyword_id, blog_total, cafe_total, web_total, news_total)
                   VALUES (?, ?, ?, ?, ?)
                 `).bind(
@@ -233,7 +261,7 @@ export async function onRequest(context: any) {
                   docCounts.cafe_total || 0,
                   docCounts.web_total || 0,
                   docCounts.news_total || 0
-                ).run();
+                ).run(), 'insert naver_doc_counts');
                 console.log(`📄 문서수 저장 완료: ${keyword.keyword}`);
               }
               docCountsCollected++;
