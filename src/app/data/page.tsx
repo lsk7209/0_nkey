@@ -48,7 +48,8 @@ export default function DataPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(20)
+  const [itemsPerPage] = useState(100)
+  const [totalCount, setTotalCount] = useState(0)
   const [filters, setFilters] = useState<FilterValues>({
     minAvgSearch: '',
     maxAvgSearch: '',
@@ -65,7 +66,7 @@ export default function DataPage() {
 
   useEffect(() => {
     loadKeywords()
-  }, [])
+  }, [currentPage, itemsPerPage])
 
   const loadKeywords = async () => {
     try {
@@ -83,6 +84,10 @@ export default function DataPage() {
       if (filters.minNewsTotal) params.append('minNewsTotal', filters.minNewsTotal)
       if (filters.maxNewsTotal) params.append('maxNewsTotal', filters.maxNewsTotal)
 
+      // 페이지네이션 파라미터 추가
+      params.append('page', String(currentPage))
+      params.append('pageSize', String(itemsPerPage))
+
       const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
       
       // Pages Functions를 통해 D1 데이터베이스에서 키워드 조회
@@ -97,7 +102,8 @@ export default function DataPage() {
         const data = await response.json()
         if (data.success && Array.isArray(data.keywords)) {
           setKeywords(data.keywords)
-          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개의 키워드를 불러왔습니다.`)
+          setTotalCount(typeof data.total === 'number' ? data.total : data.keywords.length)
+          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (총 ${data.total ?? data.keywords.length}개 중) 불러왔습니다.`)
           
           // 문서수가 없는 키워드 자동 수집
           const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) => 
@@ -294,18 +300,16 @@ export default function DataPage() {
     }
   }
 
-  // 페이지네이션 계산
-  const totalPages = Math.ceil(keywords.length / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentKeywords = keywords.slice(startIndex, endIndex)
+  // 페이지네이션 계산 (서버 페이지네이션)
+  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage))
+  const currentKeywords = keywords
 
   // 통계 계산
-  const totalKeywords = keywords.length
-  const totalSearchVolume = keywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
-  const avgSearchVolume = totalKeywords > 0 ? Math.round(totalSearchVolume / totalKeywords) : 0
-  const totalPcSearch = keywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
-  const totalMobileSearch = keywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
+  const totalKeywords = totalCount
+  const totalSearchVolume = currentKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
+  const avgSearchVolume = currentKeywords.length > 0 ? Math.round(totalSearchVolume / currentKeywords.length) : 0
+  const totalPcSearch = currentKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
+  const totalMobileSearch = currentKeywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
 
   if (loading) {
     return (

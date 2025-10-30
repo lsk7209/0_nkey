@@ -55,6 +55,14 @@ export async function onRequest(context: any) {
     const minNewsTotal = url.searchParams.get('minNewsTotal');
     const maxNewsTotal = url.searchParams.get('maxNewsTotal');
 
+    // 페이지네이션 파라미터
+    const pageParam = parseInt(url.searchParams.get('page') || '1');
+    const pageSizeParam = parseInt(url.searchParams.get('pageSize') || '100');
+    const page = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+    const pageSizeRaw = isNaN(pageSizeParam) ? 100 : pageSizeParam;
+    const pageSize = Math.min(Math.max(pageSizeRaw, 1), 1000); // 최대 1000까지 허용
+    const offset = (page - 1) * pageSize;
+
     // WHERE 절 조건 구성
     const conditions: string[] = [];
     const bindings: any[] = [];
@@ -106,7 +114,7 @@ export async function onRequest(context: any) {
     // schema.sql의 실제 컬럼명 사용: monthly_search_pc, monthly_search_mob
     // keyword_metrics 테이블과 JOIN하여 메트릭 데이터 조회
     const db = env.DB;
-    const query = `
+    const baseSelect = `
       SELECT 
         k.keyword,
         k.avg_monthly_search,
@@ -127,19 +135,35 @@ export async function onRequest(context: any) {
       LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
       ${whereClause}
       ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
-      LIMIT 1000
     `;
+
+    const query = `${baseSelect} LIMIT ? OFFSET ?`;
 
     let result;
     try {
-      if (bindings.length > 0) {
-        result = await db.prepare(query).bind(...bindings).all();
-      } else {
-        result = await db.prepare(query).all();
-      }
+      const dataBindings = [...bindings, pageSize, offset];
+      result = await db.prepare(query).bind(...dataBindings).all();
     } catch (queryError: any) {
       console.error('키워드 조회 쿼리 에러:', queryError.message);
       throw queryError;
+    }
+
+    // 총 개수 조회 (동일 조건)
+    const countQuery = `
+      SELECT COUNT(1) as total
+      FROM keywords k
+      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+      ${whereClause}
+    `;
+    let total = 0;
+    try {
+      const countRes = bindings.length > 0
+        ? await db.prepare(countQuery).bind(...bindings).all()
+        : await db.prepare(countQuery).all();
+      total = countRes.results?.[0]?.total || 0;
+    } catch (countErr: any) {
+      console.warn('총 개수 조회 실패, 페이지 데이터 길이로 대체:', countErr?.message);
+      total = result.results?.length || 0;
     }
 
     console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
@@ -148,7 +172,9 @@ export async function onRequest(context: any) {
       JSON.stringify({
         success: true,
         keywords: result.results || [],
-        total: result.results?.length || 0,
+        total,
+        page,
+        pageSize,
         message: `${result.results?.length || 0}개의 키워드를 조회했습니다.`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
