@@ -59,7 +59,7 @@ export default function AutoCollectPage() {
 
     // 제한 확인
     const currentLimit = limitRef.current
-    const currentProcessed = processedRef.current
+    const currentProcessed = Number(processedRef.current) || 0
     if (currentLimit > 0 && currentProcessed >= currentLimit) {
       appendLog('✅ 목표 개수 도달, 중단')
       setEnabled(false)
@@ -167,6 +167,7 @@ export default function AutoCollectPage() {
     setProcessed(0)
     setRemaining(null)
     setLog([])
+    processedRef.current = 0
     appendLog('🔄 카운터 초기화')
   }
 
