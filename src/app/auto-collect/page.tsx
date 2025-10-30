@@ -17,66 +17,145 @@ export default function AutoCollectPage() {
   }, [limitInput])
 
   const appendLog = useCallback((line: string) => {
-    setLog((prev) => [new Date().toLocaleTimeString() + ' ' + line, ...prev].slice(0, 200))
+    const logLine = new Date().toLocaleTimeString() + ' ' + line
+    console.log('[AutoCollect]', logLine) // 콘솔에 출력 추가
+    setLog((prev) => [logLine, ...prev].slice(0, 200))
   }, [])
 
+  // 최신 값을 참조하기 위한 ref
+  const enabledRef = useRef(enabled)
+  const limitRef = useRef(limit)
+  const processedRef = useRef(processed)
+
+  useEffect(() => {
+    enabledRef.current = enabled
+  }, [enabled])
+
+  useEffect(() => {
+    limitRef.current = limit
+  }, [limit])
+
+  useEffect(() => {
+    processedRef.current = processed
+  }, [processed])
+
   const runBatch = useCallback(async () => {
+    // 이미 처리 중이면 건너뛰기
+    if (processing) {
+      console.log('[AutoCollect] 이미 처리 중, 건너뜀')
+      return
+    }
+
+    // 활성화 상태 확인
+    if (!enabledRef.current) {
+      console.log('[AutoCollect] 비활성화됨, 건너뜀')
+      return
+    }
+
+    // 제한 확인
+    const currentLimit = limitRef.current
+    const currentProcessed = processedRef.current
+    if (currentLimit > 0 && currentProcessed >= currentLimit) {
+      appendLog('✅ 목표 개수 도달, 중단')
+      setEnabled(false)
+      return
+    }
+
     try {
       setProcessing(true)
+      appendLog('🚀 배치 시작...')
+      
+      const batchLimit = currentLimit === 0 ? 10 : Math.max(1, Math.min(currentLimit - currentProcessed, 10))
+      console.log('[AutoCollect] API 호출:', { batchLimit, currentProcessed, currentLimit })
+      
       const res = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-key': 'dev-key-2024'
         },
-        body: JSON.stringify({ limit: limit === 0 ? 10 : Math.max(1, Math.min(limit - processed, 10)) })
+        body: JSON.stringify({ limit: batchLimit })
       })
+
+      console.log('[AutoCollect] API 응답 상태:', res.status)
+
       if (!res.ok) {
         const errText = await res.text().catch(() => '')
-        appendLog(`HTTP ${res.status} ${res.statusText} ${errText}`)
+        appendLog(`❌ HTTP ${res.status} ${res.statusText} ${errText}`)
+        console.error('[AutoCollect] API 에러:', res.status, errText)
+        return
       }
+
       const data = await res.json().catch(() => ({}))
+      console.log('[AutoCollect] API 응답 데이터:', data)
+
       if (data && data.success) {
-        setProcessed((p) => p + (data.processed || 0))
+        setProcessed((p) => p + (data.processedSeeds || 0))
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
-        appendLog(`Batch OK: +${data.processed || 0} (remaining: ${data.remaining ?? '-'})`)
+        appendLog(`✅ 배치 완료: +${data.processedSeeds || 0}개 (총 수집: ${data.totalKeywordsCollected || 0}개, 저장: ${data.totalKeywordsSaved || 0}개)`)
       } else {
-        appendLog(`Batch Error: ${data?.error || data?.message || 'unknown error'}`)
+        appendLog(`❌ 배치 실패: ${data?.error || data?.message || 'unknown error'}`)
       }
     } catch (e: any) {
-      appendLog(`Batch Exception: ${e.message}`)
+      appendLog(`❌ 예외: ${e.message || String(e)}`)
+      console.error('[AutoCollect] 예외 발생:', e)
     } finally {
       setProcessing(false)
     }
-  }, [appendLog, limit, processed])
-
-  const shouldContinue = useMemo(() => {
-    if (!enabled) return false
-    if (limit === 0) return true // 무제한
-    return processed < limit
-  }, [enabled, limit, processed])
+  }, [appendLog, processing])
 
   useEffect(() => {
-    if (!shouldContinue) return
-    // 처음 즉시 1회 수행
-    runBatch()
-    // 이후 주기적으로 반복 수행
-    timerRef.current = setInterval(() => {
-      if (!processing) runBatch()
-    }, 2000)
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current)
+    console.log('[AutoCollect] useEffect 실행:', { enabled })
+
+    // 기존 타이머 정리
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
     }
-  }, [shouldContinue, runBatch, processing])
+
+    if (!enabled) {
+      appendLog('⏹️ 자동수집 OFF')
+      return
+    }
+
+    appendLog('▶️ 자동수집 ON - 배치 시작')
+
+    // 즉시 1회 실행
+    runBatch()
+
+    // 이후 3초마다 반복 실행
+    timerRef.current = setInterval(() => {
+      // 최신 상태 체크를 위해 ref 사용
+      console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current })
+      if (enabledRef.current) {
+        runBatch()
+      }
+    }, 3000)
+
+    return () => {
+      console.log('[AutoCollect] useEffect cleanup')
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+    }
+  }, [enabled, runBatch, appendLog])
 
   const handleToggle = () => {
-    setEnabled((v) => !v)
+    const newValue = !enabled
+    setEnabled(newValue)
+    if (newValue) {
+      appendLog('🔄 자동수집 토글: ON')
+    } else {
+      appendLog('🔄 자동수집 토글: OFF')
+    }
   }
 
   const handleReset = () => {
     setProcessed(0)
     setRemaining(null)
     setLog([])
+    appendLog('🔄 카운터 초기화')
   }
 
   return (
@@ -120,9 +199,13 @@ export default function AutoCollectPage() {
           <div className="p-3 bg-white rounded border">
             <div className="text-sm font-medium mb-2">로그</div>
             <div className="h-48 overflow-auto text-xs text-gray-700 space-y-1">
-              {log.map((l, i) => (
-                <div key={i}>{l}</div>
-              ))}
+              {log.length === 0 ? (
+                <div className="text-gray-400 italic">로그가 없습니다...</div>
+              ) : (
+                log.map((l, i) => (
+                  <div key={i}>{l}</div>
+                ))
+              )}
             </div>
           </div>
         </div>
