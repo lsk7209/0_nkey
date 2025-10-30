@@ -80,7 +80,7 @@ export async function onRequest(context: any) {
 
     // 중복 제거 (키워드 기준)
     const seen = new Set<string>();
-    const uniqueKeywords = (keywords || []).filter(k => {
+    const uniqueKeywords = (keywords || []).filter((k: { keyword?: string }) => {
       const key = (k.keyword || '').trim();
       if (!key || seen.has(key)) return false;
       seen.add(key);
