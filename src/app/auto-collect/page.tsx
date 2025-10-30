@@ -95,8 +95,13 @@ export default function AutoCollectPage() {
       console.log('[AutoCollect] API 응답 데이터:', data)
 
       if (data && data.success) {
-        const processedCount = data.processed || 0
-        setProcessed((p) => p + processedCount)
+        const processedCount = Number(data.processed) || 0
+        setProcessed((p) => {
+          const current = Number(p) || 0
+          const newValue = current + processedCount
+          console.log('[AutoCollect] processed 업데이트:', { current, processedCount, newValue })
+          return newValue
+        })
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
         appendLog(`✅ 배치 완료: +${processedCount}개 시드 처리 (남은 시드: ${data.remaining ?? '-'}개)`)
       } else {
@@ -106,6 +111,7 @@ export default function AutoCollectPage() {
       appendLog(`❌ 예외: ${e.message || String(e)}`)
       console.error('[AutoCollect] 예외 발생:', e)
     } finally {
+      console.log('[AutoCollect] finally: processing을 false로 설정')
       setProcessing(false)
     }
   }, [appendLog])
