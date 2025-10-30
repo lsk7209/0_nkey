@@ -26,6 +26,7 @@ export default function AutoCollectPage() {
   const enabledRef = useRef(enabled)
   const limitRef = useRef(limit)
   const processedRef = useRef(processed)
+  const processingRef = useRef(processing)
 
   useEffect(() => {
     enabledRef.current = enabled
@@ -39,9 +40,13 @@ export default function AutoCollectPage() {
     processedRef.current = processed
   }, [processed])
 
+  useEffect(() => {
+    processingRef.current = processing
+  }, [processing])
+
   const runBatch = useCallback(async () => {
     // 이미 처리 중이면 건너뛰기
-    if (processing) {
+    if (processingRef.current) {
       console.log('[AutoCollect] 이미 처리 중, 건너뜀')
       return
     }
@@ -90,9 +95,10 @@ export default function AutoCollectPage() {
       console.log('[AutoCollect] API 응답 데이터:', data)
 
       if (data && data.success) {
-        setProcessed((p) => p + (data.processedSeeds || 0))
+        const processedCount = data.processed || 0
+        setProcessed((p) => p + processedCount)
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
-        appendLog(`✅ 배치 완료: +${data.processedSeeds || 0}개 (총 수집: ${data.totalKeywordsCollected || 0}개, 저장: ${data.totalKeywordsSaved || 0}개)`)
+        appendLog(`✅ 배치 완료: +${processedCount}개 시드 처리 (남은 시드: ${data.remaining ?? '-'}개)`)
       } else {
         appendLog(`❌ 배치 실패: ${data?.error || data?.message || 'unknown error'}`)
       }
@@ -102,7 +108,13 @@ export default function AutoCollectPage() {
     } finally {
       setProcessing(false)
     }
-  }, [appendLog, processing])
+  }, [appendLog])
+
+  // runBatch를 ref로 안정화
+  const runBatchRef = useRef(runBatch)
+  useEffect(() => {
+    runBatchRef.current = runBatch
+  }, [runBatch])
 
   useEffect(() => {
     console.log('[AutoCollect] useEffect 실행:', { enabled })
@@ -121,14 +133,14 @@ export default function AutoCollectPage() {
     appendLog('▶️ 자동수집 ON - 배치 시작')
 
     // 즉시 1회 실행
-    runBatch()
+    runBatchRef.current()
 
     // 이후 3초마다 반복 실행
     timerRef.current = setInterval(() => {
       // 최신 상태 체크를 위해 ref 사용
-      console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current })
-      if (enabledRef.current) {
-        runBatch()
+      console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current, processing: processingRef.current })
+      if (enabledRef.current && !processingRef.current) {
+        runBatchRef.current()
       }
     }, 3000)
 
@@ -139,7 +151,7 @@ export default function AutoCollectPage() {
         timerRef.current = null
       }
     }
-  }, [enabled, runBatch, appendLog])
+  }, [enabled, appendLog])
 
   const handleToggle = () => {
     const newValue = !enabled
