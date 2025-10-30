@@ -42,6 +42,10 @@ export async function onRequest(context: any) {
         console.log('🎯 collect-docs-batch 라우트 선택');
         const handler = await import('./api/collect-docs-batch');
         return handler.onRequest(context);
+      } else if (path === '/api/auto-collect') {
+        console.log('🎯 auto-collect 라우트 선택');
+        const handler = await import('./api/auto-collect');
+        return handler.onRequest(context);
       } else if (path === '/api/collect') {
         console.log('🎯 collect 라우트 선택');
         const { default: handler } = await import('./api/collect');
