@@ -23,21 +23,25 @@ export default function AutoCollectPage() {
   const runBatch = useCallback(async () => {
     try {
       setProcessing(true)
-      const res = await fetch('/api/auto-collect', {
+      const res = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-key': 'dev-key-2024'
         },
-        body: JSON.stringify({ limit: limit === 0 ? 10 : Math.min(limit - processed, 10) })
+        body: JSON.stringify({ limit: limit === 0 ? 10 : Math.max(1, Math.min(limit - processed, 10)) })
       })
-      const data = await res.json()
-      if (data.success) {
+      if (!res.ok) {
+        const errText = await res.text().catch(() => '')
+        appendLog(`HTTP ${res.status} ${res.statusText} ${errText}`)
+      }
+      const data = await res.json().catch(() => ({}))
+      if (data && data.success) {
         setProcessed((p) => p + (data.processed || 0))
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
         appendLog(`Batch OK: +${data.processed || 0} (remaining: ${data.remaining ?? '-'})`)
       } else {
-        appendLog(`Batch Error: ${data.error || data.message}`)
+        appendLog(`Batch Error: ${data?.error || data?.message || 'unknown error'}`)
       }
     } catch (e: any) {
       appendLog(`Batch Exception: ${e.message}`)
