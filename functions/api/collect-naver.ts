@@ -78,6 +78,16 @@ export async function onRequest(context: any) {
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
     console.log(`✅ 네이버 API 수집 완료: ${keywords?.length || 0}개 키워드`);
 
+    // 중복 제거 (키워드 기준)
+    const seen = new Set<string>();
+    const uniqueKeywords = (keywords || []).filter(k => {
+      const key = (k.keyword || '').trim();
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    console.log(`🧹 중복 제거 후: ${uniqueKeywords.length}개`);
+
     if (!keywords || keywords.length === 0) {
       return new Response(
         JSON.stringify({ 
@@ -88,12 +98,18 @@ export async function onRequest(context: any) {
       );
     }
 
-    // D1 데이터베이스에 저장
+    // D1 데이터베이스에 저장 (청크 처리 + 안전 대기)
     const db = env.DB;
     let savedCount = 0;
     let updatedCount = 0;
     let docCountsCollected = 0;
     const maxDocCountsToCollect = 10;
+    let failedCount = 0;
+    const failedSamples: { keyword: string, error: string }[] = [];
+
+    // DB 청크 크기 및 청크 간 대기(ms)
+    const CHUNK_SIZE = 50;
+    const CHUNK_DELAY_MS = 250;
 
     // 네이버 오픈API 키 확인
     const hasOpenApiKeys = [
@@ -102,7 +118,8 @@ export async function onRequest(context: any) {
     ].some(key => key);
     console.log(`📄 네이버 오픈API 키 확인: ${hasOpenApiKeys ? '설정됨' : '미설정'}`);
 
-    for (const keyword of keywords) {
+    for (let i = 0; i < uniqueKeywords.length; i++) {
+      const keyword = uniqueKeywords[i];
       try {
         // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
         const existing = await db.prepare(
@@ -238,6 +255,16 @@ export async function onRequest(context: any) {
       } catch (dbError: any) {
         console.error(`데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
         console.error('에러 상세:', dbError.message, dbError.stack);
+        failedCount++;
+        if (failedSamples.length < 5) {
+          failedSamples.push({ keyword: keyword.keyword, error: dbError?.message || String(dbError) });
+        }
+      }
+
+      // 청크 간 대기 (D1 한도 보호)
+      if ((i + 1) % CHUNK_SIZE === 0) {
+        console.log(`⏳ 청크 대기: ${(i + 1)}/${uniqueKeywords.length} 처리됨, ${CHUNK_DELAY_MS}ms 대기`);
+        await new Promise(r => setTimeout(r, CHUNK_DELAY_MS));
       }
     }
 
@@ -249,11 +276,14 @@ export async function onRequest(context: any) {
         totalSavedOrUpdated: savedCount + updatedCount,
         savedCount,
         updatedCount,
-        keywords: keywords, // 실제 수집된 키워드 데이터 반환
+        totalAttempted: uniqueKeywords.length,
+        keywords: uniqueKeywords, // 실제 수집된(중복 제거) 키워드 반환
+        failedCount,
+        failedSamples,
         docCountsCollected, // 문서수 수집된 키워드 수
         hasOpenApiKeys, // 네이버 오픈API 키 설정 여부
-        message: `네이버 API로 ${keywords.length}개의 연관검색어를 수집하여 ${savedCount + updatedCount}개를 저장했습니다.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집 완료.` : hasOpenApiKeys ? '' : ' (네이버 오픈API 키 미설정으로 문서수 수집 건너뜀)'}`,
-        version: 'v5.0 - 문서수 수집 로직 개선',
+        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
+        version: 'v6.0 - 안전 청크 저장/중복 제거/실패집계',
         timestamp: new Date().toISOString(),
         api_implementation: {
           endpoint: 'https://api.naver.com/keywordstool',
