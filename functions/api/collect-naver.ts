@@ -150,7 +150,7 @@ export async function onRequest(context: any) {
         const existing = await runWithRetry(
           () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
           'select keywords'
-        );
+        ) as { id: number } | null;
 
         let keywordId: number | null = null;
 
@@ -172,7 +172,7 @@ export async function onRequest(context: any) {
           const existingMetrics = await runWithRetry(
             () => db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?').bind(existing.id).first(),
             'select keyword_metrics'
-          );
+          ) as { id: number } | null;
 
           if (existingMetrics) {
             await runWithRetry(() => db.prepare(`
@@ -236,7 +236,7 @@ export async function onRequest(context: any) {
               const existingDocCount = await runWithRetry(
                 () => db.prepare('SELECT id FROM naver_doc_counts WHERE keyword_id = ?').bind(keywordId).first(),
                 'select naver_doc_counts'
-              );
+              ) as { id: number } | null;
 
               if (existingDocCount) {
                 await runWithRetry(() => db.prepare(`
