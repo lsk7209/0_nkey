@@ -3,20 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export default function AutoCollectPage() {
-  // localStorage에서 초기 상태 불러오기
-  const [enabled, setEnabled] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('auto-collect-enabled')
-      return saved === 'true'
-    }
-    return false
-  })
-  const [limitInput, setLimitInput] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('auto-collect-limit') || '10'
-    }
-    return '10'
-  }) // 0: 무제한
+  // 초기 상태는 false로 시작하고, useEffect에서 localStorage에서 불러옴
+  const [enabled, setEnabled] = useState(false)
+  const [limitInput, setLimitInput] = useState('10') // 0: 무제한
+  const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
   const [remaining, setRemaining] = useState<number | null>(null)
@@ -189,12 +179,28 @@ export default function AutoCollectPage() {
     }
   }
 
+  // 초기 마운트 시 localStorage에서 상태 불러오기
+  useEffect(() => {
+    if (typeof window !== 'undefined' && !isInitialized) {
+      const savedEnabled = localStorage.getItem('auto-collect-enabled')
+      const savedLimit = localStorage.getItem('auto-collect-limit')
+      
+      if (savedEnabled === 'true') {
+        setEnabled(true)
+      }
+      if (savedLimit) {
+        setLimitInput(savedLimit)
+      }
+      setIsInitialized(true)
+    }
+  }, [isInitialized])
+
   // limitInput 변경 시 localStorage에 저장
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && isInitialized) {
       localStorage.setItem('auto-collect-limit', limitInput)
     }
-  }, [limitInput])
+  }, [limitInput, isInitialized])
 
   const handleReset = () => {
     setProcessed(0)
