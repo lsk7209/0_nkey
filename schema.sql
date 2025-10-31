@@ -6,6 +6,8 @@ CREATE TABLE IF NOT EXISTS keywords (
   seed_keyword_text TEXT NOT NULL,
   monthly_search_pc INTEGER DEFAULT 0,
   monthly_search_mob INTEGER DEFAULT 0,
+  pc_search INTEGER DEFAULT 0,
+  mobile_search INTEGER DEFAULT 0,
   avg_monthly_search INTEGER DEFAULT 0,
   cpc REAL DEFAULT 0,
   comp_index INTEGER DEFAULT 0,
@@ -117,3 +119,7 @@ CREATE INDEX IF NOT EXISTS idx_api_call_logs_success ON api_call_logs(success);
 CREATE INDEX IF NOT EXISTS idx_keywords_covering ON keywords(
   keyword, avg_monthly_search, pc_search, mobile_search, ad_count, created_at
 );
+
+-- 데이터 마이그레이션: 기존 monthly_search_pc/mob 데이터를 pc_search/mobile_search로 복사
+UPDATE keywords SET pc_search = monthly_search_pc WHERE pc_search = 0 OR pc_search IS NULL;
+UPDATE keywords SET mobile_search = monthly_search_mob WHERE mobile_search = 0 OR mobile_search IS NULL;

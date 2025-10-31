@@ -123,19 +123,20 @@ export async function onRequest(context: any) {
       SELECT
         k.keyword,
         k.avg_monthly_search,
-        k.pc_search,
-        k.mobile_search,
-        k.monthly_click_pc,
-        k.monthly_click_mo,
-        k.ctr_pc,
-        k.ctr_mo,
-        k.ad_count,
+        k.monthly_search_pc as pc_search,
+        k.monthly_search_mob as mobile_search,
+        COALESCE(km.monthly_click_pc, 0) as monthly_click_pc,
+        COALESCE(km.monthly_click_mobile, 0) as monthly_click_mo,
+        COALESCE(km.ctr_pc, 0) as ctr_pc,
+        COALESCE(km.ctr_mobile, 0) as ctr_mo,
+        COALESCE(km.ad_count, 0) as ad_count,
         k.created_at,
         COALESCE(ndc.blog_total, 0) as blog_total,
         COALESCE(ndc.cafe_total, 0) as cafe_total,
         COALESCE(ndc.web_total, 0) as web_total,
         COALESCE(ndc.news_total, 0) as news_total
       FROM keywords k
+      LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
       LEFT JOIN naver_doc_counts ndc ON k.keyword = ndc.keyword
       ${whereClause}
       ORDER BY k.avg_monthly_search DESC, k.created_at DESC
@@ -146,6 +147,7 @@ export async function onRequest(context: any) {
     const countQuery = `
       SELECT COUNT(*) as total
       FROM keywords k
+      LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
       LEFT JOIN naver_doc_counts ndc ON k.keyword = ndc.keyword
       ${whereClause}
     `;
