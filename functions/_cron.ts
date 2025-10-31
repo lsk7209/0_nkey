@@ -4,7 +4,7 @@
  * 
  * 설정 방법:
  * 1. Cloudflare Dashboard → Pages → 0_nkey → Settings → Functions → Scheduled Triggers
- * 2. Cron expression 추가 (예: "*/10 * * * *" = 10분마다)
+ * 2. Cron expression 추가 (예: "*\/10 * * * *" = 10분마다)
  * 3. Path: "/_cron" 또는 빈 값
  */
 
