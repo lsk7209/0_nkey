@@ -129,6 +129,11 @@ export default function AutoCollectPage() {
   }, [runBatch])
 
   useEffect(() => {
+    // 초기화가 완료되지 않았으면 대기
+    if (!isInitialized) {
+      return
+    }
+
     console.log('[AutoCollect] useEffect 실행:', { enabled })
 
     // 기존 타이머 정리
@@ -163,7 +168,7 @@ export default function AutoCollectPage() {
         timerRef.current = null
       }
     }
-  }, [enabled, appendLog])
+  }, [enabled, isInitialized, appendLog])
 
   const handleToggle = () => {
     const newValue = !enabled
