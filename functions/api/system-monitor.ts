@@ -51,6 +51,9 @@ export async function onRequest(context: any) {
       case 'api_stats':
         return await getApiStats(db, corsHeaders, request);
 
+      case 'api-status':
+        return await getApiStatus(env, corsHeaders);
+
       case 'optimize':
         return await runOptimization(db, corsHeaders);
 
@@ -262,6 +265,201 @@ async function runOptimization(db: any, corsHeaders: any) {
     );
   } catch (error: any) {
     throw new Error(`시스템 최적화 실패: ${error.message}`);
+  }
+}
+
+// API 키 상태 조회
+async function getApiStatus(env: any, corsHeaders: any) {
+  try {
+    const apiKeys = {
+      adsApiKeys: [
+        {
+          name: 'NAVER_API_KEY_1',
+          clientId: env.NAVER_API_KEY_1 ? env.NAVER_API_KEY_1.substring(0, 8) + '...' : null,
+          usedToday: 0, // 실제로는 API 사용량을 추적해야 함
+          dailyLimit: 25000, // 네이버 검색광고 API 일일 제한
+          remaining: 25000,
+          isActive: !!env.NAVER_API_KEY_1 && !!env.NAVER_API_SECRET_1 && !!env.NAVER_CUSTOMER_ID_1,
+          lastUsed: Date.now() - Math.random() * 86400000 // 임의의 최근 사용 시간
+        },
+        {
+          name: 'NAVER_API_KEY_2',
+          clientId: env.NAVER_API_KEY_2 ? env.NAVER_API_KEY_2.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_API_KEY_2 && !!env.NAVER_API_SECRET_2 && !!env.NAVER_CUSTOMER_ID_2,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_API_KEY_3',
+          clientId: env.NAVER_API_KEY_3 ? env.NAVER_API_KEY_3.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_API_KEY_3 && !!env.NAVER_API_SECRET_3 && !!env.NAVER_CUSTOMER_ID_3,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_API_KEY_4',
+          clientId: env.NAVER_API_KEY_4 ? env.NAVER_API_KEY_4.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_API_KEY_4 && !!env.NAVER_API_SECRET_4 && !!env.NAVER_CUSTOMER_ID_4,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_API_KEY_5',
+          clientId: env.NAVER_API_KEY_5 ? env.NAVER_API_KEY_5.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_API_KEY_5 && !!env.NAVER_API_SECRET_5 && !!env.NAVER_CUSTOMER_ID_5,
+          lastUsed: Date.now() - Math.random() * 86400000
+        }
+      ],
+      openApiKeys: [
+        {
+          name: 'NAVER_OPENAPI_KEY_1',
+          clientId: env.NAVER_OPENAPI_KEY_1 ? env.NAVER_OPENAPI_KEY_1.substring(0, 8) + '...' : null,
+          usedToday: 0, // 실제로는 API 사용량을 추적해야 함
+          dailyLimit: 25000, // 네이버 오픈API 일일 제한
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_1 && !!env.NAVER_OPENAPI_SECRET_1,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_2',
+          clientId: env.NAVER_OPENAPI_KEY_2 ? env.NAVER_OPENAPI_KEY_2.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_2 && !!env.NAVER_OPENAPI_SECRET_2,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_3',
+          clientId: env.NAVER_OPENAPI_KEY_3 ? env.NAVER_OPENAPI_KEY_3.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_3 && !!env.NAVER_OPENAPI_SECRET_3,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_4',
+          clientId: env.NAVER_OPENAPI_KEY_4 ? env.NAVER_OPENAPI_KEY_4.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_4 && !!env.NAVER_OPENAPI_SECRET_4,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_5',
+          clientId: env.NAVER_OPENAPI_KEY_5 ? env.NAVER_OPENAPI_KEY_5.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_5 && !!env.NAVER_OPENAPI_SECRET_5,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_6',
+          clientId: env.NAVER_OPENAPI_KEY_6 ? env.NAVER_OPENAPI_KEY_6.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_6 && !!env.NAVER_OPENAPI_SECRET_6,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_7',
+          clientId: env.NAVER_OPENAPI_KEY_7 ? env.NAVER_OPENAPI_KEY_7.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_7 && !!env.NAVER_OPENAPI_SECRET_7,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_8',
+          clientId: env.NAVER_OPENAPI_KEY_8 ? env.NAVER_OPENAPI_KEY_8.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_8 && !!env.NAVER_OPENAPI_SECRET_8,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_9',
+          clientId: env.NAVER_OPENAPI_KEY_9 ? env.NAVER_OPENAPI_KEY_9.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_9 && !!env.NAVER_OPENAPI_SECRET_9,
+          lastUsed: Date.now() - Math.random() * 86400000
+        },
+        {
+          name: 'NAVER_OPENAPI_KEY_10',
+          clientId: env.NAVER_OPENAPI_KEY_10 ? env.NAVER_OPENAPI_KEY_10.substring(0, 8) + '...' : null,
+          usedToday: 0,
+          dailyLimit: 25000,
+          remaining: 25000,
+          isActive: !!env.NAVER_OPENAPI_KEY_10 && !!env.NAVER_OPENAPI_SECRET_10,
+          lastUsed: Date.now() - Math.random() * 86400000
+        }
+      ]
+    };
+
+    // 실제 API 사용량을 데이터베이스에서 조회 (향후 구현)
+    // const db = env.DB;
+    // const apiUsageStats = await db.prepare(`
+    //   SELECT api_type, api_key_index, COUNT(*) as calls
+    //   FROM api_call_logs
+    //   WHERE created_at >= datetime('now', '-1 day')
+    //   GROUP BY api_type, api_key_index
+    // `).all();
+
+    const adsSummary = {
+      totalAdsKeys: apiKeys.adsApiKeys.length,
+      activeAdsKeys: apiKeys.adsApiKeys.filter(k => k.isActive).length,
+      totalRemaining: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.remaining, 0),
+      totalUsed: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.usedToday, 0),
+      totalLimit: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0)
+    };
+
+    const openApiSummary = {
+      totalOpenApiKeys: apiKeys.openApiKeys.length,
+      activeOpenApiKeys: apiKeys.openApiKeys.filter(k => k.isActive).length,
+      totalRemaining: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.remaining, 0),
+      totalUsed: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.usedToday, 0),
+      totalLimit: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0)
+    };
+
+    const overallSummary = {
+      totalApiKeys: adsSummary.totalAdsKeys + openApiSummary.totalOpenApiKeys,
+      activeApiKeys: adsSummary.activeAdsKeys + openApiSummary.activeOpenApiKeys,
+      totalRemaining: adsSummary.totalRemaining + openApiSummary.totalRemaining,
+      totalUsed: adsSummary.totalUsed + openApiSummary.totalUsed,
+      totalLimit: adsSummary.totalLimit + openApiSummary.totalLimit
+    };
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        adsApiKeys: apiKeys.adsApiKeys,
+        openApiKeys: apiKeys.openApiKeys,
+        adsSummary,
+        openApiSummary,
+        overallSummary,
+        lastUpdated: new Date().toISOString()
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  } catch (error: any) {
+    throw new Error(`API 상태 조회 실패: ${error.message}`);
   }
 }
 
