@@ -76,12 +76,12 @@ export default function InsightsPage() {
 
   // 키워드 데이터를 인사이트로 분석하는 함수 (검색량 높은 순으로 정렬)
   const analyzeKeywordsForInsights = (keywords: any[], limit: number) => {
-    // 1. 카페 잠재력: 검색량 높고 카페 문서수 낮음 (임시로 0개도 포함)
+    // 1. 카페 잠재력: 검색량 높고 카페 문서수 낮음 (1-999개)
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
-      description: `검색량 상위권 + 카페 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.cafe_total || 0)))}개)`,
+      description: `검색량 상위권 + 카페 문서수 낮음 (1-${Math.min(1000, Math.max(...keywords.map(k => k.cafe_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => (k.cafe_total || 0) < 1000) // 0개도 포함
+        .filter(k => (k.cafe_total || 0) > 0 && (k.cafe_total || 0) < 1000) // 0개 제외
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -100,12 +100,12 @@ export default function InsightsPage() {
     }
     cafeInsights.count = cafeInsights.keywords.length
 
-    // 2. 블로그 잠재력: 검색량 높고 블로그 문서수 낮음
+    // 2. 블로그 잠재력: 검색량 높고 블로그 문서수 낮음 (1-999개)
     const blogInsights = {
       title: "📝 블로그 잠재력 키워드",
-      description: `검색량 상위권 + 블로그 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.blog_total || 0)))}개)`,
+      description: `검색량 상위권 + 블로그 문서수 낮음 (1-${Math.min(1000, Math.max(...keywords.map(k => k.blog_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => (k.blog_total || 0) < 1000)
+        .filter(k => (k.blog_total || 0) > 0 && (k.blog_total || 0) < 1000) // 0개 제외
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -124,12 +124,12 @@ export default function InsightsPage() {
     }
     blogInsights.count = blogInsights.keywords.length
 
-    // 3. 웹 잠재력: 검색량 높고 웹 문서수 낮음
+    // 3. 웹 잠재력: 검색량 높고 웹 문서수 낮음 (1-999개)
     const webInsights = {
       title: "🌐 웹 잠재력 키워드",
-      description: `검색량 상위권 + 웹 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.web_total || 0)))}개)`,
+      description: `검색량 상위권 + 웹 문서수 낮음 (1-${Math.min(1000, Math.max(...keywords.map(k => k.web_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => (k.web_total || 0) < 1000)
+        .filter(k => (k.web_total || 0) > 0 && (k.web_total || 0) < 1000) // 0개 제외
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -148,12 +148,12 @@ export default function InsightsPage() {
     }
     webInsights.count = webInsights.keywords.length
 
-    // 4. 뉴스 잠재력: 검색량 높고 뉴스 문서수 낮음
+    // 4. 뉴스 잠재력: 검색량 높고 뉴스 문서수 낮음 (1-99개)
     const newsInsights = {
       title: "📰 뉴스 잠재력 키워드",
-      description: `검색량 상위권 + 뉴스 문서수 낮음 (0-${Math.min(100, Math.max(...keywords.map(k => k.news_total || 0)))}개)`,
+      description: `검색량 상위권 + 뉴스 문서수 낮음 (1-${Math.min(100, Math.max(...keywords.map(k => k.news_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => (k.news_total || 0) < 100)
+        .filter(k => (k.news_total || 0) > 0 && (k.news_total || 0) < 100) // 0개 제외
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
