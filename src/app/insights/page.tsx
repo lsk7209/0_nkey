@@ -76,22 +76,22 @@ export default function InsightsPage() {
 
   // 키워드 데이터를 인사이트로 분석하는 함수 (검색량 높은 순으로 정렬)
   const analyzeKeywordsForInsights = (keywords: any[], limit: number) => {
-    // 1. 총검색수 많고, 카페수 적음 (카페수 0 제외, 50개)
+    // 1. 카페 잠재력: 검색량 높고 카페 문서수 낮음 (임시로 0개도 포함)
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
-      description: `검색량 상위권이고 카페 문서수가 적은 키워드`,
+      description: `검색량 상위권 + 카페 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.cafe_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => k.cafe_total > 0 && k.cafe_total < 1000)
+        .filter(k => (k.cafe_total || 0) < 1000) // 0개도 포함
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
           searchVolume: k.avg_monthly_search,
-          cafeDocs: k.cafe_total,
-          blogDocs: k.blog_total,
-          webDocs: k.web_total,
-          newsDocs: k.news_total,
-          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          cafeDocs: k.cafe_total || 0,
+          blogDocs: k.blog_total || 0,
+          webDocs: k.web_total || 0,
+          newsDocs: k.news_total || 0,
+          totalDocs: (k.cafe_total || 0) + (k.blog_total || 0) + (k.web_total || 0) + (k.news_total || 0),
           adCount: k.ad_count,
           cpc: 0,
           compIndex: 0
@@ -100,12 +100,12 @@ export default function InsightsPage() {
     }
     cafeInsights.count = cafeInsights.keywords.length
 
-    // 2. 총검색수 많고, 블로그문서수 적음 (블로그수 0 제외, 50개)
+    // 2. 블로그 잠재력: 검색량 높고 블로그 문서수 낮음
     const blogInsights = {
       title: "📝 블로그 잠재력 키워드",
-      description: `검색량 상위권이고 블로그 문서수가 적은 키워드`,
+      description: `검색량 상위권 + 블로그 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.blog_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => k.blog_total > 0 && k.blog_total < 1000)
+        .filter(k => (k.blog_total || 0) < 1000)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -124,12 +124,12 @@ export default function InsightsPage() {
     }
     blogInsights.count = blogInsights.keywords.length
 
-    // 3. 총검색수 많고, 웹문서수 적음 (웹수 0 제외, 50개)
+    // 3. 웹 잠재력: 검색량 높고 웹 문서수 낮음
     const webInsights = {
       title: "🌐 웹 잠재력 키워드",
-      description: `검색량 상위권이고 웹 문서수가 적은 키워드`,
+      description: `검색량 상위권 + 웹 문서수 낮음 (0-${Math.min(1000, Math.max(...keywords.map(k => k.web_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => k.web_total > 0 && k.web_total < 1000)
+        .filter(k => (k.web_total || 0) < 1000)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -148,12 +148,12 @@ export default function InsightsPage() {
     }
     webInsights.count = webInsights.keywords.length
 
-    // 4. 총검색수 많고, 뉴스 적음 (뉴스수 0 제외, 50개)
+    // 4. 뉴스 잠재력: 검색량 높고 뉴스 문서수 낮음
     const newsInsights = {
       title: "📰 뉴스 잠재력 키워드",
-      description: `검색량 상위권이고 뉴스 문서수가 적은 키워드`,
+      description: `검색량 상위권 + 뉴스 문서수 낮음 (0-${Math.min(100, Math.max(...keywords.map(k => k.news_total || 0)))}개)`,
       keywords: keywords
-        .filter(k => k.news_total > 0 && k.news_total < 100)
+        .filter(k => (k.news_total || 0) < 100)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -172,12 +172,12 @@ export default function InsightsPage() {
     }
     newsInsights.count = newsInsights.keywords.length
 
-    // 5. 총검색수 많고, 월광고수 적음 (광고수 0 제외, 50개)
+    // 5. 광고 잠재력: 검색량 높고 광고수 낮음
     const adCountInsights = {
       title: "💰 광고 잠재력 키워드",
-      description: `검색량 상위권이고 월 광고수가 적은 키워드`,
+      description: `검색량 상위권 + 월 광고수 낮음 (0-${Math.min(5, Math.max(...keywords.map(k => k.ad_count || 0)))}개)`,
       keywords: keywords
-        .filter(k => k.ad_count > 0 && k.ad_count < 5)
+        .filter(k => (k.ad_count || 0) < 5)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
