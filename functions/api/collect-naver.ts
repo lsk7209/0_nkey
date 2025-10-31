@@ -102,6 +102,7 @@ export async function onRequest(context: any) {
     const db = env.DB;
     let savedCount = 0;
     let updatedCount = 0;
+    let skippedCount = 0; // 30일 이내 중복 키워드 건너뜀 카운트
     let docCountsCollected = 0;
     const maxDocCountsToCollect = 10;
     let failedCount = 0;
@@ -195,6 +196,14 @@ export async function onRequest(context: any) {
               keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
             ).run(), 'insert keyword_metrics');
           }
+          // 30일 이내 업데이트된 키워드는 건너뜀 (중복 시 30일 정책)
+          const daysSinceUpdate = (Date.now() - new Date(existing.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysSinceUpdate < 30) {
+            console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`)
+            skippedCount++;
+            continue; // 다음 키워드로 건너뜀
+          }
+
           updatedCount++;
         } else {
           // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
@@ -313,14 +322,15 @@ export async function onRequest(context: any) {
         totalSavedOrUpdated: savedCount + updatedCount,
         savedCount,
         updatedCount,
+        skippedCount, // 30일 이내 건너뜀 카운트
         totalAttempted: uniqueKeywords.length,
         keywords: uniqueKeywords, // 실제 수집된(중복 제거) 키워드 반환
         failedCount,
         failedSamples,
         docCountsCollected, // 문서수 수집된 키워드 수
         hasOpenApiKeys, // 네이버 오픈API 키 설정 여부
-        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
-        version: 'v6.0 - 안전 청크 저장/중복 제거/실패집계',
+        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), ${skippedCount}개 30일 이내 건너뜀, 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
+        version: 'v7.0 - 30일 중복 건너뜀 정책/안전 청크 저장/중복 제거/실패집계',
         timestamp: new Date().toISOString(),
         api_implementation: {
           endpoint: 'https://api.naver.com/keywordstool',
