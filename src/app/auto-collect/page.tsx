@@ -3,8 +3,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 export default function AutoCollectPage() {
-  const [enabled, setEnabled] = useState(false)
-  const [limitInput, setLimitInput] = useState('10') // 0: 무제한
+  // localStorage에서 초기 상태 불러오기
+  const [enabled, setEnabled] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('auto-collect-enabled')
+      return saved === 'true'
+    }
+    return false
+  })
+  const [limitInput, setLimitInput] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('auto-collect-limit') || '10'
+    }
+    return '10'
+  }) // 0: 무제한
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
   const [remaining, setRemaining] = useState<number | null>(null)
@@ -63,6 +75,10 @@ export default function AutoCollectPage() {
     if (currentLimit > 0 && currentProcessed >= currentLimit) {
       appendLog('✅ 목표 개수 도달, 중단')
       setEnabled(false)
+      // localStorage에도 반영
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('auto-collect-enabled', 'false')
+      }
       return
     }
 
@@ -162,12 +178,23 @@ export default function AutoCollectPage() {
   const handleToggle = () => {
     const newValue = !enabled
     setEnabled(newValue)
+    // localStorage에 저장
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auto-collect-enabled', String(newValue))
+    }
     if (newValue) {
       appendLog('🔄 자동수집 토글: ON')
     } else {
       appendLog('🔄 자동수집 토글: OFF')
     }
   }
+
+  // limitInput 변경 시 localStorage에 저장
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auto-collect-limit', limitInput)
+    }
+  }, [limitInput])
 
   const handleReset = () => {
     setProcessed(0)
