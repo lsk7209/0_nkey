@@ -42,6 +42,9 @@ export default function RootLayout({
                   <a href="/auto-collect" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
                     자동수집
                   </a>
+                  <a href="/system-monitor" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
+                    시스템 모니터링
+                  </a>
                 </div>
               </div>
             </div>
