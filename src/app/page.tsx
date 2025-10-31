@@ -68,7 +68,8 @@ export default function Home() {
         console.log('API 성공 응답:', result)
         
         if (result.success) {
-          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.`)
+          const skippedMsg = result.skippedCount > 0 ? ` (${result.skippedCount}개는 30일 이내 업데이트되어 건너뜀)` : '';
+          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.${skippedMsg}`)
           
           // API 응답에서 직접 키워드 데이터 표시
           if (result.keywords && Array.isArray(result.keywords)) {
