@@ -57,6 +57,9 @@ export async function onRequest(context: any) {
       case 'optimize':
         return await runOptimization(db, corsHeaders);
 
+      case 'cleanup-duplicates':
+        return await cleanupDuplicates(db, corsHeaders);
+
       default:
         return new Response(
           JSON.stringify({ success: false, error: 'Invalid action' }),
@@ -509,4 +512,83 @@ function calculateRateLimitStatus(apiStats: any[]) {
   }
 
   return status;
+}
+
+// 중복 키워드 정리 함수
+async function cleanupDuplicates(db: any, corsHeaders: any) {
+  try {
+    console.log('🧹 중복 키워드 정리 시작');
+
+    // 중복 키워드 수 확인
+    const duplicateStats = await db.prepare(`
+      SELECT keyword, COUNT(*) as count
+      FROM keywords
+      GROUP BY keyword
+      HAVING COUNT(*) > 1
+      ORDER BY count DESC
+    `).all();
+
+    const totalDuplicates = duplicateStats.results?.length || 0;
+    console.log(`📊 중복 키워드 발견: ${totalDuplicates}개`);
+
+    if (totalDuplicates === 0) {
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: '중복 키워드가 없습니다.',
+          stats: { totalDuplicates: 0, deletedRecords: 0 }
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 중복 키워드 정리 (각 키워드별로 가장 오래된 레코드만 유지)
+    const deleteResult = await db.prepare(`
+      DELETE FROM keywords
+      WHERE id NOT IN (
+        SELECT MIN(id)
+        FROM keywords
+        GROUP BY keyword
+      )
+    `).run();
+
+    const deletedRecords = deleteResult.meta.changes || 0;
+
+    // 정리 후 최종 통계
+    const finalStats = await db.prepare(`
+      SELECT
+        (SELECT COUNT(*) FROM keywords) as total_keywords,
+        (SELECT COUNT(DISTINCT keyword) FROM keywords) as unique_keywords
+    `).all();
+
+    const totalKeywords = finalStats.results?.[0]?.total_keywords || 0;
+    const uniqueKeywords = finalStats.results?.[0]?.unique_keywords || 0;
+
+    console.log(`✅ 중복 정리 완료: ${deletedRecords}개 레코드 삭제`);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: `중복 키워드 정리 완료: ${deletedRecords}개 레코드 삭제`,
+        stats: {
+          totalDuplicates: totalDuplicates,
+          deletedRecords: deletedRecords,
+          finalTotalKeywords: totalKeywords,
+          finalUniqueKeywords: uniqueKeywords,
+          duplicateDetails: duplicateStats.results?.slice(0, 10) // 상위 10개 중복만 표시
+        }
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('❌ 중복 정리 중 오류:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: `중복 정리 실패: ${error.message}`
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
 }

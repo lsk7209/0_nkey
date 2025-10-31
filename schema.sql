@@ -123,3 +123,14 @@ CREATE INDEX IF NOT EXISTS idx_keywords_covering ON keywords(
 -- 데이터 마이그레이션: 기존 monthly_search_pc/mob 데이터를 pc_search/mobile_search로 복사
 UPDATE keywords SET pc_search = monthly_search_pc WHERE pc_search = 0 OR pc_search IS NULL;
 UPDATE keywords SET mobile_search = monthly_search_mob WHERE mobile_search = 0 OR mobile_search IS NULL;
+
+-- 중복 키워드 정리: 각 키워드별로 가장 오래된 레코드(created_at이 가장 빠른 것)만 유지
+DELETE FROM keywords
+WHERE id NOT IN (
+  SELECT MIN(id)
+  FROM keywords
+  GROUP BY keyword
+);
+
+-- 정리 후 UNIQUE 제약 재확인
+-- (SQLite에서는 ALTER TABLE로 제약 추가가 제한적이므로 애플리케이션 레벨에서 처리)

@@ -197,15 +197,24 @@ export async function onRequest(context: any) {
           }
           updatedCount++;
         } else {
-          // 새 키워드 삽입 - 스키마에 맞게 컬럼명 수정
+          // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
           const insertResult = await runWithRetry(() => db.prepare(`
             INSERT INTO keywords (
-              keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob, 
-              avg_monthly_search, comp_index, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
+              pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(keyword) DO UPDATE SET
+              seed_keyword_text = excluded.seed_keyword_text,
+              monthly_search_pc = excluded.monthly_search_pc,
+              monthly_search_mob = excluded.monthly_search_mob,
+              pc_search = excluded.pc_search,
+              mobile_search = excluded.mobile_search,
+              avg_monthly_search = excluded.avg_monthly_search,
+              comp_index = excluded.comp_index,
+              updated_at = excluded.updated_at
           `).bind(
             keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
-            keyword.avg_monthly_search, keyword.comp_idx || 0,
+            keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
             new Date().toISOString(), new Date().toISOString()
           ).run(), 'insert keywords') as { meta: { last_row_id: number } };
 
