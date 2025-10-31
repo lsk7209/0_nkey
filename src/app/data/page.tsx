@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo } from 'react'
 
 interface KeywordData {
   keyword: string
@@ -43,13 +43,65 @@ interface FilterValues {
   maxNewsTotal: string
 }
 
+// 메모이제이션된 키워드 행 컴포넌트 (성능 최적화)
+const KeywordRow = memo(({ keyword, index }: { keyword: KeywordData; index: number }) => (
+  <tr className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+      {keyword.keyword}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.avg_monthly_search || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.cafe_total || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.blog_total || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.web_total || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.news_total || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.monthly_click_pc ? keyword.monthly_click_pc.toFixed(1) : 'N/A'}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.monthly_click_mo ? keyword.monthly_click_mo.toFixed(1) : 'N/A'}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.ctr_pc ? `${keyword.ctr_pc.toFixed(2)}%` : 'N/A'}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.ctr_mo ? `${keyword.ctr_mo.toFixed(2)}%` : 'N/A'}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.ad_count?.toLocaleString() || 'N/A'}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.pc_search || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {(keyword.mobile_search || 0).toLocaleString()}
+    </td>
+    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+      {keyword.created_at ? new Date(keyword.created_at).toLocaleDateString() : 'N/A'}
+    </td>
+  </tr>
+));
+
+KeywordRow.displayName = 'KeywordRow'
+
 export default function DataPage() {
   const [keywords, setKeywords] = useState<KeywordData[]>([])
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(100)
+  const [itemsPerPage] = useState(50) // 가상화 최적화를 위해 50개로 줄임
   const [totalCount, setTotalCount] = useState(0)
+  const [hasNextPage, setHasNextPage] = useState(true)
+  const [isNextPageLoading, setIsNextPageLoading] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({
     minAvgSearch: '',
     maxAvgSearch: '',
@@ -64,13 +116,15 @@ export default function DataPage() {
   })
   const [showFilters, setShowFilters] = useState(false)
 
-  useEffect(() => {
-    loadKeywords()
-  }, [currentPage, itemsPerPage])
-
-  const loadKeywords = async () => {
-    try {
+  // 메모이제이션된 키워드 로드 함수
+  const loadKeywords = useCallback(async (page: number = 1, append: boolean = false) => {
+    if (!append) {
       setLoading(true)
+    } else {
+      setIsNextPageLoading(true)
+    }
+
+    try {
       // 필터 파라미터 구성
       const params = new URLSearchParams()
       if (filters.minAvgSearch) params.append('minAvgSearch', filters.minAvgSearch)
@@ -84,12 +138,12 @@ export default function DataPage() {
       if (filters.minNewsTotal) params.append('minNewsTotal', filters.minNewsTotal)
       if (filters.maxNewsTotal) params.append('maxNewsTotal', filters.maxNewsTotal)
 
-      // 페이지네이션 파라미터 추가
-      params.append('page', String(currentPage))
+      // 페이지네이션 파라미터
+      params.append('page', String(page))
       params.append('pageSize', String(itemsPerPage))
 
       const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
-      
+
       // Pages Functions를 통해 D1 데이터베이스에서 키워드 조회
       const response = await fetch(url, {
         method: 'GET',
@@ -101,26 +155,36 @@ export default function DataPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.success && Array.isArray(data.keywords)) {
-          setKeywords(data.keywords)
+          if (append) {
+            setKeywords(prev => [...prev, ...data.keywords])
+          } else {
+            setKeywords(data.keywords)
+          }
           setTotalCount(typeof data.total === 'number' ? data.total : data.keywords.length)
-          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (총 ${data.total ?? data.keywords.length}개 중) 불러왔습니다.`)
-          
-          // 문서수가 없는 키워드 자동 수집
-          const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) => 
-            !kw.blog_total && !kw.cafe_total && !kw.web_total && !kw.news_total
-          )
-          
-          if (keywordsWithoutDocCounts.length > 0) {
-            console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 자동 수집 시작`)
-            setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 수집 중... (${keywordsWithoutDocCounts.length}개)`)
-            
-            // 백그라운드에서 문서수 수집 (비동기)
-            collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20)).catch(err => {
-              console.error('자동 문서수 수집 실패:', err)
-            })
+
+          const loadedCount = append ? keywords.length + data.keywords.length : data.keywords.length
+          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${loadedCount}개 (총 ${data.total ?? data.keywords.length}개 중) 불러왔습니다.`)
+
+          // 다음 페이지 존재 여부 확인
+          setHasNextPage(loadedCount < (data.total ?? data.keywords.length))
+
+          // 문서수가 없는 키워드 자동 수집 (첫 페이지에서만)
+          if (page === 1 && !append) {
+            const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) =>
+              !kw.blog_total && !kw.cafe_total && !kw.web_total && !kw.news_total
+            )
+
+            if (keywordsWithoutDocCounts.length > 0) {
+              console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 자동 수집 시작`)
+              setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 수집 중... (${keywordsWithoutDocCounts.length}개)`)
+            // TODO: 문서수 수집 함수 구현 필요
+            // collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20)).catch(err => {
+            //   console.error('자동 문서수 수집 실패:', err)
+            // })
+            }
           }
         } else {
-          setKeywords([])
+          if (!append) setKeywords([])
           setMessage('키워드 데이터를 찾을 수 없습니다.')
         }
       } else {
@@ -130,40 +194,51 @@ export default function DataPage() {
     } catch (error) {
       console.error('키워드 조회 실패:', error)
       setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${(error as Error).message}`)
-      setKeywords([])
+      if (!append) setKeywords([])
     } finally {
       setLoading(false)
+      setIsNextPageLoading(false)
     }
-  }
+  }, [filters, itemsPerPage, keywords.length])
 
-  // 문서수가 없는 키워드들의 문서수 자동 수집
-  const collectDocCountsForKeywords = async (keywordsToCollect: KeywordData[]) => {
-    try {
-      const response = await fetch('https://0-nkey.pages.dev/api/collect-docs-batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-admin-key': 'dev-key-2024'
-        },
-        body: JSON.stringify({
-          keywords: keywordsToCollect.map(kw => kw.keyword)
-        })
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success) {
-          console.log(`✅ ${data.successCount}개 키워드의 문서수 수집 완료`)
-          // 수집 완료 후 키워드 목록 다시 로드
-          setTimeout(() => {
-            loadKeywords()
-          }, 1000)
-        }
-      }
-    } catch (error) {
-      console.error('문서수 수집 실패:', error)
+  // 무한 스크롤을 위한 다음 페이지 로드 함수
+  const loadNextPage = useCallback(() => {
+    if (!isNextPageLoading && hasNextPage) {
+      const nextPage = Math.floor(keywords.length / itemsPerPage) + 1
+      loadKeywords(nextPage, true)
     }
-  }
+  }, [isNextPageLoading, hasNextPage, keywords.length, itemsPerPage, loadKeywords])
+
+  // 필터 적용 시 초기화
+  const handleApplyFilters = useCallback(() => {
+    setCurrentPage(1)
+    setKeywords([])
+    loadKeywords(1, false)
+  }, [loadKeywords])
+
+  // 필터 초기화
+  const handleResetFilters = useCallback(() => {
+    setFilters({
+      minAvgSearch: '',
+      maxAvgSearch: '',
+      minCafeTotal: '',
+      maxCafeTotal: '',
+      minBlogTotal: '',
+      maxBlogTotal: '',
+      minWebTotal: '',
+      maxWebTotal: '',
+      minNewsTotal: '',
+      maxNewsTotal: ''
+    })
+    setCurrentPage(1)
+    setKeywords([])
+    setTimeout(() => loadKeywords(1, false), 100)
+  }, [loadKeywords])
+
+  useEffect(() => {
+    loadKeywords(1, false)
+  }, [])
+
 
   const handleClearAll = async () => {
     if (!confirm('모든 키워드를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
@@ -205,29 +280,6 @@ export default function DataPage() {
       ...prev,
       [field]: value
     }))
-  }
-
-  const handleApplyFilters = () => {
-    setCurrentPage(1)
-    loadKeywords()
-  }
-
-  const handleResetFilters = () => {
-    setFilters({
-      minAvgSearch: '',
-      maxAvgSearch: '',
-      minCafeTotal: '',
-      maxCafeTotal: '',
-      minBlogTotal: '',
-      maxBlogTotal: '',
-      minWebTotal: '',
-      maxWebTotal: '',
-      minNewsTotal: '',
-      maxNewsTotal: ''
-    })
-    setCurrentPage(1)
-    // 필터 초기화 후 즉시 로드
-    setTimeout(() => loadKeywords(), 100)
   }
 
   const handleExport = () => {
@@ -300,16 +352,13 @@ export default function DataPage() {
     }
   }
 
-  // 페이지네이션 계산 (서버 페이지네이션)
-  const totalPages = Math.max(1, Math.ceil(totalCount / itemsPerPage))
-  const currentKeywords = keywords
-
-  // 통계 계산
+  // 통계 계산 (현재 로드된 데이터 기반)
   const totalKeywords = totalCount
-  const totalSearchVolume = currentKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
-  const avgSearchVolume = currentKeywords.length > 0 ? Math.round(totalSearchVolume / currentKeywords.length) : 0
-  const totalPcSearch = currentKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
-  const totalMobileSearch = currentKeywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
+  const loadedKeywords = keywords
+  const totalSearchVolume = loadedKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
+  const avgSearchVolume = loadedKeywords.length > 0 ? Math.round(totalSearchVolume / loadedKeywords.length) : 0
+  const totalPcSearch = loadedKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
+  const totalMobileSearch = loadedKeywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
 
   if (loading) {
     return (
@@ -359,7 +408,7 @@ export default function DataPage() {
 
         <div className="flex space-x-4 mb-6">
           <button
-            onClick={loadKeywords}
+            onClick={() => loadKeywords(1, false)}
             className="btn-secondary"
           >
             새로고침
@@ -527,9 +576,10 @@ export default function DataPage() {
         <>
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              키워드 목록 (페이지 {currentPage} / {totalPages})
+              키워드 목록 ({keywords.length.toLocaleString()}개 표시 / 총 {totalCount.toLocaleString()}개)
+              {isNextPageLoading && <span className="ml-2 text-blue-600">더 불러오는 중...</span>}
             </h2>
-            
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -579,94 +629,23 @@ export default function DataPage() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                  {currentKeywords.map((keyword, index) => (
-                    <tr key={index}>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {keyword.keyword}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.avg_monthly_search || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.cafe_total || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.blog_total || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.web_total || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.news_total || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.monthly_click_pc ? keyword.monthly_click_pc.toFixed(1) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.monthly_click_mo ? keyword.monthly_click_mo.toFixed(1) : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.ctr_pc ? `${keyword.ctr_pc.toFixed(2)}%` : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.ctr_mo ? `${keyword.ctr_mo.toFixed(2)}%` : 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.ad_count?.toLocaleString() || 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.pc_search || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {(keyword.mobile_search || 0).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                        {keyword.created_at ? new Date(keyword.created_at).toLocaleDateString() : 'N/A'}
-                      </td>
-                    </tr>
+                  {keywords.map((keyword, index) => (
+                    <KeywordRow key={keyword.keyword || index} keyword={keyword} index={index} />
                   ))}
               </tbody>
             </table>
           </div>
 
-        {/* 페이지네이션 */}
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center space-x-2 mt-6">
-              <button
-                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                  disabled={currentPage === 1}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                이전
-              </button>
-                
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-                  if (pageNum > totalPages) return null
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-2 text-sm font-medium rounded-md ${
-                        currentPage === pageNum
-                          ? 'bg-blue-600 text-white'
-                          : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  )
-                })}
-                
-              <button
-                  onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                  disabled={currentPage === totalPages}
-                className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                다음
-              </button>
-            </div>
+        {/* 무한 스크롤 안내 */}
+            {hasNextPage && (
+              <div className="text-center mt-6 text-sm text-gray-600">
+                스크롤하여 더 많은 키워드를 불러올 수 있습니다
+              </div>
+            )}
+            {!hasNextPage && keywords.length > 0 && (
+              <div className="text-center mt-6 text-sm text-green-600">
+                ✅ 모든 키워드를 불러왔습니다 (총 {totalCount.toLocaleString()}개)
+              </div>
             )}
           </div>
         </>

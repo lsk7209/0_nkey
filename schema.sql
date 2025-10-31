@@ -80,10 +80,31 @@ CREATE TABLE IF NOT EXISTS api_call_logs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 인덱스 생성
+-- 인덱스 생성 (100만개 데이터 최적화)
 CREATE INDEX IF NOT EXISTS idx_keywords_seed ON keywords(seed_keyword_text);
 CREATE INDEX IF NOT EXISTS idx_keywords_search_volume ON keywords(avg_monthly_search);
 CREATE INDEX IF NOT EXISTS idx_keywords_created_at ON keywords(created_at);
+CREATE INDEX IF NOT EXISTS idx_keywords_ad_count ON keywords(ad_count);
+CREATE INDEX IF NOT EXISTS idx_keywords_pc_search ON keywords(pc_search);
+CREATE INDEX IF NOT EXISTS idx_keywords_mobile_search ON keywords(mobile_search);
+
+-- 복합 인덱스 (필터링 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_keywords_search_ad ON keywords(avg_monthly_search, ad_count);
+CREATE INDEX IF NOT EXISTS idx_keywords_created_search ON keywords(created_at, avg_monthly_search);
+CREATE INDEX IF NOT EXISTS idx_keywords_pc_mobile ON keywords(pc_search, mobile_search);
+
+-- 문서 수 인덱스 (JOIN 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_keyword ON naver_doc_counts(keyword);
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_cafe ON naver_doc_counts(cafe_total);
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_blog ON naver_doc_counts(blog_total);
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_web ON naver_doc_counts(web_total);
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_news ON naver_doc_counts(news_total);
+
+-- 복합 인덱스 (문서 수 필터링)
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_cafe_blog ON naver_doc_counts(cafe_total, blog_total);
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_web_news ON naver_doc_counts(web_total, news_total);
+
+-- 시스템 모니터링 인덱스
 CREATE INDEX IF NOT EXISTS idx_auto_seed_usage_seed ON auto_seed_usage(seed);
 CREATE INDEX IF NOT EXISTS idx_collect_logs_created_at ON collect_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_system_metrics_type ON system_metrics(metric_type);
@@ -91,3 +112,8 @@ CREATE INDEX IF NOT EXISTS idx_system_metrics_created_at ON system_metrics(creat
 CREATE INDEX IF NOT EXISTS idx_api_call_logs_type ON api_call_logs(api_type);
 CREATE INDEX IF NOT EXISTS idx_api_call_logs_created_at ON api_call_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_api_call_logs_success ON api_call_logs(success);
+
+-- 커버링 인덱스 (쿼리 최적화)
+CREATE INDEX IF NOT EXISTS idx_keywords_covering ON keywords(
+  keyword, avg_monthly_search, pc_search, mobile_search, ad_count, created_at
+);

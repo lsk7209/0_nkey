@@ -10,4 +10,14 @@ binding = "DB"
 database_name = "0_nkey_db"
 database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
 
+# 캐시 설정 (100만개 데이터 최적화)
+[build]
+command = "npm run build"
+
+# Pages Functions 캐시 설정
+[[pages_build_config]]
+# API 엔드포인트별 캐시 설정
+cache = true
+cache_ttl = 300  # 5분 캐시
+
 # 환경 변수는 Cloudflare Pages 대시보드에서 관리
