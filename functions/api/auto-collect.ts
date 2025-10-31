@@ -34,9 +34,10 @@ export async function onRequest(context: any) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const limitInput = Number(body.limit ?? 10); // 한 번 호출당 처리할 최대 시드 수
-    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 10;
+    const limitInput = Number(body.limit ?? 15); // 한 번 호출당 처리할 최대 시드 수 (기본 15개로 증가)
+    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 15;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
+    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 3), 1), 5); // 동시에 처리할 시드 수 (1-5, 기본 3)
 
     const db = env.DB;
 
@@ -69,26 +70,51 @@ export async function onRequest(context: any) {
     let totalKeywordsCollected = 0;
     let totalKeywordsSaved = 0;
     const processedSeeds: string[] = [];
-    
-    for (const row of seedRows) {
-      const seed: string = row.keyword;
-      try {
-        const res = await fetch(collectUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
-          body: JSON.stringify({ seed })
-        });
 
-        if (res.ok) {
-          const collectResult = await res.json();
-          if (collectResult.success) {
-            totalKeywordsCollected += collectResult.totalCollected || 0;
-            totalKeywordsSaved += collectResult.totalSavedOrUpdated || 0;
-            processed++;
-            processedSeeds.push(seed);
+    // 시드들을 청크로 나누어 병렬 처리 (Rate Limit 고려)
+    const chunks = [];
+    for (let i = 0; i < seedRows.length; i += concurrentLimit) {
+      chunks.push(seedRows.slice(i, i + concurrentLimit));
+    }
+
+    for (const chunk of chunks) {
+      console.log(`🔄 청크 처리 시작: ${chunk.length}개 시드 동시 처리`);
+
+      // 청크 내 시드들을 병렬로 처리
+      const chunkPromises = chunk.map(async (row: any) => {
+        const seed: string = row.keyword;
+        try {
+          const res = await fetch(collectUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
+            body: JSON.stringify({ seed })
+          });
+
+          let collectResult = null;
+          if (res.ok) {
+            collectResult = await res.json();
+            if (collectResult.success) {
+              return {
+                seed,
+                success: true,
+                totalCollected: collectResult.totalCollected || 0,
+                totalSavedOrUpdated: collectResult.totalSavedOrUpdated || 0
+              };
+            }
           }
-        }
 
+          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
+        } catch (e) {
+          console.error(`❌ 시드 처리 실패 (${seed}):`, e);
+          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
+        }
+      });
+
+      // 청크 내 모든 시드 처리 완료 대기
+      const chunkResults = await Promise.all(chunkPromises);
+
+      // 결과 집계 및 DB 기록
+      for (const result of chunkResults) {
         // collect 결과와 무관하게 활용 이력 기록 (중복 방지용)
         await db.prepare(`
           INSERT INTO auto_seed_usage (seed, usage_count, last_used)
@@ -96,19 +122,20 @@ export async function onRequest(context: any) {
           ON CONFLICT(seed) DO UPDATE SET
             usage_count = usage_count + 1,
             last_used = CURRENT_TIMESTAMP
-        `).bind(seed).run();
+        `).bind(result.seed).run();
 
-        // Rate Limit 방지 간격
-        await new Promise(r => setTimeout(r, 300));
-      } catch (e) {
-        // 실패해도 다음 시드로 진행
-        await db.prepare(`
-          INSERT INTO auto_seed_usage (seed, usage_count, last_used)
-          VALUES (?, 1, CURRENT_TIMESTAMP)
-          ON CONFLICT(seed) DO UPDATE SET
-            usage_count = usage_count + 1,
-            last_used = CURRENT_TIMESTAMP
-        `).bind(seed).run();
+        if (result.success) {
+          totalKeywordsCollected += result.totalCollected;
+          totalKeywordsSaved += result.totalSavedOrUpdated;
+          processed++;
+          processedSeeds.push(result.seed);
+        }
+      }
+
+      // 청크 간 Rate Limit 방지 간격 (5개 API 키 고려하여 800ms로 증가)
+      if (chunks.indexOf(chunk) < chunks.length - 1) {
+        console.log(`⏳ 청크 간 대기: 800ms (5개 API 키 최적화)`);
+        await new Promise(r => setTimeout(r, 800));
       }
     }
 
@@ -129,9 +156,10 @@ export async function onRequest(context: any) {
         processedSeeds,
         remaining,
         unlimited,
+        concurrentLimit,
         totalKeywordsCollected,
         totalKeywordsSaved,
-        message: `시드 ${processed}개 처리, 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장, 남은 시드 ${remaining}개`
+        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장, 남은 시드 ${remaining}개`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

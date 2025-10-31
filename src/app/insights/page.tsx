@@ -44,27 +44,172 @@ export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightsResponse['insights'] | null>(null)
   const [loading, setLoading] = useState(false)
   const [minSearchVolume, setMinSearchVolume] = useState(10000)
-  const [limit, setLimit] = useState(20)
+  const [limit, setLimit] = useState(50) // 50개로 변경
 
   const fetchInsights = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/insights?minSearchVolume=${minSearchVolume}&limit=${limit}`, {
+      // keywords API에서 모든 데이터를 가져옴 (페이징 없이)
+      const response = await fetch(`/api/keywords?pageSize=10000`, {
         headers: {
           'x-admin-key': 'dev-key-2024'
         }
       })
-      
+
       if (!response.ok) {
-        throw new Error('인사이트 데이터 조회에 실패했습니다.')
+        throw new Error('키워드 데이터 조회에 실패했습니다.')
       }
-      
+
       const data = await response.json()
-      setInsights(data.insights)
+      const keywords = data.keywords || []
+
+      // 인사이트 분석 로직
+      const insights = analyzeKeywordsForInsights(keywords, minSearchVolume, limit)
+      setInsights(insights)
     } catch (error) {
       console.error('인사이트 조회 에러:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // 키워드 데이터를 인사이트로 분석하는 함수
+  const analyzeKeywordsForInsights = (keywords: any[], minSearchVolume: number, limit: number) => {
+    // 1. 총검색수 많고, 카페수 적음 (카페수 0 제외, 50개)
+    const cafeInsights = {
+      title: "🔥 카페 잠재력 키워드",
+      description: `검색량 ${formatNumber(minSearchVolume)}+ 이고 카페 문서수가 적은 키워드`,
+      keywords: keywords
+        .filter(k => k.avg_monthly_search >= minSearchVolume && k.cafe_total > 0 && k.cafe_total < 1000)
+        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .slice(0, limit)
+        .map(k => ({
+          keyword: k.keyword,
+          searchVolume: k.avg_monthly_search,
+          cafeDocs: k.cafe_total,
+          blogDocs: k.blog_total,
+          webDocs: k.web_total,
+          newsDocs: k.news_total,
+          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          adCount: k.ad_count,
+          cpc: 0,
+          compIndex: 0
+        })),
+      count: 0
+    }
+    cafeInsights.count = cafeInsights.keywords.length
+
+    // 2. 총검색수 많고, 블로그문서수 적음 (블로그수 0 제외, 50개)
+    const blogInsights = {
+      title: "📝 블로그 잠재력 키워드",
+      description: `검색량 ${formatNumber(minSearchVolume)}+ 이고 블로그 문서수가 적은 키워드`,
+      keywords: keywords
+        .filter(k => k.avg_monthly_search >= minSearchVolume && k.blog_total > 0 && k.blog_total < 1000)
+        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .slice(0, limit)
+        .map(k => ({
+          keyword: k.keyword,
+          searchVolume: k.avg_monthly_search,
+          cafeDocs: k.cafe_total,
+          blogDocs: k.blog_total,
+          webDocs: k.web_total,
+          newsDocs: k.news_total,
+          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          adCount: k.ad_count,
+          cpc: 0,
+          compIndex: 0
+        })),
+      count: 0
+    }
+    blogInsights.count = blogInsights.keywords.length
+
+    // 3. 총검색수 많고, 웹문서수 적음 (웹수 0 제외, 50개)
+    const webInsights = {
+      title: "🌐 웹 잠재력 키워드",
+      description: `검색량 ${formatNumber(minSearchVolume)}+ 이고 웹 문서수가 적은 키워드`,
+      keywords: keywords
+        .filter(k => k.avg_monthly_search >= minSearchVolume && k.web_total > 0 && k.web_total < 1000)
+        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .slice(0, limit)
+        .map(k => ({
+          keyword: k.keyword,
+          searchVolume: k.avg_monthly_search,
+          cafeDocs: k.cafe_total,
+          blogDocs: k.blog_total,
+          webDocs: k.web_total,
+          newsDocs: k.news_total,
+          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          adCount: k.ad_count,
+          cpc: 0,
+          compIndex: 0
+        })),
+      count: 0
+    }
+    webInsights.count = webInsights.keywords.length
+
+    // 4. 총검색수 많고, 뉴스 적음 (뉴스수 0 제외, 50개)
+    const newsInsights = {
+      title: "📰 뉴스 잠재력 키워드",
+      description: `검색량 ${formatNumber(minSearchVolume)}+ 이고 뉴스 문서수가 적은 키워드`,
+      keywords: keywords
+        .filter(k => k.avg_monthly_search >= minSearchVolume && k.news_total > 0 && k.news_total < 100)
+        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .slice(0, limit)
+        .map(k => ({
+          keyword: k.keyword,
+          searchVolume: k.avg_monthly_search,
+          cafeDocs: k.cafe_total,
+          blogDocs: k.blog_total,
+          webDocs: k.web_total,
+          newsDocs: k.news_total,
+          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          adCount: k.ad_count,
+          cpc: 0,
+          compIndex: 0
+        })),
+      count: 0
+    }
+    newsInsights.count = newsInsights.keywords.length
+
+    // 5. 총검색수 많고, 월광고수 적음 (광고수 0 제외, 50개)
+    const adCountInsights = {
+      title: "💰 광고 잠재력 키워드",
+      description: `검색량 ${formatNumber(minSearchVolume)}+ 이고 월 광고수가 적은 키워드`,
+      keywords: keywords
+        .filter(k => k.avg_monthly_search >= minSearchVolume && k.ad_count > 0 && k.ad_count < 5)
+        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .slice(0, limit)
+        .map(k => ({
+          keyword: k.keyword,
+          searchVolume: k.avg_monthly_search,
+          cafeDocs: k.cafe_total,
+          blogDocs: k.blog_total,
+          webDocs: k.web_total,
+          newsDocs: k.news_total,
+          totalDocs: k.cafe_total + k.blog_total + k.web_total + k.news_total,
+          adCount: k.ad_count,
+          cpc: 0,
+          compIndex: 0
+        })),
+      count: 0
+    }
+    adCountInsights.count = adCountInsights.keywords.length
+
+    // 빈 totalDocsInsights (호환성을 위해)
+    const totalDocsInsights = {
+      title: "📊 총문서 인사이트",
+      description: "총문서 수 기반 인사이트",
+      keywords: [],
+      count: 0
+    }
+
+    return {
+      cafeInsights,
+      blogInsights,
+      webInsights,
+      newsInsights,
+      totalDocsInsights,
+      adCountInsights
     }
   }
 
@@ -223,7 +368,7 @@ export default function InsightsPage() {
         {insights && !loading && (
           <div className="mt-8 bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">분석 요약</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 text-center">
               <div className="bg-blue-50 p-4 rounded-lg">
                 <div className="text-2xl font-bold text-blue-600">
                   {insights.cafeInsights.count}
@@ -242,11 +387,17 @@ export default function InsightsPage() {
                 </div>
                 <div className="text-sm text-purple-800">웹 인사이트</div>
               </div>
-              <div className="bg-orange-50 p-4 rounded-lg">
-                <div className="text-2xl font-bold text-orange-600">
-                  {insights.totalDocsInsights.count}
+              <div className="bg-yellow-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {insights.newsInsights.count}
                 </div>
-                <div className="text-sm text-orange-800">총문서 인사이트</div>
+                <div className="text-sm text-yellow-800">뉴스 인사이트</div>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">
+                  {insights.adCountInsights.count}
+                </div>
+                <div className="text-sm text-red-800">광고 인사이트</div>
               </div>
             </div>
           </div>

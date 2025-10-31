@@ -44,6 +44,7 @@ export async function onRequest(context: any) {
 
     // 필터 파라미터 파싱
     const url = new URL(request.url);
+    const seedKeywordText = url.searchParams.get('seed_keyword_text');
     const minAvgSearch = url.searchParams.get('minAvgSearch');
     const maxAvgSearch = url.searchParams.get('maxAvgSearch');
     const minCafeTotal = url.searchParams.get('minCafeTotal');
@@ -67,6 +68,10 @@ export async function onRequest(context: any) {
     const conditions: string[] = [];
     const bindings: any[] = [];
 
+    if (seedKeywordText) {
+      conditions.push('k.seed_keyword_text = ?');
+      bindings.push(seedKeywordText);
+    }
     if (minAvgSearch) {
       conditions.push('k.avg_monthly_search >= ?');
       bindings.push(parseInt(minAvgSearch));

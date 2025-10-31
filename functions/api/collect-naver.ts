@@ -368,11 +368,18 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       throw new Error('네이버 API 키가 설정되지 않았습니다.');
     }
 
-    // 첫 번째 사용 가능한 API 키 사용
-    const apiKey = apiKeys[0];
+    // 시드 기반 API 키 로테이션 (다중 키 활용으로 속도 향상)
+    const seedHash = seed.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const keyIndex = Math.abs(seedHash) % apiKeys.length;
+    const apiKey = apiKeys[keyIndex];
     const KEY = apiKey.key;
     const SECRET = apiKey.secret;
     const CID = apiKey.customerId;
+
+    console.log(`🔄 API 키 로테이션: ${keyIndex + 1}/${apiKeys.length}번 키 사용 (시드: ${seed})`);
 
     console.log('Using official Naver SearchAd API:', {
       base: BASE,
@@ -533,9 +540,14 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
       throw new Error('네이버 오픈API 키가 설정되지 않았습니다.');
     }
 
-    // 첫 번째 사용 가능한 API 키 사용
-    const apiKey = openApiKeys[0];
-    console.log(`Using Naver OpenAPI key: ${apiKey.key.substring(0, 8)}...`);
+    // 키워드 기반 OpenAPI 키 로테이션 (9개 키 활용)
+    const keywordHash = keyword.split('').reduce((a, b) => {
+      a = ((a << 5) - a) + b.charCodeAt(0);
+      return a & a;
+    }, 0);
+    const openApiKeyIndex = Math.abs(keywordHash) % openApiKeys.length;
+    const apiKey = openApiKeys[openApiKeyIndex];
+    console.log(`🔄 OpenAPI 키 로테이션: ${openApiKeyIndex + 1}/${openApiKeys.length}번 키 사용 (${keyword})`);
 
     const docCounts: { [key: string]: number } = {
       blog_total: 0,
