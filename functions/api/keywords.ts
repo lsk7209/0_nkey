@@ -137,7 +137,7 @@ export async function onRequest(context: any) {
         COALESCE(ndc.news_total, 0) as news_total
       FROM keywords k
       LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
-      LEFT JOIN naver_doc_counts ndc ON k.keyword = ndc.keyword
+      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
       ${whereClause}
       ORDER BY k.avg_monthly_search DESC, k.created_at DESC
       LIMIT ? OFFSET ?
@@ -148,7 +148,7 @@ export async function onRequest(context: any) {
       SELECT COUNT(*) as total
       FROM keywords k
       LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
-      LEFT JOIN naver_doc_counts ndc ON k.keyword = ndc.keyword
+      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
       ${whereClause}
     `;
 
