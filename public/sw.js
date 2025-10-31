@@ -39,10 +39,10 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 10초마다 반복 실행 (백그라운드에서는 더 긴 간격)
+  // 60초마다 반복 실행 (백그라운드에서는 더 긴 간격)
   autoCollectInterval = setInterval(() => {
     runBatch()
-  }, 10000) // 10초 간격
+  }, 60000) // 60초 간격
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
@@ -105,7 +105,7 @@ async function runBatch() {
   try {
     console.log('[SW] 배치 실행 시작')
 
-    const batchLimit = autoCollectConfig.limit === 0 ? 15 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 15))
+    const batchLimit = autoCollectConfig.limit === 0 ? 5 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 5))
     const concurrent = autoCollectConfig.concurrent || 3
 
     const response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
@@ -171,6 +171,15 @@ async function runBatch() {
         })
       })
     })
+
+    // 타임아웃이나 네트워크 에러 시 잠시 대기 후 재시도
+    if (error.message.includes('Failed to fetch') || error.message.includes('timeout') || error.message.includes('504')) {
+      console.log('[SW] 네트워크 에러, 2분 후 재시도')
+      setTimeout(() => {
+        runBatch() // 재시도
+      }, 120000) // 2분 대기
+    }
+    // 다른 에러는 계속 진행
   }
 }
 
