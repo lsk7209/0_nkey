@@ -149,9 +149,9 @@ export async function onRequest(context: any) {
       try {
         // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
         const existing = await runWithRetry(
-          () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+          () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
           'select keywords'
-        ) as { id: number } | null;
+        ) as { id: number; updated_at: string } | null;
 
         let keywordId: number | null = null;
 
