@@ -404,6 +404,8 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       signature: sig.substring(0, 20) + '...'
     });
 
+    const startTime = Date.now();
+
     // 공식 API 호출
     const res = await fetch(`${BASE}${uri}?${qs.toString()}`, {
       method: 'GET',
@@ -416,7 +418,27 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       },
     });
 
-    console.log(`Official Naver API response status: ${res.status}`);
+    const responseTime = Date.now() - startTime;
+    console.log(`Official Naver API response status: ${res.status} (${responseTime}ms)`);
+
+    // API 호출 로깅
+    try {
+      await env.DB.prepare(`
+        INSERT INTO api_call_logs (api_type, endpoint, method, status_code, response_time_ms, success, error_message, api_key_index)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        'searchad',
+        uri,
+        'GET',
+        res.status,
+        responseTime,
+        res.ok,
+        res.ok ? null : `Status: ${res.status}`,
+        keyIndex
+      ).run();
+    } catch (logError) {
+      console.warn('API 호출 로깅 실패:', logError);
+    }
 
     // 429 Rate Limit 처리
     if (res.status === 429) {
@@ -455,6 +477,14 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
 
     console.log(`✅ Collected ${keywords.length} keywords from official Naver SearchAd API`);
     console.log('First few keywords:', keywords.slice(0, 3));
+
+    // 시스템 메트릭스 기록
+    try {
+      await recordSystemMetrics(env.DB, keywords.length, keyIndex);
+    } catch (metricsError) {
+      console.warn('시스템 메트릭스 기록 실패:', metricsError);
+    }
+
     return keywords;
 
   } catch (error: any) {
@@ -519,6 +549,40 @@ function normalizeSearchCount(value: string | number): number {
   return parseInt(str) || 0;
 }
 
+// 시스템 메트릭스 기록 함수
+async function recordSystemMetrics(db: any, keywordsCollected: number, apiKeyIndex: number) {
+  try {
+    const metrics = [
+      {
+        type: 'api_performance',
+        name: 'keywords_collected_per_call',
+        value: keywordsCollected,
+        metadata: JSON.stringify({ api_key_index: apiKeyIndex })
+      },
+      {
+        type: 'system_health',
+        name: 'collection_success',
+        value: 1,
+        metadata: JSON.stringify({ timestamp: new Date().toISOString() })
+      }
+    ];
+
+    for (const metric of metrics) {
+      await db.prepare(`
+        INSERT INTO system_metrics (metric_type, metric_name, metric_value, metadata)
+        VALUES (?, ?, ?, ?)
+      `).bind(
+        metric.type,
+        metric.name,
+        metric.value,
+        metric.metadata
+      ).run();
+    }
+  } catch (error) {
+    console.warn('메트릭스 기록 중 오류:', error);
+  }
+}
+
 // 네이버 오픈API로 문서 수 수집
 async function collectDocCountsFromNaver(keyword: string, env: any) {
   try {
@@ -577,6 +641,8 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
           const encodedQuery = encodeURIComponent(keyword);
           const url = `${apiUrl}?query=${encodedQuery}&display=1&start=1`;
 
+          const openApiStartTime = Date.now();
+
           const response = await fetch(url, {
             method: 'GET',
             headers: {
@@ -584,6 +650,27 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
               'X-Naver-Client-Secret': apiKey.secret
             }
           });
+
+          const openApiResponseTime = Date.now() - openApiStartTime;
+
+          // OpenAPI 호출 로깅
+          try {
+            await env.DB.prepare(`
+              INSERT INTO api_call_logs (api_type, endpoint, method, status_code, response_time_ms, success, error_message, api_key_index)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              'openapi',
+              `/v1/search/${searchType.type}.json`,
+              'GET',
+              response.status,
+              openApiResponseTime,
+              response.ok,
+              response.ok ? null : `Status: ${response.status}`,
+              openApiKeyIndex
+            ).run();
+          } catch (logError) {
+            console.warn('OpenAPI 호출 로깅 실패:', logError);
+          }
 
           // 응답 상태 코드별 처리 (공식 문서 기준)
           if (response.ok) {

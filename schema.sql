@@ -56,9 +56,38 @@ CREATE TABLE IF NOT EXISTS collect_logs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 시스템 성능 모니터링 테이블
+CREATE TABLE IF NOT EXISTS system_metrics (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  metric_type TEXT NOT NULL, -- 'api_success_rate', 'db_performance', 'memory_usage', 'rate_limit'
+  metric_name TEXT NOT NULL,
+  metric_value REAL NOT NULL,
+  metadata TEXT, -- JSON 형식으로 추가 정보 저장
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- API 호출 로그 테이블 (성공/실패 추적용)
+CREATE TABLE IF NOT EXISTS api_call_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  api_type TEXT NOT NULL, -- 'searchad', 'openapi'
+  endpoint TEXT NOT NULL,
+  method TEXT NOT NULL,
+  status_code INTEGER,
+  response_time_ms INTEGER,
+  success BOOLEAN NOT NULL,
+  error_message TEXT,
+  api_key_index INTEGER, -- 사용한 API 키 인덱스
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
 -- 인덱스 생성
 CREATE INDEX IF NOT EXISTS idx_keywords_seed ON keywords(seed_keyword_text);
 CREATE INDEX IF NOT EXISTS idx_keywords_search_volume ON keywords(avg_monthly_search);
 CREATE INDEX IF NOT EXISTS idx_keywords_created_at ON keywords(created_at);
 CREATE INDEX IF NOT EXISTS idx_auto_seed_usage_seed ON auto_seed_usage(seed);
 CREATE INDEX IF NOT EXISTS idx_collect_logs_created_at ON collect_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_system_metrics_type ON system_metrics(metric_type);
+CREATE INDEX IF NOT EXISTS idx_system_metrics_created_at ON system_metrics(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_call_logs_type ON api_call_logs(api_type);
+CREATE INDEX IF NOT EXISTS idx_api_call_logs_created_at ON api_call_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_call_logs_success ON api_call_logs(success);
