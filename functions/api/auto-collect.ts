@@ -66,7 +66,10 @@ export async function onRequest(context: any) {
     const collectUrl = `${origin}/api/collect-naver`;
 
     let processed = 0;
+    let totalKeywordsCollected = 0;
+    let totalKeywordsSaved = 0;
     const processedSeeds: string[] = [];
+    
     for (const row of seedRows) {
       const seed: string = row.keyword;
       try {
@@ -75,6 +78,16 @@ export async function onRequest(context: any) {
           headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
           body: JSON.stringify({ seed })
         });
+
+        if (res.ok) {
+          const collectResult = await res.json();
+          if (collectResult.success) {
+            totalKeywordsCollected += collectResult.totalCollected || 0;
+            totalKeywordsSaved += collectResult.totalSavedOrUpdated || 0;
+            processed++;
+            processedSeeds.push(seed);
+          }
+        }
 
         // collect 결과와 무관하게 활용 이력 기록 (중복 방지용)
         await db.prepare(`
@@ -85,8 +98,6 @@ export async function onRequest(context: any) {
             last_used = CURRENT_TIMESTAMP
         `).bind(seed).run();
 
-        processed++;
-        processedSeeds.push(seed);
         // Rate Limit 방지 간격
         await new Promise(r => setTimeout(r, 300));
       } catch (e) {
@@ -118,7 +129,9 @@ export async function onRequest(context: any) {
         processedSeeds,
         remaining,
         unlimited,
-        message: `시드 ${processed}개 처리, 남은 시드 ${remaining}개`
+        totalKeywordsCollected,
+        totalKeywordsSaved,
+        message: `시드 ${processed}개 처리, 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장, 남은 시드 ${remaining}개`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
