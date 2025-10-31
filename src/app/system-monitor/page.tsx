@@ -36,7 +36,7 @@ interface SystemStatus {
 export default function SystemMonitorPage() {
   const [status, setStatus] = useState<SystemStatus | null>(null)
   const [loading, setLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'status' | 'metrics' | 'api-stats' | 'optimize'>('status')
+  const [activeTab, setActiveTab] = useState<'status' | 'metrics' | 'api-stats' | 'optimize' | 'cleanup'>('status')
 
   const fetchStatus = async () => {
     setLoading(true)
@@ -128,6 +128,7 @@ export default function SystemMonitorPage() {
                 { id: 'status', label: '시스템 상태' },
                 { id: 'metrics', label: '성능 메트릭스' },
                 { id: 'api-stats', label: 'API 통계' },
+                { id: 'cleanup', label: '중복 정리' },
                 { id: 'optimize', label: '최적화' }
               ].map((tab) => (
                 <button
@@ -294,6 +295,66 @@ export default function SystemMonitorPage() {
             >
               API 통계 조회
             </button>
+          </div>
+        )}
+
+        {/* 중복 정리 탭 */}
+        {activeTab === 'cleanup' && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">중복 키워드 정리</h2>
+            <div className="space-y-4">
+              <div className="bg-red-50 p-4 rounded-lg">
+                <h3 className="font-medium text-red-800 mb-2">중요 안내</h3>
+                <ul className="text-sm text-red-700 space-y-1">
+                  <li>• 각 키워드별로 가장 오래된 레코드(created_at이 가장 빠른 것)만 유지됩니다.</li>
+                  <li>• 중복된 키워드의 최신 데이터는 삭제될 수 있습니다.</li>
+                  <li>• 실행 전 데이터 백업을 권장합니다.</li>
+                </ul>
+              </div>
+
+              <button
+                onClick={async () => {
+                  if (!confirm('정말로 중복 키워드를 정리하시겠습니까?\n이 작업은 되돌릴 수 없습니다.')) {
+                    return
+                  }
+
+                  setLoading(true)
+                  try {
+                    const response = await fetch('/api/system-monitor?action=cleanup-duplicates', {
+                      method: 'POST',
+                      headers: {
+                        'x-admin-key': 'dev-key-2024'
+                      }
+                    })
+
+                    if (response.ok) {
+                      const data = await response.json()
+                      if (data.success) {
+                        alert(`중복 정리 완료!\n${data.stats.deletedRecords}개 레코드 삭제됨\n최종 고유 키워드: ${data.stats.finalUniqueKeywords}개`)
+                        fetchStatus() // 상태 새로고침
+                      } else {
+                        alert('중복 정리 실패: ' + data.error)
+                      }
+                    } else {
+                      alert('중복 정리 요청 실패')
+                    }
+                  } catch (error) {
+                    console.error('중복 정리 실패:', error)
+                    alert('중복 정리 중 오류가 발생했습니다.')
+                  } finally {
+                    setLoading(false)
+                  }
+                }}
+                disabled={loading}
+                className="w-full bg-red-600 text-white px-4 py-3 rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? '중복 정리 실행 중...' : '중복 키워드 정리 실행'}
+              </button>
+
+              <p className="text-xs text-gray-500">
+                중복 키워드를 정리하여 데이터베이스의 무결성을 유지합니다.
+              </p>
+            </div>
           </div>
         )}
 
