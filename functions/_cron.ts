@@ -8,7 +8,7 @@
  * 3. Path: "/_cron" 또는 빈 값
  */
 
-export async function onScheduled(event: ScheduledEvent, env: any, ctx: ExecutionContext) {
+export async function onScheduled(event: any, env: any, ctx: any) {
   console.log(`[Cron] Scheduled event triggered: ${event.cron}, scheduledTime: ${event.scheduledTime}`);
 
   // 여러 크론 작업을 처리할 수 있도록 설정
@@ -29,7 +29,7 @@ export async function onScheduled(event: ScheduledEvent, env: any, ctx: Executio
  * - 미사용 시드 키워드를 자동으로 수집
  * - 한 번에 10개의 시드 처리 (API 제한 고려)
  */
-async function handleAutoCollect(env: any, ctx: ExecutionContext) {
+async function handleAutoCollect(env: any, ctx: any) {
   console.log('[Cron] Starting auto collect...');
 
   try {
