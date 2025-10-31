@@ -68,6 +68,9 @@ export async function onRequest(context: any) {
     const conditions: string[] = [];
     const bindings: any[] = [];
 
+    // 기본 조건: 문서수 0 제외 (카페, 블로그, 웹, 뉴스 중 적어도 하나는 0이 아님)
+    conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
+
     if (seedKeywordText) {
       conditions.push('k.seed_keyword_text = ?');
       bindings.push(seedKeywordText);
@@ -139,7 +142,7 @@ export async function onRequest(context: any) {
       LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
       LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
       ${whereClause}
-      ORDER BY k.avg_monthly_search DESC, k.created_at DESC
+      ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
       LIMIT ? OFFSET ?
     `;
 
