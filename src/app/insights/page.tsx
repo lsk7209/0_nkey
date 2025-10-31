@@ -43,7 +43,6 @@ interface InsightsResponse {
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightsResponse['insights'] | null>(null)
   const [loading, setLoading] = useState(false)
-  const [dynamicMinSearchVolume, setDynamicMinSearchVolume] = useState(10000)
   const [limit, setLimit] = useState(50) // 50개로 변경
 
   const fetchInsights = async () => {
@@ -63,20 +62,10 @@ export default function InsightsPage() {
       const data = await response.json()
       const keywords = data.keywords || []
 
-      // 현재 데이터에서 동적으로 최소 검색량 기준 설정
-      const validKeywords = keywords.filter((k: any) => k.avg_monthly_search && k.avg_monthly_search > 0)
-      const sortedBySearchVolume = validKeywords.sort((a: any, b: any) => b.avg_monthly_search - a.avg_monthly_search)
+      // 인사이트 분석 로직 (검색량 기준 없이 높은 순으로 정렬)
+      console.log(`인사이트 분석: 총 ${keywords.length}개 키워드 분석 시작`)
 
-      // 상위 100개의 검색량 중 최소값을 기준으로 설정 (또는 전체의 상위 10%)
-      const topCount = Math.min(100, Math.floor(sortedBySearchVolume.length * 0.1))
-      const dynamicMinVolume = sortedBySearchVolume[topCount - 1]?.avg_monthly_search || 10000
-
-      console.log(`인사이트 분석: 총 ${validKeywords.length}개 키워드, 상위 ${topCount}개 기준으로 최소 검색량 ${dynamicMinVolume} 설정`)
-
-      setDynamicMinSearchVolume(dynamicMinVolume)
-
-      // 인사이트 분석 로직 (동적 기준 사용)
-      const insights = analyzeKeywordsForInsights(keywords, dynamicMinVolume, limit)
+      const insights = analyzeKeywordsForInsights(keywords, limit)
       setInsights(insights)
     } catch (error) {
       console.error('인사이트 조회 에러:', error)
@@ -85,14 +74,14 @@ export default function InsightsPage() {
     }
   }
 
-  // 키워드 데이터를 인사이트로 분석하는 함수
-  const analyzeKeywordsForInsights = (keywords: any[], minSearchVolume: number, limit: number) => {
+  // 키워드 데이터를 인사이트로 분석하는 함수 (검색량 높은 순으로 정렬)
+  const analyzeKeywordsForInsights = (keywords: any[], limit: number) => {
     // 1. 총검색수 많고, 카페수 적음 (카페수 0 제외, 50개)
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
       description: `검색량 상위권이고 카페 문서수가 적은 키워드`,
       keywords: keywords
-        .filter(k => k.avg_monthly_search >= minSearchVolume && k.cafe_total > 0 && k.cafe_total < 1000)
+        .filter(k => k.cafe_total > 0 && k.cafe_total < 1000)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -116,7 +105,7 @@ export default function InsightsPage() {
       title: "📝 블로그 잠재력 키워드",
       description: `검색량 상위권이고 블로그 문서수가 적은 키워드`,
       keywords: keywords
-        .filter(k => k.avg_monthly_search >= minSearchVolume && k.blog_total > 0 && k.blog_total < 1000)
+        .filter(k => k.blog_total > 0 && k.blog_total < 1000)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -140,7 +129,7 @@ export default function InsightsPage() {
       title: "🌐 웹 잠재력 키워드",
       description: `검색량 상위권이고 웹 문서수가 적은 키워드`,
       keywords: keywords
-        .filter(k => k.avg_monthly_search >= minSearchVolume && k.web_total > 0 && k.web_total < 1000)
+        .filter(k => k.web_total > 0 && k.web_total < 1000)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -164,7 +153,7 @@ export default function InsightsPage() {
       title: "📰 뉴스 잠재력 키워드",
       description: `검색량 상위권이고 뉴스 문서수가 적은 키워드`,
       keywords: keywords
-        .filter(k => k.avg_monthly_search >= minSearchVolume && k.news_total > 0 && k.news_total < 100)
+        .filter(k => k.news_total > 0 && k.news_total < 100)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -188,7 +177,7 @@ export default function InsightsPage() {
       title: "💰 광고 잠재력 키워드",
       description: `검색량 상위권이고 월 광고수가 적은 키워드`,
       keywords: keywords
-        .filter(k => k.avg_monthly_search >= minSearchVolume && k.ad_count > 0 && k.ad_count < 5)
+        .filter(k => k.ad_count > 0 && k.ad_count < 5)
         .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
         .slice(0, limit)
         .map(k => ({
@@ -319,15 +308,15 @@ export default function InsightsPage() {
         {/* 필터 설정 */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">필터 설정</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                최소 검색량 (자동 계산)
+                정렬 방식
               </label>
               <div className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700">
-                {formatNumber(dynamicMinSearchVolume)} 이상
+                🔝 검색량 높은 순
               </div>
-              <p className="text-xs text-gray-500 mt-1">현재 데이터 상위권 기준 자동 적용</p>
+              <p className="text-xs text-gray-500 mt-1">각 카테고리별로 검색량 기준 내림차순 정렬</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -343,11 +332,11 @@ export default function InsightsPage() {
                 max="100"
               />
             </div>
-            <div className="flex items-end">
+            <div className="md:col-span-2 flex justify-center">
               <button
                 onClick={fetchInsights}
                 disabled={loading}
-                className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full max-w-xs bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? '분석 중...' : '인사이트 새로고침'}
               </button>
