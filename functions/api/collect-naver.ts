@@ -228,29 +228,43 @@ export async function onRequest(context: any) {
             const newUpdatedAt = new Date().toISOString();
             console.log(`📝 업데이트할 값: pc=${keyword.pc_search}, mobile=${keyword.mobile_search}, avg=${keyword.avg_monthly_search}`);
 
-            // keywords 테이블 업데이트
+            // keywords 테이블 업데이트 (pc_search, mobile_search 컬럼이 없을 수 있으므로 기존 컬럼만 사용)
             const updateResult = await runWithRetry(() => db.prepare(`
               UPDATE keywords SET
                 monthly_search_pc = ?,
                 monthly_search_mob = ?,
-                pc_search = ?,
-                mobile_search = ?,
                 avg_monthly_search = ?,
                 seed_keyword_text = ?,
                 comp_index = ?,
                 updated_at = ?
               WHERE id = ?
             `).bind(
-              keyword.pc_search,
-              keyword.mobile_search,
-              keyword.pc_search,
-              keyword.mobile_search,
-              keyword.avg_monthly_search,
+              keyword.pc_search || 0,
+              keyword.mobile_search || 0,
+              keyword.avg_monthly_search || 0,
               seed.trim(),
               keyword.comp_idx || 0,
               newUpdatedAt,
               existing.id
             ).run(), 'update existing keyword');
+
+            // pc_search, mobile_search 컬럼이 있다면 별도로 업데이트 시도 (실패해도 무시)
+            try {
+              await db.prepare(`
+                UPDATE keywords 
+                SET pc_search = ?, mobile_search = ?
+                WHERE id = ?
+              `).bind(
+                keyword.pc_search || 0,
+                keyword.mobile_search || 0,
+                existing.id
+              ).run();
+              console.log(`✅ pc_search, mobile_search 업데이트 완료 (ID: ${existing.id})`);
+            } catch (updateError: any) {
+              if (updateError.message?.includes('no column named')) {
+                console.warn(`⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요)`);
+              }
+            }
 
             const changes = (updateResult as any).meta?.changes || 0;
             console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}`);
@@ -310,24 +324,38 @@ export async function onRequest(context: any) {
                 UPDATE keywords SET 
                   monthly_search_pc = ?,
                   monthly_search_mob = ?,
-                  pc_search = ?,
-                  mobile_search = ?,
                   avg_monthly_search = ?,
                   seed_keyword_text = ?,
                   comp_index = ?,
                   updated_at = ?
                 WHERE id = ?
               `).bind(
-                keyword.pc_search,
-                keyword.mobile_search,
-                keyword.pc_search,
-                keyword.mobile_search,
-                keyword.avg_monthly_search,
+                keyword.pc_search || 0,
+                keyword.mobile_search || 0,
+                keyword.avg_monthly_search || 0,
                 seed.trim(),
                 keyword.comp_idx || 0,
                 newUpdatedAt,
                 doubleCheck.id
               ).run(), 'update existing keyword');
+
+              // pc_search, mobile_search 컬럼이 있다면 별도로 업데이트 시도 (실패해도 무시)
+              try {
+                await db.prepare(`
+                  UPDATE keywords 
+                  SET pc_search = ?, mobile_search = ?
+                  WHERE id = ?
+                `).bind(
+                  keyword.pc_search || 0,
+                  keyword.mobile_search || 0,
+                  doubleCheck.id
+                ).run();
+                console.log(`✅ pc_search, mobile_search 업데이트 완료 (ID: ${doubleCheck.id})`);
+              } catch (updateError: any) {
+                if (updateError.message?.includes('no column named')) {
+                  console.warn(`⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요)`);
+                }
+              }
 
               const changes = (updateResult as any).meta?.changes || 0;
               // UPDATE 시도는 항상 카운트로 인정 (changes가 0이어도 시도했으므로)
@@ -424,23 +452,44 @@ export async function onRequest(context: any) {
 
             let insertResult;
             try {
+              // 컬럼 존재 여부 확인을 위해 먼저 시도 (pc_search, mobile_search 컬럼이 없을 수 있음)
+              // 먼저 기존 컬럼만 사용하는 쿼리로 시도
               insertResult = await db.prepare(`
                 INSERT INTO keywords (
                   keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
-                  pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  avg_monthly_search, comp_index, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
               `).bind(
                 insertValues.keyword,
                 insertValues.seed_keyword_text,
                 insertValues.monthly_search_pc,
                 insertValues.monthly_search_mob,
-                insertValues.pc_search,
-                insertValues.mobile_search,
                 insertValues.avg_monthly_search,
                 insertValues.comp_index,
                 insertValues.created_at,
                 insertValues.updated_at
               ).run();
+              
+              // pc_search, mobile_search 컬럼이 있다면 업데이트 시도 (실패해도 무시)
+              try {
+                await db.prepare(`
+                  UPDATE keywords 
+                  SET pc_search = ?, mobile_search = ?
+                  WHERE keyword = ? AND (pc_search IS NULL OR mobile_search IS NULL)
+                `).bind(
+                  insertValues.pc_search,
+                  insertValues.mobile_search,
+                  insertValues.keyword
+                ).run();
+                console.log(`✅ pc_search, mobile_search 업데이트 완료: ${insertValues.keyword}`);
+              } catch (updateError: any) {
+                // 컬럼이 없으면 무시 (나중에 마이그레이션으로 해결)
+                if (updateError.message?.includes('no column named')) {
+                  console.warn(`⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요): ${updateError.message}`);
+                } else {
+                  console.warn(`⚠️ pc_search/mobile_search 업데이트 실패: ${updateError.message}`);
+                }
+              }
             } catch (insertQueryError: any) {
               console.error(`❌ INSERT 쿼리 실행 실패:`, {
                 message: insertQueryError.message,
