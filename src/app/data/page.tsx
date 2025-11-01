@@ -197,7 +197,7 @@ export default function DataPage() {
             }
           }
         } else {
-          if (!append) setKeywords([])
+          setKeywords([])
           setMessage('키워드 데이터를 찾을 수 없습니다.')
         }
       } else {
@@ -207,12 +207,11 @@ export default function DataPage() {
     } catch (error) {
       console.error('키워드 조회 실패:', error)
       setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${(error as Error).message}`)
-      if (!append) setKeywords([])
+      setKeywords([])
     } finally {
       setLoading(false)
-      setIsNextPageLoading(false)
     }
-  }, [filters, itemsPerPage, keywords.length])
+  }, [filters, itemsPerPage])
 
   // 문서수 수집 함수
   const collectDocCountsForKeywords = useCallback(async (keywordsToCollect: KeywordData[]) => {
