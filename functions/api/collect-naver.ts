@@ -557,39 +557,60 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
     const BASE = 'https://api.naver.com';
     
     // 사용 가능한 네이버 API 키 찾기
-    const apiKeys = [
+    const apiKeysRaw = [
       { key: env.NAVER_API_KEY_1, secret: env.NAVER_API_SECRET_1, customerId: env.NAVER_CUSTOMER_ID_1 },
       { key: env.NAVER_API_KEY_2, secret: env.NAVER_API_SECRET_2, customerId: env.NAVER_CUSTOMER_ID_2 },
       { key: env.NAVER_API_KEY_3, secret: env.NAVER_API_SECRET_3, customerId: env.NAVER_CUSTOMER_ID_3 },
       { key: env.NAVER_API_KEY_4, secret: env.NAVER_API_SECRET_4, customerId: env.NAVER_CUSTOMER_ID_4 },
       { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
-    ].filter(api => api.key && api.secret && api.customerId);
+    ];
 
-    console.log(`🔑 사용 가능한 API 키 수: ${apiKeys.length}`);
+    // 디버깅: 각 키의 상태 확인
+    console.log('🔍 환경변수에서 읽은 API 키 상태:');
+    apiKeysRaw.forEach((api, i) => {
+      console.log(`  키 ${i + 1}:`, {
+        keyExists: !!api.key,
+        keyLength: api.key?.length || 0,
+        keyPrefix: api.key?.substring(0, 12) || 'N/A',
+        secretExists: !!api.secret,
+        secretLength: api.secret?.length || 0,
+        customerIdExists: !!api.customerId,
+        customerIdLength: api.customerId?.length || 0,
+        customerId: api.customerId || 'N/A'
+      });
+    });
+
+    const apiKeys = apiKeysRaw.filter(api => api.key && api.secret && api.customerId);
+
+    console.log(`🔑 환경변수에서 읽은 API 키 수: ${apiKeysRaw.length}, 기본 필터링 후: ${apiKeys.length}`);
 
     if (apiKeys.length === 0) {
       throw new Error('네이버 API 키가 설정되지 않았습니다.');
     }
 
-    // API 키 유효성 검증 (엄격한 형식 체크 및 필터링)
+    // API 키 유효성 검증 (실제 API 응답 기반으로 완화)
+    // 네이버 API 키 형식: '0100000000'으로 시작, 길이는 다양할 수 있음
     const validApiKeys = apiKeys.filter((key, i) => {
-      const isValid = 
-        key.key && 
-        key.key.startsWith('0100000000') && 
-        key.key.length >= 40 && // 네이버 API 키는 보통 40자 이상
-        key.secret && 
-        key.secret.length > 10 &&
-        key.customerId && 
-        key.customerId.length >= 8;
+      // 최소한의 검증: 키, 시크릿, 고객ID가 존재하고 비어있지 않으면 유효
+      const hasKey = key.key && typeof key.key === 'string' && key.key.trim().length > 0;
+      const hasSecret = key.secret && typeof key.secret === 'string' && key.secret.trim().length > 0;
+      const hasCustomerId = key.customerId && typeof key.customerId === 'string' && key.customerId.trim().length > 0;
+      
+      // 선택적: 네이버 API 키는 보통 '0100000000'으로 시작 (하지만 필수는 아님)
+      const keyFormatValid = !key.key || key.key.startsWith('0100000000');
+      
+      const isValid = hasKey && hasSecret && hasCustomerId && keyFormatValid;
       
       if (!isValid) {
         console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패 - 제외됨:`, {
-          keyStartsWith: key.key?.startsWith('0100000000'),
-          keyLength: key.key?.length,
-          hasSecret: !!key.secret,
-          secretLength: key.secret?.length,
-          hasCustomerId: !!key.customerId,
-          customerIdLength: key.customerId?.length
+          hasKey,
+          keyLength: key.key?.length || 0,
+          keyStartsWith: key.key?.startsWith('0100000000') || false,
+          hasSecret,
+          secretLength: key.secret?.length || 0,
+          hasCustomerId,
+          customerIdLength: key.customerId?.length || 0,
+          keyFormatValid
         });
       }
       
@@ -597,7 +618,20 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
     });
 
     if (validApiKeys.length === 0) {
-      throw new Error('유효한 네이버 API 키가 없습니다. 모든 API 키가 형식 검증을 통과하지 못했습니다.');
+      // 상세한 에러 정보 제공
+      const invalidDetails = apiKeys.map((key, i) => ({
+        index: i + 1,
+        hasKey: !!key.key,
+        keyLength: key.key?.length || 0,
+        hasSecret: !!key.secret,
+        secretLength: key.secret?.length || 0,
+        hasCustomerId: !!key.customerId,
+        customerIdLength: key.customerId?.length || 0
+      }));
+      
+      console.error('❌ 모든 API 키 검증 실패:', invalidDetails);
+      
+      throw new Error(`유효한 네이버 API 키가 없습니다. 모든 API 키가 형식 검증을 통과하지 못했습니다. 상세: ${JSON.stringify(invalidDetails)}`);
     }
 
     console.log(`🔑 유효한 API 키 수: ${validApiKeys.length}/${apiKeys.length}`);
