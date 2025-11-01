@@ -166,21 +166,22 @@ export async function onRequest(context: any) {
         if (existing) {
           keywordId = existing.id as number;
           
-          // ⚠️ 중요: 30일 정책을 UPDATE 전에 체크해야 함!
-          // UPDATE 후에 체크하면 항상 0일이 되어서 모두 건너뜀
+          // ⚠️ 근본적 문제 해결: 30일 정책을 7일로 완화
+          // 너무 많은 키워드가 30일 이내로 판별되어 저장되지 않는 문제 해결
           const lastUpdateDate = existing.updated_at ? new Date(existing.updated_at) : new Date('2020-01-01'); // NULL이면 아주 오래된 날짜로 처리
           const now = new Date();
           const daysSinceUpdate = (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24);
 
           console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${existing.updated_at || 'NULL'}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
 
-          if (daysSinceUpdate < 30) {
-            console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`)
+          // 7일로 완화 (30일 → 7일)
+          if (daysSinceUpdate < 7) {
+            console.log(`⏭️ 7일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`)
             skippedCount++;
             continue; // 다음 키워드로 건너뜀
           }
 
-          console.log(`✅ 30일 정책 통과: ${keyword.keyword} - 업데이트 진행`);
+          console.log(`✅ 7일 정책 통과: ${keyword.keyword} - 업데이트 진행`);
 
           // 기존 키워드 업데이트 (30일 정책 통과 후에만 실행)
           console.log(`🔄 기존 키워드 업데이트 시작: ${keyword.keyword} (ID: ${existing.id})`);
@@ -281,8 +282,9 @@ export async function onRequest(context: any) {
 
             console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${doubleCheck.updated_at || 'NULL'}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
 
-            if (daysSinceUpdate < 30) {
-              console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`);
+            // 7일로 완화 (30일 → 7일)
+            if (daysSinceUpdate < 7) {
+              console.log(`⏭️ 7일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`);
               skippedCount++;
               continue; // 다음 키워드로 건너뜀
             }
@@ -511,8 +513,8 @@ export async function onRequest(context: any) {
         failedSamples,
         docCountsCollected, // 문서수 수집된 키워드 수
         hasOpenApiKeys, // 네이버 오픈API 키 설정 여부
-        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), ${skippedCount}개 30일 이내 건너뜀, 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
-        version: 'v7.0 - 30일 중복 건너뜀 정책/안전 청크 저장/중복 제거/실패집계',
+        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), ${skippedCount}개 7일 이내 건너뜀, 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
+        version: 'v8.0 - 7일 중복 건너뜀 정책/안전 청크 저장/중복 제거/실패집계',
         timestamp: new Date().toISOString(),
         api_implementation: {
           endpoint: 'https://api.naver.com/keywordstool',
