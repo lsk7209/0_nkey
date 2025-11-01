@@ -94,6 +94,10 @@ export async function onRequest(context: any) {
 // 시스템 상태 조회
 async function getSystemStatus(db: any, corsHeaders: any) {
   try {
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+
     // 최근 1시간 API 호출 통계
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 
@@ -108,7 +112,10 @@ async function getSystemStatus(db: any, corsHeaders: any) {
       FROM api_call_logs
       WHERE created_at >= ?
       GROUP BY api_type
-    `).bind(oneHourAgo).all();
+    `).bind(oneHourAgo).all().catch((err: any) => {
+      console.error('API 통계 조회 실패:', err);
+      return { results: [] };
+    });
 
     // 데이터베이스 크기 및 성능
     const dbStats = await db.prepare(`
@@ -117,7 +124,10 @@ async function getSystemStatus(db: any, corsHeaders: any) {
         COUNT(CASE WHEN created_at >= datetime('now', '-1 hour') THEN 1 END) as keywords_last_hour,
         AVG(avg_monthly_search) as avg_search_volume
       FROM keywords
-    `).all();
+    `).all().catch((err: any) => {
+      console.error('DB 통계 조회 실패:', err);
+      return { results: [{ total_keywords: 0, keywords_last_hour: 0, avg_search_volume: 0 }] };
+    });
 
     // 시스템 메트릭스 (최근 값들)
     const recentMetrics = await db.prepare(`
@@ -126,7 +136,10 @@ async function getSystemStatus(db: any, corsHeaders: any) {
       WHERE created_at >= datetime('now', '-1 hour')
       ORDER BY created_at DESC
       LIMIT 20
-    `).all();
+    `).all().catch((err: any) => {
+      console.error('메트릭스 조회 실패:', err);
+      return { results: [] };
+    });
 
     // Rate Limit 상태 계산
     const rateLimitStatus = calculateRateLimitStatus(apiStats.results || []);
@@ -152,6 +165,10 @@ async function getSystemStatus(db: any, corsHeaders: any) {
 // 시스템 메트릭스 조회
 async function getSystemMetrics(db: any, corsHeaders: any) {
   try {
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+
     // 최근 24시간 메트릭스 추이
     const metrics24h = await db.prepare(`
       SELECT
@@ -166,12 +183,17 @@ async function getSystemMetrics(db: any, corsHeaders: any) {
       WHERE created_at >= datetime('now', '-24 hours')
       GROUP BY metric_type, metric_name, strftime('%Y-%m-%d %H:00:00', created_at)
       ORDER BY hour DESC, metric_type, metric_name
-    `).all();
+    `).all().catch((err: any) => {
+      console.error('메트릭스 조회 실패:', err);
+      return { results: [] };
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
-        data: metrics24h.results || []
+        data: metrics24h.results || [],
+        count: metrics24h.results?.length || 0,
+        timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -183,8 +205,15 @@ async function getSystemMetrics(db: any, corsHeaders: any) {
 // API 통계 상세 조회
 async function getApiStats(db: any, corsHeaders: any, request: any) {
   try {
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+
     const url = new URL(request.url);
     const hours = parseInt(url.searchParams.get('hours') || '24');
+    
+    // SQLite 날짜 계산 (시간 전)
+    const hoursAgo = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
 
     const apiDetailedStats = await db.prepare(`
       SELECT
@@ -196,16 +225,21 @@ async function getApiStats(db: any, corsHeaders: any, request: any) {
         SUM(CASE WHEN status_code = 429 THEN 1 ELSE 0 END) as rate_limit_hits,
         GROUP_CONCAT(CASE WHEN success = 0 THEN error_message ELSE NULL END) as recent_errors
       FROM api_call_logs
-      WHERE created_at >= datetime('now', '-${hours} hours')
+      WHERE created_at >= ?
       GROUP BY api_type, api_key_index
       ORDER BY api_type, api_key_index
-    `).all();
+    `).bind(hoursAgo).all().catch((err: any) => {
+      console.error('API 통계 조회 실패:', err);
+      return { results: [] };
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         data: apiDetailedStats.results || [],
-        period_hours: hours
+        count: apiDetailedStats.results?.length || 0,
+        period_hours: hours,
+        timestamp: new Date().toISOString()
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -217,27 +251,53 @@ async function getApiStats(db: any, corsHeaders: any, request: any) {
 // 시스템 최적화 실행
 async function runOptimization(db: any, corsHeaders: any) {
   try {
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+
     const optimizations = [];
 
     // 1. 오래된 메트릭스 정리 (30일 이상 된 데이터)
-    const oldMetricsCleanup = await db.prepare(`
-      DELETE FROM system_metrics
-      WHERE created_at < datetime('now', '-30 days')
-    `).run();
-    optimizations.push({
-      type: 'old_metrics_cleanup',
-      deleted_count: oldMetricsCleanup.meta.changes
-    });
+    try {
+      const oldMetricsCleanup = await db.prepare(`
+        DELETE FROM system_metrics
+        WHERE created_at < datetime('now', '-30 days')
+      `).run();
+      optimizations.push({
+        type: 'old_metrics_cleanup',
+        deleted_count: (oldMetricsCleanup as any).meta?.changes || 0,
+        status: 'completed'
+      });
+    } catch (error: any) {
+      console.error('메트릭스 정리 실패:', error);
+      optimizations.push({
+        type: 'old_metrics_cleanup',
+        deleted_count: 0,
+        status: 'failed',
+        error: error.message || 'Unknown error'
+      });
+    }
 
     // 2. 오래된 API 로그 정리 (7일 이상 된 데이터)
-    const oldApiLogsCleanup = await db.prepare(`
-      DELETE FROM api_call_logs
-      WHERE created_at < datetime('now', '-7 days')
-    `).run();
-    optimizations.push({
-      type: 'old_api_logs_cleanup',
-      deleted_count: oldApiLogsCleanup.meta.changes
-    });
+    try {
+      const oldApiLogsCleanup = await db.prepare(`
+        DELETE FROM api_call_logs
+        WHERE created_at < datetime('now', '-7 days')
+      `).run();
+      optimizations.push({
+        type: 'old_api_logs_cleanup',
+        deleted_count: (oldApiLogsCleanup as any).meta?.changes || 0,
+        status: 'completed'
+      });
+    } catch (error: any) {
+      console.error('API 로그 정리 실패:', error);
+      optimizations.push({
+        type: 'old_api_logs_cleanup',
+        deleted_count: 0,
+        status: 'failed',
+        error: error.message || 'Unknown error'
+      });
+    }
 
     // 3. 데이터베이스 최적화 (VACUUM)
     try {
@@ -247,10 +307,11 @@ async function runOptimization(db: any, corsHeaders: any) {
         status: 'completed'
       });
     } catch (vacuumError: any) {
+      console.error('VACUUM 실패:', vacuumError);
       optimizations.push({
         type: 'database_vacuum',
         status: 'failed',
-        error: vacuumError?.message || 'VACUUM failed'
+        error: (vacuumError as any)?.message || 'VACUUM failed'
       });
     }
 
