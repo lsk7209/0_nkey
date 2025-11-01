@@ -98,7 +98,7 @@ export default function DataPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(50) // 가상화 최적화를 위해 50개로 줄임
+  const [itemsPerPage] = useState(100) // 페이지당 100개 표시
   const [totalCount, setTotalCount] = useState(0)
   const [hasNextPage, setHasNextPage] = useState(true)
   const [isNextPageLoading, setIsNextPageLoading] = useState(false)
