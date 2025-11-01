@@ -38,6 +38,7 @@ export async function onRequest(context: any) {
     const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 5;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
     const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 3), 1), 5); // 동시에 처리할 시드 수 (1-5, 기본 3)
+    const targetKeywords = Number(body.targetKeywords ?? 0); // 목표 키워드 수 (0이면 무제한)
 
     const db = env.DB;
 
@@ -69,6 +70,7 @@ export async function onRequest(context: any) {
     let processed = 0;
     let totalKeywordsCollected = 0;
     let totalKeywordsSaved = 0;
+    let totalNewKeywords = 0; // 새로 추가된 키워드 수 누적
     const processedSeeds: string[] = [];
 
     // 시드들을 청크로 나누어 병렬 처리 (Rate Limit 고려)
@@ -127,9 +129,22 @@ export async function onRequest(context: any) {
         if (result.success) {
           totalKeywordsCollected += result.totalCollected;
           totalKeywordsSaved += result.totalSavedOrUpdated;
+          totalNewKeywords += result.savedCount || 0; // 새로 추가된 키워드 수 누적
           processed++;
           processedSeeds.push(result.seed);
+          
+          // 목표 키워드 수 도달 확인
+          if (targetKeywords > 0 && totalNewKeywords >= targetKeywords) {
+            console.log(`🎯 목표 키워드 수 도달: ${totalNewKeywords}개 (목표: ${targetKeywords}개)`);
+            break; // 청크 루프 종료
+          }
         }
+      }
+
+      // 목표 키워드 수 도달 확인 (청크 간에도 확인)
+      if (targetKeywords > 0 && totalNewKeywords >= targetKeywords) {
+        console.log(`🎯 목표 키워드 수 도달: ${totalNewKeywords}개 (목표: ${targetKeywords}개)`);
+        break; // 청크 루프 종료
       }
 
       // 청크 간 Rate Limit 방지 간격 (5개 API 키 고려하여 800ms로 증가)
@@ -159,7 +174,10 @@ export async function onRequest(context: any) {
         concurrentLimit,
         totalKeywordsCollected,
         totalKeywordsSaved,
-        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장, 남은 시드 ${remaining}개`
+        totalNewKeywords, // 새로 추가된 키워드 수
+        targetKeywords, // 목표 키워드 수
+        targetReached: targetKeywords > 0 && totalNewKeywords >= targetKeywords, // 목표 도달 여부
+        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${remaining}개`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

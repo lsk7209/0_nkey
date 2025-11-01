@@ -47,7 +47,7 @@ class BackgroundCollector {
     return false
   }
 
-  async startBackgroundCollect(config: { limit: number; concurrent: number }): Promise<void> {
+  async startBackgroundCollect(config: { limit: number; concurrent: number; targetKeywords?: number }): Promise<void> {
     if (!this.worker) return
 
     this.worker.postMessage({
@@ -94,8 +94,9 @@ export default function AutoCollectPage() {
   // 초기 상태는 false로 시작하고, useEffect에서 localStorage에서 불러옴
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
-  const [limitInput, setLimitInput] = useState('10') // 0: 무제한
+  const [limitInput, setLimitInput] = useState('0') // 0: 무제한
   const [concurrentInput, setConcurrentInput] = useState('3') // 동시 처리 수
+  const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
@@ -114,6 +115,11 @@ export default function AutoCollectPage() {
     const n = Number(concurrentInput)
     return Number.isFinite(n) && n >= 1 && n <= 5 ? n : 3
   }, [concurrentInput])
+
+  const targetKeywords = useMemo(() => {
+    const n = Number(targetKeywordsInput)
+    return Number.isFinite(n) && n >= 0 ? n : 0
+  }, [targetKeywordsInput])
 
   const appendLog = useCallback((line: string) => {
     const logLine = new Date().toLocaleTimeString() + ' ' + line
@@ -146,6 +152,14 @@ export default function AutoCollectPage() {
   }, [concurrent])
 
   useEffect(() => {
+    targetKeywordsRef.current = targetKeywords
+  }, [targetKeywords])
+
+  useEffect(() => {
+    totalNewKeywordsRef.current = totalNewKeywords
+  }, [totalNewKeywords])
+
+  useEffect(() => {
     processedRef.current = processed
   }, [processed])
 
@@ -168,12 +182,31 @@ export default function AutoCollectPage() {
 
           // 백그라운드 수집 이벤트 리스너
           const handleBackgroundUpdate = (event: CustomEvent) => {
-            const { status, processedCount, batchResult, remaining, error } = event.detail
+            const { status, processedCount, batchResult, remaining, error, newKeywordsInBatch, totalNewKeywords } = event.detail
 
             if (status === 'running' && batchResult) {
               setProcessed(processedCount || 0)
               if (typeof remaining === 'number') setRemaining(remaining)
-              appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 (남은: ${remaining ?? '-'}개)`)
+              
+              const newKeywords = newKeywordsInBatch || 0
+              const totalNew = totalNewKeywords || 0
+              
+              if (newKeywords > 0 || totalNew > 0) {
+                setTotalNewKeywords(totalNew)
+                const currentTarget = targetKeywordsRef.current
+                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드, +${newKeywords}개 새로운 키워드 (누적: ${totalNew}개${currentTarget > 0 ? ` / 목표: ${currentTarget}개` : ''})`)
+              } else {
+                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 (남은: ${remaining ?? '-'}개)`)
+              }
+              
+              // 목표 도달 확인
+              if (batchResult.targetReached) {
+                appendLog(`🎯 목표 달성! 총 ${totalNew}개의 새로운 키워드가 추가되었습니다.`)
+                setEnabled(false)
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('auto-collect-enabled', 'false')
+                }
+              }
             } else if (status === 'stopped') {
               setEnabled(false)
               appendLog('⏹️ 백그라운드 수집 중단됨')
@@ -244,7 +277,8 @@ export default function AutoCollectPage() {
         },
         body: JSON.stringify({
           limit: batchLimit,
-          concurrent: concurrentLimit
+          concurrent: concurrentLimit,
+          targetKeywords: targetKeywords > 0 ? targetKeywords - totalNewKeywords : 0 // 남은 목표 키워드 수
         })
       })
 
@@ -262,14 +296,35 @@ export default function AutoCollectPage() {
 
       if (data && data.success) {
         const processedCount = Number(data.processed) || 0
+        const newKeywordsInBatch = Number(data.totalNewKeywords) || 0
+        
         setProcessed((p) => {
           const current = Number(p) || 0
           const newValue = current + processedCount
           console.log('[AutoCollect] processed 업데이트:', { current, processedCount, newValue })
           return newValue
         })
+        
+        let updatedTotalNewKeywords = 0
+        setTotalNewKeywords((prev) => {
+          const newTotal = prev + newKeywordsInBatch
+          updatedTotalNewKeywords = newTotal
+          console.log('[AutoCollect] totalNewKeywords 업데이트:', { prev, newKeywordsInBatch, newTotal })
+          return newTotal
+        })
+        
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
-        appendLog(`✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리 (남은 시드: ${data.remaining ?? '-'}개)`)
+        
+        // 목표 도달 확인
+        if (data.targetReached) {
+          appendLog(`🎯 목표 달성! 총 ${updatedTotalNewKeywords}개의 새로운 키워드가 추가되었습니다.`)
+          setEnabled(false)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('auto-collect-enabled', 'false')
+          }
+        } else {
+          appendLog(`✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리, +${newKeywordsInBatch}개 새로운 키워드 (누적: ${updatedTotalNewKeywords}개${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''})`)
+        }
       } else {
         appendLog(`❌ 배치 실패: ${data?.error || data?.message || 'unknown error'}`)
       }
@@ -301,7 +356,8 @@ export default function AutoCollectPage() {
       appendLog('🚀 백그라운드 자동수집 시작')
       backgroundCollectorRef.current.startBackgroundCollect({
         limit: limitRef.current,
-        concurrent: concurrentRef.current
+        concurrent: concurrentRef.current,
+        targetKeywords: targetKeywordsRef.current
       })
       return
     }
@@ -455,7 +511,7 @@ export default function AutoCollectPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="flex items-center gap-3">
               <label className="text-sm text-gray-700">시드키워드 개수 (0=무제한)</label>
               <input
@@ -477,13 +533,35 @@ export default function AutoCollectPage() {
                 className="input-field w-16"
               />
             </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm text-gray-700">목표 키워드 수 (0=무제한)</label>
+              <input
+                type="number"
+                min={0}
+                value={targetKeywordsInput}
+                onChange={(e) => setTargetKeywordsInput(e.target.value)}
+                className="input-field w-24"
+                placeholder="1000"
+              />
+            </div>
           </div>
+          
+          {targetKeywords > 0 && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-blue-800">
+                🎯 목표: <strong>{targetKeywords.toLocaleString()}개의 새로운 키워드</strong> 추가
+                {totalNewKeywords > 0 && (
+                  <> ({totalNewKeywords.toLocaleString()}개 누적 / 진행률: {Math.min(100, Math.round((totalNewKeywords / targetKeywords) * 100))}%)</>
+                )}
+              </p>
+            </div>
+          )}
 
           <div className="flex justify-center">
             <button onClick={handleReset} className="btn-secondary">카운터 초기화</button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className={`grid gap-4 ${targetKeywords > 0 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
             <div className="p-3 bg-gray-50 rounded">
               <div className="text-sm text-gray-600">처리된 시드</div>
               <div className="text-xl font-semibold">{processed}</div>
@@ -492,6 +570,17 @@ export default function AutoCollectPage() {
               <div className="text-sm text-gray-600">남은 시드</div>
               <div className="text-xl font-semibold">{remaining ?? '-'}</div>
             </div>
+            {targetKeywords > 0 && (
+              <div className="p-3 bg-blue-50 rounded">
+                <div className="text-sm text-gray-600">새로운 키워드</div>
+                <div className="text-xl font-semibold text-blue-700">
+                  {totalNewKeywords.toLocaleString()} / {targetKeywords.toLocaleString()}
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {Math.min(100, Math.round((totalNewKeywords / targetKeywords) * 100))}% 완료
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-3 bg-white rounded border">

@@ -107,6 +107,8 @@ async function runBatch() {
 
     const batchLimit = autoCollectConfig.limit === 0 ? 5 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 5))
     const concurrent = autoCollectConfig.concurrent || 3
+    const targetKeywords = autoCollectConfig.targetKeywords || 0
+    const currentNewKeywords = processedCount // 임시로 processedCount 사용 (실제로는 별도 추적 필요)
 
     const response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
       method: 'POST',
@@ -116,7 +118,8 @@ async function runBatch() {
       },
       body: JSON.stringify({
         limit: batchLimit,
-        concurrent: concurrent
+        concurrent: concurrent,
+        targetKeywords: targetKeywords > 0 ? Math.max(0, targetKeywords - currentNewKeywords) : 0
       })
     })
 
@@ -129,11 +132,13 @@ async function runBatch() {
 
     if (data.success) {
       const processedInBatch = data.processed || 0
+      const newKeywordsInBatch = data.totalNewKeywords || 0
       processedCount += processedInBatch
 
       console.log('[SW] 배치 완료:', {
         processedInBatch,
         totalProcessed: processedCount,
+        newKeywordsInBatch,
         remaining: data.remaining
       })
 
@@ -144,6 +149,8 @@ async function runBatch() {
             type: 'AUTO_COLLECT_UPDATE',
             status: 'running',
             processedCount,
+            newKeywordsInBatch,
+            totalNewKeywords: data.totalNewKeywords || 0,
             batchResult: data,
             remaining: data.remaining
           })
@@ -151,9 +158,19 @@ async function runBatch() {
       })
 
       // 제한 도달 시 중단 (null 체크 추가)
-      if (autoCollectConfig && autoCollectConfig.limit > 0 && processedCount >= autoCollectConfig.limit) {
-        console.log('[SW] 목표 개수 도달, 자동 중단')
-        stopAutoCollect()
+      if (autoCollectConfig) {
+        // 시드 개수 제한 확인
+        if (autoCollectConfig.limit > 0 && processedCount >= autoCollectConfig.limit) {
+          console.log('[SW] 시드 목표 개수 도달, 자동 중단')
+          stopAutoCollect()
+          return
+        }
+        // 목표 키워드 수 도달 확인
+        if (autoCollectConfig.targetKeywords > 0 && (data.totalNewKeywords || 0) >= autoCollectConfig.targetKeywords) {
+          console.log('[SW] 목표 키워드 수 도달, 자동 중단')
+          stopAutoCollect()
+          return
+        }
       }
     }
 
