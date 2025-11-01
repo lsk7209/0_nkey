@@ -197,50 +197,49 @@ export async function onRequest(context: any) {
             ).run(), 'insert keyword_metrics');
           }
           // 30일 이내 업데이트된 키워드는 건너뜀 (중복 시 30일 정책)
-          const daysSinceUpdate = (Date.now() - new Date(existing.updated_at).getTime()) / (1000 * 60 * 60 * 24);
+          const lastUpdate = new Date(existing.updated_at);
+          const now = new Date();
+          const daysSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+
+          console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${existing.updated_at}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
+
           if (daysSinceUpdate < 30) {
             console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`)
             skippedCount++;
             continue; // 다음 키워드로 건너뜀
           }
 
+          console.log(`✅ 30일 정책 통과: ${keyword.keyword} - 업데이트 진행`);
+
           // 기존 키워드 업데이트 (30일 정책 통과)
           console.log(`🔄 기존 키워드 업데이트 시작: ${keyword.keyword} (ID: ${existing.id})`);
-          console.log(`📊 업데이트할 데이터: pc=${keyword.pc_search}, mobile=${keyword.mobile_search}, avg=${keyword.avg_monthly_search}`);
           try {
+            // 간단한 업데이트 쿼리로 테스트
             const updateResult = await runWithRetry(() => db.prepare(`
               UPDATE keywords SET
-                seed_keyword_text = ?,
-                monthly_search_pc = ?,
-                monthly_search_mob = ?,
-                pc_search = ?,
-                mobile_search = ?,
                 avg_monthly_search = ?,
-                comp_index = ?,
                 updated_at = ?
               WHERE id = ?
             `).bind(
-              seed.trim(),
-              keyword.pc_search, keyword.mobile_search,
-              keyword.pc_search, keyword.mobile_search,
-              keyword.avg_monthly_search, keyword.comp_idx || 0,
+              keyword.avg_monthly_search,
               new Date().toISOString(),
               existing.id
-            ).run(), 'update existing keyword');
+            ).run(), 'update existing keyword simple');
 
             const changes = (updateResult as any).meta?.changes || 0;
             console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}`);
+
             if (changes > 0) {
               updatedCount++;
-              console.log(`📈 updatedCount 증가: ${updatedCount}`);
+              console.log(`📈 updatedCount 증가: ${updatedCount} (현재 총계: ${updatedCount})`);
             } else {
-              console.warn(`⚠️ 업데이트했지만 변경된 행이 0임: ${keyword.keyword}`);
+              console.warn(`⚠️ 업데이트 쿼리 실행되었지만 변경된 행이 0임: ${keyword.keyword}`);
             }
           } catch (updateError: any) {
             console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
             console.error('업데이트 에러 상세:', updateError);
-            console.error('키워드 데이터:', keyword);
-            console.error('existing 데이터:', existing);
+            console.error('키워드 데이터:', JSON.stringify(keyword, null, 2));
+            console.error('existing 데이터:', JSON.stringify(existing, null, 2));
           }
         } else {
           // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
