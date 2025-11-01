@@ -205,27 +205,34 @@ export async function onRequest(context: any) {
           }
 
           // 기존 키워드 업데이트 (30일 정책 통과)
-          await runWithRetry(() => db.prepare(`
-            UPDATE keywords SET
-              seed_keyword_text = ?,
-              monthly_search_pc = ?,
-              monthly_search_mob = ?,
-              pc_search = ?,
-              mobile_search = ?,
-              avg_monthly_search = ?,
-              comp_index = ?,
-              updated_at = ?
-            WHERE id = ?
-          `).bind(
-            seed.trim(),
-            keyword.pc_search, keyword.mobile_search,
-            keyword.pc_search, keyword.mobile_search,
-            keyword.avg_monthly_search, keyword.comp_idx || 0,
-            new Date().toISOString(),
-            existing.id
-          ).run(), 'update existing keyword');
+          console.log(`🔄 기존 키워드 업데이트 시작: ${keyword.keyword} (ID: ${existing.id})`);
+          try {
+            const updateResult = await runWithRetry(() => db.prepare(`
+              UPDATE keywords SET
+                seed_keyword_text = ?,
+                monthly_search_pc = ?,
+                monthly_search_mob = ?,
+                pc_search = ?,
+                mobile_search = ?,
+                avg_monthly_search = ?,
+                comp_index = ?,
+                updated_at = ?
+              WHERE id = ?
+            `).bind(
+              seed.trim(),
+              keyword.pc_search, keyword.mobile_search,
+              keyword.pc_search, keyword.mobile_search,
+              keyword.avg_monthly_search, keyword.comp_idx || 0,
+              new Date().toISOString(),
+              existing.id
+            ).run(), 'update existing keyword');
 
-          updatedCount++;
+            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${updateResult.meta?.changes || 0}`);
+            updatedCount++;
+          } catch (updateError: any) {
+            console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
+            console.error('업데이트 에러 상세:', updateError);
+          }
         } else {
           // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
           const insertResult = await runWithRetry(() => db.prepare(`
