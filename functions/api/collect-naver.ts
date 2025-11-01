@@ -1,5 +1,5 @@
 /**
- * ⚠️ 헌법 준수 필수 (CONSTITUTION.md)
+ * ⚠️ 헌법 준수 필수 (CONSTITUTION.md v2.0)
  * 
  * 절대 변경 금지 사항:
  * - API 응답에 keywords 배열 필수 포함
@@ -7,7 +7,17 @@
  * - 네이버 API 호출 로직 변경 금지
  * - 샘플 데이터 반환 금지
  * 
+ * ⚠️ 헌법 제16조: 데이터베이스 저장 규칙 준수 필수
+ * - INSERT 쿼리: monthly_search_pc, monthly_search_mob만 사용 (pc_search, mobile_search 제외)
+ * - INSERT 후 검증 필수 (3회 재시도)
+ * - 검증 성공 시에만 savedCount 증가 (절대 변경 금지)
+ * - 중복 확인 필수 (INSERT 전)
+ * - 시간 기반 정책 완전 제거 (7일, 30일 정책 금지)
+ * 
  * 헌법 문서: CONSTITUTION.md (절대 변경 금지)
+ * 환경 문서: WORKING_ENVIRONMENT.md (현재 작동 환경 고정)
+ * 
+ * 최종 확인: 2025-11-01 - 수동 키워드 수집 및 저장 정상 작동 확인 완료
  */
 
 // Cloudflare Pages Functions용 네이버 API 키워드 수집
@@ -221,14 +231,18 @@ export async function onRequest(context: any) {
         if (existing) {
           keywordId = existing.id as number;
 
-          // ⚠️ 시간 기반 정책 완전 제거: 모든 기존 키워드 무조건 업데이트
+          // ⚠️ 헌법 제16조 준수: 시간 기반 정책 완전 제거 (절대 변경 금지)
+          // - 모든 기존 키워드 무조건 업데이트 (7일, 30일 정책 없음)
+          // - WORKING_ENVIRONMENT.md 참조
           console.log(`🔄 기존 키워드 업데이트: ${keyword.keyword} (ID: ${existing.id})`);
 
           try {
             const newUpdatedAt = new Date().toISOString();
             console.log(`📝 업데이트할 값: pc=${keyword.pc_search}, mobile=${keyword.mobile_search}, avg=${keyword.avg_monthly_search}`);
 
-            // keywords 테이블 업데이트 (pc_search, mobile_search 컬럼이 없을 수 있으므로 기존 컬럼만 사용)
+            // ⚠️ 헌법 제16조 준수: UPDATE 쿼리 구조 절대 변경 금지
+            // - monthly_search_pc, monthly_search_mob만 사용 (필수)
+            // - pc_search, mobile_search는 별도 UPDATE 시도 (실패해도 무시)
             const updateResult = await runWithRetry(() => db.prepare(`
               UPDATE keywords SET
                 monthly_search_pc = ?,
@@ -400,7 +414,10 @@ export async function onRequest(context: any) {
           try {
             console.log(`📝 INSERT 쿼리 실행 전: keyword="${keyword.keyword}", pc_search=${keyword.pc_search}, mobile_search=${keyword.mobile_search}`);
             
-            // INSERT 전에 중복 확인 (더 명확한 에러 처리)
+            // ⚠️ 헌법 제16조 준수: INSERT 전 중복 확인 필수 (절대 변경 금지)
+            // - 중복 발견 시 업데이트로 처리 (INSERT 스킵)
+            // - 시간 기반 정책 없음 (모든 중복 무조건 업데이트)
+            // - WORKING_ENVIRONMENT.md 참조
             const existingCheck = await runWithRetry(
               () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
               'check existing before insert'
@@ -409,10 +426,10 @@ export async function onRequest(context: any) {
             if (existingCheck) {
               console.log(`⚠️ 키워드가 이미 존재함 (중복): ${keyword.keyword} (ID: ${existingCheck.id})`);
               keywordId = existingCheck.id;
-              // 이미 존재하므로 업데이트로 처리
+              // 이미 존재하므로 업데이트로 처리 (헌법 제16조 준수)
               updatedCount++;
               console.log(`📈 updatedCount 증가 (중복 발견): ${updatedCount}`);
-              continue; // 다음 키워드로
+              continue; // 다음 키워드로 (INSERT 스킵)
             }
 
             // INSERT 값 검증
@@ -452,8 +469,10 @@ export async function onRequest(context: any) {
 
             let insertResult;
             try {
-              // 컬럼 존재 여부 확인을 위해 먼저 시도 (pc_search, mobile_search 컬럼이 없을 수 있음)
-              // 먼저 기존 컬럼만 사용하는 쿼리로 시도
+              // ⚠️ 헌법 제16조 준수: INSERT 쿼리 구조 절대 변경 금지
+              // - monthly_search_pc, monthly_search_mob만 사용 (필수)
+              // - pc_search, mobile_search는 INSERT에서 제외 (컬럼이 없을 수 있음)
+              // - WORKING_ENVIRONMENT.md 참조
               insertResult = await db.prepare(`
                 INSERT INTO keywords (
                   keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
@@ -517,7 +536,9 @@ export async function onRequest(context: any) {
             console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
             console.log(`🔍 INSERT 결과 상세:`, { changes, keywordId, hasMeta: !!(insertResult as any)?.meta });
 
-            // INSERT 직후 실제 저장 여부 확인 (즉시 확인 및 재시도)
+            // ⚠️ 헌법 제16조 준수: INSERT 직후 검증 필수 (절대 변경 금지)
+            // - 3회 재시도 검증 (WORKING_ENVIRONMENT.md 참조)
+            // - 검증 성공 시에만 savedCount 증가
             let verifyInsert: { id: number; keyword: string } | null = null;
             let verifyAttempts = 0;
             const maxVerifyAttempts = 3;

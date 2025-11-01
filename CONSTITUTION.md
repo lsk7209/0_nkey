@@ -434,7 +434,182 @@ CREATE TABLE keywords (
 
 ---
 
-**마지막 업데이트**: 2025년 10월 29일  
-**헌법 버전**: v1.0  
-**상태**: ✅ 정상 작동 확인 완료
+**마지막 업데이트**: 2025년 11월 1일  
+**헌법 버전**: v2.0  
+**상태**: ✅ 수동 키워드 수집 및 데이터베이스 저장 정상 작동 확인 완료
+
+---
+
+## 📜 헌법 제16조: 데이터베이스 저장 규칙 (2025-11-01 추가)
+
+### 16.1 키워드 저장 로직
+
+**절대 변경 금지 저장 규칙** (`functions/api/collect-naver.ts`):
+
+#### 16.1.1 INSERT 쿼리 구조
+
+**절대 변경 금지 INSERT 쿼리**:
+
+```sql
+INSERT INTO keywords (
+  keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
+  avg_monthly_search, comp_index, created_at, updated_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+```
+
+**절대 금지 사항**:
+- ❌ INSERT 쿼리에 `pc_search`, `mobile_search` 컬럼 포함 (컬럼이 없을 수 있음)
+- ❌ 필수 컬럼 제거 (`keyword`, `seed_keyword_text` 등)
+- ❌ 컬럼 순서 변경
+
+#### 16.1.2 저장 후 처리
+
+**절대 변경 금지 후처리**:
+
+1. **INSERT 직후 검증** (3회 재시도):
+   ```typescript
+   // 절대 변경 금지: INSERT 후 즉시 검증
+   const verifyInsert = await db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?')
+     .bind(keyword.keyword)
+     .first();
+   
+   // 검증 성공 시에만 savedCount 증가 (절대 변경 금지)
+   if (verifyInsert) {
+     savedCount++;
+   } else {
+     failedCount++;  // 검증 실패 시 실패 카운트 증가
+   }
+   ```
+
+2. **pc_search, mobile_search 업데이트** (별도 시도, 실패해도 무시):
+   ```typescript
+   // 절대 변경 금지: 별도 UPDATE 시도 (컬럼이 없으면 에러 무시)
+   try {
+     await db.prepare(`
+       UPDATE keywords 
+       SET pc_search = ?, mobile_search = ?
+       WHERE keyword = ?
+     `).bind(pc_search, mobile_search, keyword).run();
+   } catch (e) {
+     // 컬럼이 없으면 경고만 (절대 변경 금지)
+     if (e.message?.includes('no column named')) {
+       console.warn('⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요)');
+     }
+   }
+   ```
+
+**절대 금지 사항**:
+- ❌ 검증 로직 제거
+- ❌ 검증 실패 시에도 savedCount 증가
+- ❌ pc_search/mobile_search UPDATE 실패 시 전체 저장 실패로 처리
+
+#### 16.1.3 중복 확인
+
+**절대 변경 금지 중복 확인**:
+
+```typescript
+// 절대 변경 금지: INSERT 전 중복 확인
+const existingCheck = await db.prepare('SELECT id FROM keywords WHERE keyword = ?')
+  .bind(keyword.keyword)
+  .first();
+
+if (existingCheck) {
+  // 중복 발견 시 업데이트로 처리 (절대 변경 금지)
+  updatedCount++;
+  continue; // INSERT 스킵
+}
+```
+
+**절대 금지 사항**:
+- ❌ 중복 확인 로직 제거
+- ❌ 중복 발견 시 INSERT 시도
+- ❌ 시간 기반 정책 추가 (7일, 30일 등 - 완전 제거됨)
+
+#### 16.1.4 시간 기반 정책 완전 제거
+
+**절대 변경 금지 규칙**:
+- ✅ 모든 기존 키워드 무조건 업데이트 (시간 정책 없음)
+- ✅ 모든 새 키워드 무조건 저장 (시간 정책 없음)
+- ❌ 7일, 30일 등 시간 기반 건너뛰기 정책 추가 금지
+
+**절대 금지 사항**:
+- ❌ `daysSinceUpdate < 7` 같은 조건 추가
+- ❌ `daysSinceUpdate < 30` 같은 조건 추가
+- ❌ 시간 기반으로 키워드 건너뛰기
+
+### 16.2 데이터베이스 컬럼 호환성
+
+**절대 변경 금지 호환성 규칙**:
+
+1. **기존 컬럼 우선 사용**:
+   - `monthly_search_pc` (절대 변경 금지 - 필수)
+   - `monthly_search_mob` (절대 변경 금지 - 필수)
+
+2. **새 컬럼 선택적 사용**:
+   - `pc_search` (있으면 사용, 없으면 무시)
+   - `mobile_search` (있으면 사용, 없으면 무시)
+
+**절대 금지 사항**:
+- ❌ pc_search/mobile_search가 없을 때 INSERT 실패
+- ❌ 컬럼 존재 여부 확인 없이 사용
+
+### 16.3 저장 카운터 규칙
+
+**절대 변경 금지 카운터 규칙**:
+
+```typescript
+// 절대 변경 금지: 검증 성공 시에만 카운트 증가
+if (verifyInsert) {
+  savedCount++;  // ✅ 실제 저장 확인 후 증가
+} else {
+  failedCount++; // ❌ 저장 실패 시 실패 카운트 증가
+}
+
+// 절대 금지: INSERT 실행만으로 카운트 증가 (검증 없이)
+savedCount++; // ❌ 이런 코드 금지
+```
+
+**절대 금지 사항**:
+- ❌ INSERT 실행만으로 savedCount 증가 (검증 없이)
+- ❌ 검증 실패 시에도 savedCount 증가
+- ❌ changes가 0이어도 savedCount 증가 (검증 통과 시에만)
+
+---
+
+## 📜 헌법 제17조: 데이터베이스 스키마 호환성
+
+### 17.1 필수 컬럼
+
+**절대 변경 금지 필수 컬럼** (`keywords` 테이블):
+
+| 컬럼명 | 타입 | 설명 | 절대 변경 금지 |
+|--------|------|------|--------------|
+| `id` | INTEGER PRIMARY KEY | 기본키 | ✅ |
+| `keyword` | TEXT NOT NULL UNIQUE | 키워드 | ✅ |
+| `seed_keyword_text` | TEXT NOT NULL | 시드 키워드 | ✅ |
+| `monthly_search_pc` | INTEGER DEFAULT 0 | PC 검색량 | ✅ |
+| `monthly_search_mob` | INTEGER DEFAULT 0 | 모바일 검색량 | ✅ |
+| `avg_monthly_search` | INTEGER DEFAULT 0 | 총 검색량 | ✅ |
+| `comp_index` | INTEGER DEFAULT 0 | 경쟁도 | ✅ |
+| `created_at` | DATETIME | 생성일시 | ✅ |
+| `updated_at` | DATETIME | 수정일시 | ✅ |
+
+### 17.2 선택적 컬럼
+
+**선택적 컬럼** (있으면 사용, 없으면 무시):
+
+| 컬럼명 | 타입 | 설명 | 비고 |
+|--------|------|------|------|
+| `pc_search` | INTEGER DEFAULT 0 | PC 검색량 (새 컬럼) | 마이그레이션 후 사용 |
+| `mobile_search` | INTEGER DEFAULT 0 | 모바일 검색량 (새 컬럼) | 마이그레이션 후 사용 |
+
+**절대 변경 금지 규칙**:
+- ✅ 선택적 컬럼이 없어도 저장 가능해야 함
+- ❌ 선택적 컬럼이 없을 때 INSERT 실패 금지
+
+---
+
+**마지막 업데이트**: 2025년 11월 1일  
+**헌법 버전**: v2.0  
+**상태**: ✅ 수동 키워드 수집 및 데이터베이스 저장 정상 작동 확인 완료
 
