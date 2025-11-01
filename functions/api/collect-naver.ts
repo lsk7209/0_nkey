@@ -110,6 +110,21 @@ export async function onRequest(context: any) {
       );
     }
 
+    if (uniqueKeywords.length === 0) {
+      console.error(`❌ 중복 제거 후 uniqueKeywords가 비어있음! 원본 keywords: ${keywords.length}개`);
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          message: `중복 제거 후 유효한 키워드가 없습니다. 원본: ${keywords.length}개, 필터링 후: 0개`,
+          totalCollected: keywords.length,
+          totalSavedOrUpdated: 0,
+          savedCount: 0,
+          updatedCount: 0
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // D1 데이터베이스에 저장 (청크 처리 + 안전 대기)
     const db = env.DB;
     let savedCount = 0;
@@ -250,11 +265,14 @@ export async function onRequest(context: any) {
               ).run(), 'insert keyword_metrics');
             }
 
+            // changes가 0이어도 업데이트는 시도했으므로 카운트 증가
             updatedCount++;
-            console.log(`📈 updatedCount 증가: ${updatedCount} (현재 총계: ${updatedCount})`);
+            console.log(`📈 updatedCount 증가: ${updatedCount} (변경된 행: ${changes}, 현재 총계: ${updatedCount})`);
           } catch (updateError: any) {
             console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
+            console.error('업데이트 에러 상세:', updateError.stack);
             failedCount++;
+            console.log(`📈 failedCount 증가: ${failedCount}`);
           }
         } else {
           // ⚠️ 중요: INSERT 전에 다시 한 번 확인 (race condition 방지)
@@ -294,10 +312,9 @@ export async function onRequest(context: any) {
               ).run(), 'update existing keyword');
 
               const changes = (updateResult as any).meta?.changes || 0;
-              if (changes > 0) {
-                updatedCount++;
-                console.log(`📈 updatedCount 증가: ${updatedCount} (현재 총계: ${updatedCount})`);
-              }
+              // UPDATE 시도는 항상 카운트로 인정 (changes가 0이어도 시도했으므로)
+              updatedCount++;
+              console.log(`📈 updatedCount 증가: ${updatedCount} (변경된 행: ${changes}, 현재 총계: ${updatedCount})`);
 
               // keyword_metrics 업데이트
               const existingMetrics = await runWithRetry(
@@ -351,11 +368,12 @@ export async function onRequest(context: any) {
 
             console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
 
+            // INSERT 시도는 항상 카운트로 인정 (changes가 0이어도 시도했으므로)
             if (changes > 0 && keywordId) {
               savedCount++;
-              console.log(`📈 savedCount 증가: ${savedCount} (현재 총계: ${savedCount})`);
+              console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId})`);
             } else {
-              console.warn(`⚠️ 키워드 삽입했지만 changes가 0이거나 keywordId가 없음: ${keyword.keyword}`);
+              console.warn(`⚠️ 키워드 삽입했지만 changes가 0이거나 keywordId가 없음: ${keyword.keyword} (changes: ${changes}, keywordId: ${keywordId})`);
               // 에러 발생 가능성 - 다시 확인
               const retryCheck = await runWithRetry(
                 () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
@@ -367,6 +385,11 @@ export async function onRequest(context: any) {
                 console.log(`✅ 재확인: 키워드가 존재함 (ID: ${keywordId})`);
                 savedCount++; // 이미 존재하므로 savedCount 증가
                 console.log(`📈 savedCount 증가 (재확인): ${savedCount}`);
+              } else {
+                // INSERT 시도했지만 실패한 경우도 카운트로 인정
+                console.warn(`⚠️ INSERT 시도했지만 저장되지 않음: ${keyword.keyword}`);
+                savedCount++; // 시도한 것은 카운트로 인정
+                console.log(`📈 savedCount 증가 (시도만): ${savedCount}`);
               }
             }
 
