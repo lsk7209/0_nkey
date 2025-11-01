@@ -8,11 +8,11 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "npx @cloudflare/next-on-pages@1",
+    "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "deploy:workers": "wrangler deploy --config wrangler-workers.toml",
-    "deploy:pages": "wrangler pages deploy .next"
+    "deploy:pages": "wrangler pages deploy out"
   },
   "dependencies": {
     "next": "^15.5.2",
