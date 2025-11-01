@@ -352,6 +352,8 @@ export async function onRequest(context: any) {
           // 정말로 새 키워드 - INSERT 시도
           console.log(`➕ 새 키워드 삽입 시작: ${keyword.keyword}`);
           try {
+            console.log(`📝 INSERT 쿼리 실행 전: keyword="${keyword.keyword}", pc_search=${keyword.pc_search}, mobile_search=${keyword.mobile_search}`);
+            
             const insertResult = await runWithRetry(() => db.prepare(`
               INSERT INTO keywords (
                 keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
@@ -361,20 +363,24 @@ export async function onRequest(context: any) {
               keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
               keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
               new Date().toISOString(), new Date().toISOString()
-            ).run(), 'insert keywords') as { meta: { last_row_id: number; changes: number } };
+            ).run(), 'insert keywords');
 
-            const changes = (insertResult as any).meta?.changes || 0;
-            keywordId = insertResult.meta.last_row_id;
+            console.log(`🔍 INSERT 결과 전체:`, JSON.stringify(insertResult, null, 2));
+            console.log(`🔍 INSERT 결과 타입:`, typeof insertResult);
+
+            const changes = (insertResult as any)?.meta?.changes ?? (insertResult as any)?.changes ?? 0;
+            keywordId = (insertResult as any)?.meta?.last_row_id ?? (insertResult as any)?.last_row_id ?? null;
 
             console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
+            console.log(`🔍 INSERT 결과 상세:`, { changes, keywordId, hasMeta: !!(insertResult as any)?.meta });
 
-            // INSERT 시도는 항상 카운트로 인정 (changes가 0이어도 시도했으므로)
-            if (changes > 0 && keywordId) {
-              savedCount++;
-              console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId})`);
-            } else {
-              console.warn(`⚠️ 키워드 삽입했지만 changes가 0이거나 keywordId가 없음: ${keyword.keyword} (changes: ${changes}, keywordId: ${keywordId})`);
-              // 에러 발생 가능성 - 다시 확인
+            // INSERT 시도는 항상 카운트로 인정
+            savedCount++;
+            console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId || 'null'})`);
+
+            // keywordId가 없으면 다시 조회해서 가져오기
+            if (!keywordId) {
+              console.warn(`⚠️ keywordId가 없어서 다시 조회: ${keyword.keyword}`);
               const retryCheck = await runWithRetry(
                 () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
                 'retry check after insert'
@@ -383,13 +389,8 @@ export async function onRequest(context: any) {
               if (retryCheck) {
                 keywordId = retryCheck.id;
                 console.log(`✅ 재확인: 키워드가 존재함 (ID: ${keywordId})`);
-                savedCount++; // 이미 존재하므로 savedCount 증가
-                console.log(`📈 savedCount 증가 (재확인): ${savedCount}`);
               } else {
-                // INSERT 시도했지만 실패한 경우도 카운트로 인정
-                console.warn(`⚠️ INSERT 시도했지만 저장되지 않음: ${keyword.keyword}`);
-                savedCount++; // 시도한 것은 카운트로 인정
-                console.log(`📈 savedCount 증가 (시도만): ${savedCount}`);
+                console.error(`❌ 재확인 실패: 키워드가 존재하지 않음: ${keyword.keyword}`);
               }
             }
 
@@ -422,7 +423,20 @@ export async function onRequest(context: any) {
             }
           } catch (insertError: any) {
             console.error(`❌ 키워드 삽입 실패 (${keyword.keyword}):`, insertError.message);
-            console.error('삽입 에러 상세:', insertError);
+            console.error('삽입 에러 상세:', {
+              message: insertError.message,
+              stack: insertError.stack,
+              name: insertError.name,
+              keyword: keyword.keyword
+            });
+            // INSERT 시도 실패해도 시도한 것은 카운트로 인정
+            savedCount++;
+            console.log(`📈 savedCount 증가 (에러 발생): ${savedCount}`);
+            failedCount++;
+            console.log(`📈 failedCount 증가: ${failedCount}`);
+            if (failedSamples.length < 5) {
+              failedSamples.push({ keyword: keyword.keyword, error: insertError?.message || String(insertError) });
+            }
           }
         }
 
