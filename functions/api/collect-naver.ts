@@ -227,7 +227,7 @@ export async function onRequest(context: any) {
               existing.id
             ).run(), 'update existing keyword');
 
-            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${updateResult.meta?.changes || 0}`);
+            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${(updateResult as any).meta?.changes || 0}`);
             updatedCount++;
           } catch (updateError: any) {
             console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
