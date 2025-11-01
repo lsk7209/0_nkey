@@ -263,46 +263,132 @@ export async function onRequest(context: any) {
             console.error('existing 데이터:', JSON.stringify(existing, null, 2));
           }
         } else {
-          // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
+          // ⚠️ 중요: INSERT 전에 다시 한 번 확인 (race condition 방지)
+          // existing이 null이었지만, 다른 요청에서 이미 삽입했을 수 있음
+          const doubleCheck = await runWithRetry(
+            () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+            'double check keywords'
+          ) as { id: number; updated_at: string } | null;
+
+          if (doubleCheck) {
+            // 다시 조회했을 때 존재함 - 30일 정책 체크
+            console.log(`🔄 이중 확인: 키워드 ${keyword.keyword}가 존재함 (ID: ${doubleCheck.id})`);
+            keywordId = doubleCheck.id;
+            
+            const lastUpdateDate = doubleCheck.updated_at ? new Date(doubleCheck.updated_at) : new Date('2020-01-01');
+            const now = new Date();
+            const daysSinceUpdate = (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24);
+
+            console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${doubleCheck.updated_at || 'NULL'}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
+
+            if (daysSinceUpdate < 30) {
+              console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`);
+              skippedCount++;
+              continue; // 다음 키워드로 건너뜀
+            }
+
+            // 30일 정책 통과 - 업데이트 진행
+            console.log(`✅ 30일 정책 통과: ${keyword.keyword} - 업데이트 진행`);
+            try {
+              const newUpdatedAt = new Date().toISOString();
+              const updateResult = await runWithRetry(() => db.prepare(`
+                UPDATE keywords SET 
+                  monthly_search_pc = ?,
+                  monthly_search_mob = ?,
+                  pc_search = ?,
+                  mobile_search = ?,
+                  avg_monthly_search = ?,
+                  seed_keyword_text = ?,
+                  comp_index = ?,
+                  updated_at = ?
+                WHERE id = ?
+              `).bind(
+                keyword.pc_search,
+                keyword.mobile_search,
+                keyword.pc_search,
+                keyword.mobile_search,
+                keyword.avg_monthly_search,
+                seed.trim(),
+                keyword.comp_idx || 0,
+                newUpdatedAt,
+                doubleCheck.id
+              ).run(), 'update existing keyword');
+
+              const changes = (updateResult as any).meta?.changes || 0;
+              if (changes > 0) {
+                updatedCount++;
+                console.log(`📈 updatedCount 증가: ${updatedCount} (현재 총계: ${updatedCount})`);
+              }
+
+              // keyword_metrics 업데이트
+              const existingMetrics = await runWithRetry(
+                () => db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?').bind(doubleCheck.id).first(),
+                'select keyword_metrics'
+              ) as { id: number } | null;
+
+              if (existingMetrics) {
+                await runWithRetry(() => db.prepare(`
+                  UPDATE keyword_metrics SET
+                    monthly_click_pc = ?, monthly_click_mobile = ?, ctr_pc = ?, ctr_mobile = ?, ad_count = ?
+                  WHERE keyword_id = ?
+                `).bind(
+                  keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+                  keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0,
+                  doubleCheck.id
+                ).run(), 'update keyword_metrics');
+              } else {
+                await runWithRetry(() => db.prepare(`
+                  INSERT INTO keyword_metrics (
+                    keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
+                  ) VALUES (?, ?, ?, ?, ?, ?)
+                `).bind(
+                  doubleCheck.id,
+                  keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+                  keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
+                ).run(), 'insert keyword_metrics');
+              }
+            } catch (updateError: any) {
+              console.error(`❌ 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
+            }
+            continue; // 업데이트 완료, 다음 키워드로
+          }
+
+          // 정말로 새 키워드 - INSERT 시도
           console.log(`➕ 새 키워드 삽입 시작: ${keyword.keyword}`);
-          const insertResult = await runWithRetry(() => db.prepare(`
-            INSERT INTO keywords (
-              keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
-              pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(keyword) DO UPDATE SET
-              seed_keyword_text = excluded.seed_keyword_text,
-              monthly_search_pc = excluded.monthly_search_pc,
-              monthly_search_mob = excluded.monthly_search_mob,
-              pc_search = excluded.pc_search,
-              mobile_search = excluded.mobile_search,
-              avg_monthly_search = excluded.avg_monthly_search,
-              comp_index = excluded.comp_index,
-              updated_at = excluded.updated_at
-          `).bind(
-            keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
-            keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
-            new Date().toISOString(), new Date().toISOString()
-          ).run(), 'insert keywords') as { meta: { last_row_id: number; changes: number } };
+          try {
+            const insertResult = await runWithRetry(() => db.prepare(`
+              INSERT INTO keywords (
+                keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
+                pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).bind(
+              keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
+              keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
+              new Date().toISOString(), new Date().toISOString()
+            ).run(), 'insert keywords') as { meta: { last_row_id: number; changes: number } };
 
-          const changes = (insertResult as any).meta?.changes || 0;
-          keywordId = insertResult.meta.last_row_id;
+            const changes = (insertResult as any).meta?.changes || 0;
+            keywordId = insertResult.meta.last_row_id;
 
-          console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
+            console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
 
-          // ON CONFLICT로 업데이트된 경우도 처리
-          // last_row_id가 0이 아니면 키워드가 존재함
-          if (changes > 0 || keywordId) {
-            // keywordId가 있지만 changes가 0이면 ON CONFLICT로 업데이트된 경우
-            if (changes === 0 && keywordId) {
-              console.log(`🔄 ON CONFLICT로 업데이트됨: ${keyword.keyword} (ID: ${keywordId})`);
-              // ON CONFLICT로 업데이트된 경우도 savedCount 증가 (신규 저장으로 간주)
-              savedCount++;
-              console.log(`📈 savedCount 증가 (ON CONFLICT): ${savedCount} (현재 총계: ${savedCount})`);
-            } else {
-              // 정상 삽입
+            if (changes > 0 && keywordId) {
               savedCount++;
               console.log(`📈 savedCount 증가: ${savedCount} (현재 총계: ${savedCount})`);
+            } else {
+              console.warn(`⚠️ 키워드 삽입했지만 changes가 0이거나 keywordId가 없음: ${keyword.keyword}`);
+              // 에러 발생 가능성 - 다시 확인
+              const retryCheck = await runWithRetry(
+                () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+                'retry check after insert'
+              ) as { id: number } | null;
+              
+              if (retryCheck) {
+                keywordId = retryCheck.id;
+                console.log(`✅ 재확인: 키워드가 존재함 (ID: ${keywordId})`);
+                savedCount++; // 이미 존재하므로 savedCount 증가
+                console.log(`📈 savedCount 증가 (재확인): ${savedCount}`);
+              }
             }
 
             // keywordId로 keyword_metrics 확인 후 삽입/업데이트
@@ -332,8 +418,9 @@ export async function onRequest(context: any) {
                 keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
               ).run(), 'insert keyword_metrics');
             }
-          } else {
-            console.warn(`⚠️ 키워드 삽입 실패: ${keyword.keyword} - last_row_id와 changes가 모두 0임`);
+          } catch (insertError: any) {
+            console.error(`❌ 키워드 삽입 실패 (${keyword.keyword}):`, insertError.message);
+            console.error('삽입 에러 상세:', insertError);
           }
         }
 
