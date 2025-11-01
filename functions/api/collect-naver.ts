@@ -785,18 +785,31 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
                   return [];
                 }
                 
-                const keywords = retryData.keywordList.map((k: any) => ({
-                  keyword: k.relKeyword,
-                  pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
-                  mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
-                  avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
-                  monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
-                  monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
-                  ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
-                  ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
-                  ad_count: parseInt(k.plAvgDepth || '0'),
-                  comp_idx: k.compIdx || null
-                })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
+                console.log('🔍 재시도 API 응답 keywordList 구조 확인:', {
+                  keywordListLength: retryData.keywordList?.length || 0,
+                  firstItem: retryData.keywordList?.[0] || null,
+                  firstItemKeys: retryData.keywordList?.[0] ? Object.keys(retryData.keywordList[0]) : null
+                });
+
+                const keywords = retryData.keywordList.map((k: any) => {
+                  console.log('🔍 재시도 개별 키워드 객체:', k);
+                  return {
+                    keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
+                    pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+                    mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+                    avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+                    monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+                    monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+                    ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+                    ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+                    ad_count: parseInt(k.plAvgDepth || '0'),
+                    comp_idx: k.compIdx || null
+                  };
+                }).filter((kw: any) => {
+                  const isValid = kw.keyword && kw.keyword.trim() !== '';
+                  console.log(`🔍 재시도 키워드 필터링 결과: "${kw.keyword}" -> ${isValid ? '유지' : '제거'}`);
+                  return isValid;
+                });
                 
                 console.log(`✅ Collected ${keywords.length} keywords from retry API call`);
                 return keywords;
@@ -831,21 +844,34 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       return [];
     }
 
-    const keywords = data.keywordList.map((k: any) => ({
-      keyword: k.relKeyword,
-      pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
-      mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
-      avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
-      monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
-      monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
-      ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
-      ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
-      ad_count: parseInt(k.plAvgDepth || '0'),
-      comp_idx: k.compIdx || null
-    })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
+            console.log('🔍 API 응답 keywordList 구조 확인:', {
+              keywordListLength: data.keywordList?.length || 0,
+              firstItem: data.keywordList?.[0] || null,
+              firstItemKeys: data.keywordList?.[0] ? Object.keys(data.keywordList[0]) : null
+            });
 
-    console.log(`✅ Collected ${keywords.length} keywords from official Naver SearchAd API`);
-    console.log('First few keywords:', keywords.slice(0, 3));
+            const keywords = data.keywordList.map((k: any) => {
+              console.log('🔍 개별 키워드 객체:', k);
+              return {
+                keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
+                pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+                mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+                avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+                monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+                monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+                ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+                ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+                ad_count: parseInt(k.plAvgDepth || '0'),
+                comp_idx: k.compIdx || null
+              };
+            }).filter((kw: any) => {
+              const isValid = kw.keyword && kw.keyword.trim() !== '';
+              console.log(`🔍 키워드 필터링 결과: "${kw.keyword}" -> ${isValid ? '유지' : '제거'}`);
+              return isValid;
+            });
+
+            console.log(`✅ Collected ${keywords.length} keywords from official Naver SearchAd API`);
+            console.log('First few keywords:', keywords.slice(0, 3));
 
     // 시스템 메트릭스 기록
     try {
