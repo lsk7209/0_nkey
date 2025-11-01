@@ -171,16 +171,34 @@ export default function DataPage() {
           // 문서수가 없는 키워드 자동 수집 (첫 페이지에서만)
           if (page === 1 && !append) {
             const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) =>
-              !kw.blog_total && !kw.cafe_total && !kw.web_total && !kw.news_total
+              (!kw.blog_total || kw.blog_total === 0) && 
+              (!kw.cafe_total || kw.cafe_total === 0) && 
+              (!kw.web_total || kw.web_total === 0) && 
+              (!kw.news_total || kw.news_total === 0)
             )
 
             if (keywordsWithoutDocCounts.length > 0) {
               console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 자동 수집 시작`)
-              setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 수집 중... (${keywordsWithoutDocCounts.length}개)`)
-            // TODO: 문서수 수집 함수 구현 필요
-            // collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20)).catch(err => {
-            //   console.error('자동 문서수 수집 실패:', err)
-            // })
+              setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 자동 수집 중... (${keywordsWithoutDocCounts.length}개)`)
+              
+              // 문서수 수집 (최대 20개, API 제한 고려)
+              collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20))
+                .then((result) => {
+                  if (result.success) {
+                    console.log(`✅ 문서수 수집 완료: ${result.successCount}개 성공`)
+                    // 수집 완료 후 자동 새로고침 (1초 대기)
+                    setTimeout(() => {
+                      loadKeywords(1, false)
+                      setMessage(`✅ 문서수 수집 완료! ${result.successCount}개 키워드의 문서수를 수집했습니다.`)
+                    }, 1000)
+                  } else {
+                    console.error('문서수 수집 실패:', result.message)
+                  }
+                })
+                .catch(err => {
+                  console.error('자동 문서수 수집 실패:', err)
+                  setMessage(`⚠️ 문서수 자동 수집 중 오류가 발생했습니다: ${err.message}`)
+                })
             }
           }
         } else {
@@ -200,6 +218,39 @@ export default function DataPage() {
       setIsNextPageLoading(false)
     }
   }, [filters, itemsPerPage, keywords.length])
+
+  // 문서수 수집 함수
+  const collectDocCountsForKeywords = useCallback(async (keywordsToCollect: KeywordData[]) => {
+    try {
+      console.log(`📄 문서수 수집 API 호출: ${keywordsToCollect.length}개 키워드`)
+      
+      const response = await fetch('https://0-nkey.pages.dev/api/collect-docs-batch', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'dev-key-2024'
+        },
+        body: JSON.stringify({
+          keywords: keywordsToCollect.map(kw => ({
+            keyword: kw.keyword,
+            id: undefined // 키워드 텍스트로 찾기
+          }))
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.message || `문서수 수집 실패: ${response.status}`)
+      }
+
+      const result = await response.json()
+      return result
+
+    } catch (error) {
+      console.error('문서수 수집 API 호출 실패:', error)
+      throw error
+    }
+  }, [])
 
   // 무한 스크롤을 위한 다음 페이지 로드 함수
   const loadNextPage = useCallback(() => {
