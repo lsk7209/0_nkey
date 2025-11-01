@@ -788,17 +788,19 @@ export async function onRequest(context: any) {
         seed: seed.trim(),
         totalCollected: keywords.length,
         totalSavedOrUpdated: savedCount + updatedCount,
-        savedCount,
+        savedCount: actualNewKeywords, // 실제 DB에 추가된 수 (검증 후)
         updatedCount,
-        skippedCount, // 30일 이내 건너뜀 카운트
+        skippedCount: 0, // 시간 기반 정책 완전 제거
         totalAttempted: uniqueKeywords.length,
         keywords: uniqueKeywords, // 실제 수집된(중복 제거) 키워드 반환
         failedCount,
         failedSamples,
         docCountsCollected, // 문서수 수집된 키워드 수
         hasOpenApiKeys, // 네이버 오픈API 키 설정 여부
-        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 ${savedCount + updatedCount}개 저장(업데이트 포함), 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
-        version: 'v9.0 - 시간 기반 정책 완전 제거/무조건 저장 업데이트/안전 청크 저장/중복 제거/실패집계',
+        actualNewKeywords: actualNewKeywords, // 실제 DB에 추가된 키워드 수
+        warning: actualNewKeywords !== savedCount ? `⚠️ 카운트 불일치: 보고된 savedCount(${savedCount})와 실제 추가(${actualNewKeywords})가 다릅니다. 실제 추가 수를 기준으로 반환합니다.` : undefined,
+        message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 실제 추가 ${actualNewKeywords}개, 업데이트 ${updatedCount}개, 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
+        version: 'v9.1 - 실제 DB 카운트 검증 추가',
         timestamp: new Date().toISOString(),
         api_implementation: {
           endpoint: 'https://api.naver.com/keywordstool',
