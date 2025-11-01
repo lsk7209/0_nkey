@@ -79,14 +79,26 @@ export async function onRequest(context: any) {
     console.log(`✅ 네이버 API 수집 완료: ${keywords?.length || 0}개 키워드`);
 
     // 중복 제거 (키워드 기준)
+    console.log(`🔍 중복 제거 전 keywords 배열:`, {
+      length: keywords?.length || 0,
+      firstFew: keywords?.slice(0, 3) || [],
+      sample: keywords?.[0] || null
+    });
+
     const seen = new Set<string>();
     const uniqueKeywords = (keywords || []).filter((k: { keyword?: string }) => {
       const key = (k.keyword || '').trim();
-      if (!key || seen.has(key)) return false;
+      console.log(`🔍 키워드 필터링: "${key}" (원본: "${k.keyword}", trim: "${key}", seen: ${seen.has(key)})`);
+      if (!key || seen.has(key)) {
+        console.log(`❌ 키워드 필터링됨: "${key}" (빈값 또는 중복)`);
+        return false;
+      }
       seen.add(key);
+      console.log(`✅ 키워드 유지: "${key}"`);
       return true;
     });
-    console.log(`🧹 중복 제거 후: ${uniqueKeywords.length}개`);
+    console.log(`🧹 중복 제거 후 uniqueKeywords: ${uniqueKeywords.length}개`);
+    console.log(`📋 uniqueKeywords 샘플:`, uniqueKeywords.slice(0, 3));
 
     if (!keywords || keywords.length === 0) {
       return new Response(
@@ -144,8 +156,18 @@ export async function onRequest(context: any) {
     ].some(key => key);
     console.log(`📄 네이버 오픈API 키 확인: ${hasOpenApiKeys ? '설정됨' : '미설정'}`);
 
+    console.log(`🚀 저장 루프 시작: ${uniqueKeywords.length}개 키워드 처리 예정`);
+
     for (let i = 0; i < uniqueKeywords.length; i++) {
       const keyword = uniqueKeywords[i];
+      console.log(`🔄 [${i + 1}/${uniqueKeywords.length}] 키워드 처리 시작:`, {
+        keyword: keyword.keyword,
+        pc_search: keyword.pc_search,
+        mobile_search: keyword.mobile_search,
+        keyword_type: typeof keyword.keyword,
+        keyword_length: keyword.keyword?.length || 0
+      });
+
       try {
         // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
         const existing = await runWithRetry(
@@ -438,9 +460,16 @@ export async function onRequest(context: any) {
           console.log(`📄 문서수 수집 제한 도달 (${maxDocCountsToCollect}개), 나머지 건너뜀`);
         }
       } catch (dbError: any) {
-        console.error(`데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
-        console.error('에러 상세:', dbError.message, dbError.stack);
+        console.error(`❌ [${i + 1}/${uniqueKeywords.length}] 데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
+        console.error('에러 상세:', {
+          message: dbError.message,
+          stack: dbError.stack,
+          name: dbError.name,
+          keyword: keyword.keyword,
+          keywordType: typeof keyword.keyword
+        });
         failedCount++;
+        console.log(`📈 failedCount 증가: ${failedCount} (현재 총계: ${failedCount})`);
         if (failedSamples.length < 5) {
           failedSamples.push({ keyword: keyword.keyword, error: dbError?.message || String(dbError) });
         }
@@ -451,7 +480,12 @@ export async function onRequest(context: any) {
         console.log(`⏳ 청크 대기: ${(i + 1)}/${uniqueKeywords.length} 처리됨, ${CHUNK_DELAY_MS}ms 대기`);
         await new Promise(r => setTimeout(r, CHUNK_DELAY_MS));
       }
+
+      console.log(`✅ [${i + 1}/${uniqueKeywords.length}] 키워드 처리 완료: ${keyword.keyword} (진행상황: 저장=${savedCount}, 업데이트=${updatedCount}, 실패=${failedCount})`);
     }
+
+    console.log(`🎉 저장 루프 종료: 총 ${uniqueKeywords.length}개 키워드 처리 완료`);
+    console.log(`📊 최종 카운트: 저장=${savedCount}, 업데이트=${updatedCount}, 실패=${failedCount}, 총계=${savedCount + updatedCount}`);
 
     return new Response(
       JSON.stringify({
