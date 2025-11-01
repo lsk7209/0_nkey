@@ -151,12 +151,19 @@ export async function onRequest(context: any) {
     `;
 
     // 최적화된 COUNT 쿼리 (WHERE 절 조건 반영)
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM keywords k
-      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-      ${whereClause}
-    `;
+    // WHERE 절이 없으면 단순 COUNT, 있으면 조건 반영
+    let countQuery: string;
+    if (whereClause) {
+      countQuery = `
+        SELECT COUNT(*) as total
+        FROM keywords k
+        LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+        ${whereClause}
+      `;
+    } else {
+      // WHERE 절이 없으면 가장 빠른 단순 COUNT
+      countQuery = `SELECT COUNT(*) as total FROM keywords`;
+    }
 
     let result, total = 0;
 
@@ -164,7 +171,7 @@ export async function onRequest(context: any) {
       // 데이터와 카운트를 동시에 조회 (병렬 처리)
       const [dataResult, countResult] = await Promise.all([
         db.prepare(query).bind(...bindings, pageSize, offset).all(),
-        bindings.length > 0
+        whereClause && bindings.length > 0
           ? db.prepare(countQuery).bind(...bindings).all()
           : db.prepare(countQuery).all()
       ]);
@@ -172,12 +179,21 @@ export async function onRequest(context: any) {
       result = dataResult;
       total = countResult.results?.[0]?.total || 0;
 
+      // COUNT 쿼리 결과 디버깅
+      console.log(`📊 COUNT 쿼리 결과:`, {
+        countQuery,
+        whereClause: whereClause || '(없음)',
+        countResultRaw: countResult.results?.[0],
+        total,
+        bindingsCount: bindings.length
+      });
+
     } catch (queryError: any) {
       console.error('키워드 조회 쿼리 에러:', queryError.message);
       throw queryError;
     }
 
-    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개`);
+    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개 (총 ${total}개)`);
 
     // 응답 데이터 준비
     const responseData = {
@@ -194,8 +210,10 @@ export async function onRequest(context: any) {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-    // 캐싱 헤더 추가 (5분 캐시)
-    response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=300');
+    // 캐싱 헤더 제거 (실시간 데이터 조회)
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
 
     // 대용량 응답의 경우 압축 활성화 (Cloudflare에서 자동 처리)
     if (result.results && result.results.length > 100) {
