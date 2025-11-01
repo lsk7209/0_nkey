@@ -68,12 +68,11 @@ export default function Home() {
         console.log('API 성공 응답:', result)
         
         if (result.success) {
-          const skippedMsg = result.skippedCount > 0 ? ` (${result.skippedCount}개는 7일 이내 업데이트되어 건너뜀)` : '';
           const savedMsg = result.totalSavedOrUpdated > 0
-            ? `${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.`
-            : '저장된 키워드가 없습니다. (모두 7일 이내 업데이트된 키워드이거나 중복입니다)';
+            ? `${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장(업데이트)했습니다.`
+            : '저장된 키워드가 없습니다.';
 
-          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${savedMsg}${skippedMsg}`)
+          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${savedMsg}`)
           
           // 저장 성공 시 데이터 페이지로 안내 (브라우저가 데이터 페이지에 있다면 자동 새로고침)
           if (result.totalSavedOrUpdated > 0) {
