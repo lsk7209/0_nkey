@@ -147,14 +147,8 @@ export async function onRequest(context: any) {
       LIMIT ? OFFSET ?
     `;
 
-    // 최적화된 COUNT 쿼리
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM keywords k
-      LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
-      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-      ${whereClause}
-    `;
+    // 최적화된 COUNT 쿼리 (단순화하여 JOIN 문제 방지)
+    const countQuery = `SELECT COUNT(*) as total FROM keywords`;
 
     let result, total = 0;
 

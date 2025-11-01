@@ -157,7 +157,8 @@ export async function onRequest(context: any) {
           existing: !!existing,
           id: existing?.id,
           updated_at: existing?.updated_at,
-          typeof_existing: typeof existing
+          typeof_existing: typeof existing,
+          raw_existing: existing
         });
 
         let keywordId: number | null = null;
