@@ -52,10 +52,46 @@ export async function onRequest(context: any) {
 
     // D1 데이터베이스에서 모든 키워드 삭제
     const db = env.DB;
-    
-    // 외래 키 제약으로 인해 관련 데이터 먼저 삭제
-    await db.prepare('DELETE FROM naver_doc_counts').run();
-    await db.prepare('DELETE FROM keywords').run();
+
+    // CPU 타임 리밋을 피하기 위해 TRUNCATE 또는 배치 삭제 사용
+    let totalDeleted = 0;
+
+    console.log('🗑️ naver_doc_counts 테이블 삭제 시도');
+    try {
+      // TRUNCATE 시도 (더 효율적)
+      await db.prepare('TRUNCATE TABLE naver_doc_counts').run();
+      console.log('✅ naver_doc_counts 테이블 TRUNCATE 완료');
+    } catch (truncateError) {
+      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', truncateError.message);
+      // TRUNCATE 실패 시 배치 삭제
+      const batchSize = 500;
+      while (true) {
+        const result = await db.prepare('DELETE FROM naver_doc_counts LIMIT ?').bind(batchSize).run();
+        const deleted = (result as any).meta?.changes || 0;
+        totalDeleted += deleted;
+        console.log(`🗑️ naver_doc_counts ${deleted}개 삭제 (총: ${totalDeleted}개)`);
+        if (deleted < batchSize) break;
+      }
+    }
+
+    console.log('🗑️ keywords 테이블 삭제 시도');
+    try {
+      // TRUNCATE 시도 (더 효율적)
+      await db.prepare('TRUNCATE TABLE keywords').run();
+      console.log('✅ keywords 테이블 TRUNCATE 완료');
+    } catch (truncateError) {
+      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', truncateError.message);
+      // TRUNCATE 실패 시 배치 삭제
+      totalDeleted = 0;
+      const batchSize = 500;
+      while (true) {
+        const result = await db.prepare('DELETE FROM keywords LIMIT ?').bind(batchSize).run();
+        const deleted = (result as any).meta?.changes || 0;
+        totalDeleted += deleted;
+        console.log(`🗑️ keywords ${deleted}개 삭제 (총: ${totalDeleted}개)`);
+        if (deleted < batchSize) break;
+      }
+    }
 
     console.log('✅ 키워드 전체 삭제 완료');
 
