@@ -1,9 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Cloudflare Pages 최적화 설정
-  output: 'export',
+  // Cloudflare Pages 설정
   trailingSlash: true,
-  distDir: 'out',
   images: {
     unoptimized: true
   },
