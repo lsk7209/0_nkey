@@ -98,10 +98,9 @@ export default function DataPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
-  const [itemsPerPage] = useState(100) // 페이지당 100개 표시
+  const [itemsPerPage] = useState(50) // 페이지당 50개 표시
   const [totalCount, setTotalCount] = useState(0)
-  const [hasNextPage, setHasNextPage] = useState(true)
-  const [isNextPageLoading, setIsNextPageLoading] = useState(false)
+  const [totalPages, setTotalPages] = useState(1)
   const [filters, setFilters] = useState<FilterValues>({
     minAvgSearch: '',
     maxAvgSearch: '',
@@ -116,13 +115,9 @@ export default function DataPage() {
   })
   const [showFilters, setShowFilters] = useState(false)
 
-  // 메모이제이션된 키워드 로드 함수
-  const loadKeywords = useCallback(async (page: number = 1, append: boolean = false) => {
-    if (!append) {
-      setLoading(true)
-    } else {
-      setIsNextPageLoading(true)
-    }
+  // 메모이제이션된 키워드 로드 함수 (페이지 이동 방식)
+  const loadKeywords = useCallback(async (page: number = 1) => {
+    setLoading(true)
 
     try {
       // 필터 파라미터 구성
@@ -141,6 +136,9 @@ export default function DataPage() {
       // 페이지네이션 파라미터
       params.append('page', String(page))
       params.append('pageSize', String(itemsPerPage))
+      
+      // 문서수 0 제외 (기본값: true)
+      params.append('excludeZeroDocs', 'true')
 
       const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
 
@@ -155,21 +153,18 @@ export default function DataPage() {
       if (response.ok) {
         const data = await response.json()
         if (data.success && Array.isArray(data.keywords)) {
-          if (append) {
-            setKeywords(prev => [...prev, ...data.keywords])
-          } else {
-            setKeywords(data.keywords)
-          }
+          setKeywords(data.keywords)
           setTotalCount(typeof data.total === 'number' ? data.total : data.keywords.length)
 
-          const loadedCount = append ? keywords.length + data.keywords.length : data.keywords.length
-          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${loadedCount}개 (총 ${data.total ?? data.keywords.length}개 중) 불러왔습니다.`)
+          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (총 ${data.total ?? data.keywords.length}개 중, 페이지 ${page}) 불러왔습니다.`)
 
-          // 다음 페이지 존재 여부 확인
-          setHasNextPage(loadedCount < (data.total ?? data.keywords.length))
+          // 전체 페이지 수 계산
+          const calculatedTotalPages = Math.ceil((data.total ?? data.keywords.length) / itemsPerPage)
+          setTotalPages(calculatedTotalPages)
+          setCurrentPage(page)
 
           // 문서수가 없는 키워드 자동 수집 (첫 페이지에서만)
-          if (page === 1 && !append) {
+          if (page === 1) {
             const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) =>
               (!kw.blog_total || kw.blog_total === 0) && 
               (!kw.cafe_total || kw.cafe_total === 0) && 
@@ -188,7 +183,7 @@ export default function DataPage() {
                     console.log(`✅ 문서수 수집 완료: ${result.successCount}개 성공`)
                     // 수집 완료 후 자동 새로고침 (1초 대기)
                     setTimeout(() => {
-                      loadKeywords(1, false)
+                      loadKeywords(1)
                       setMessage(`✅ 문서수 수집 완료! ${result.successCount}개 키워드의 문서수를 수집했습니다.`)
                     }, 1000)
                   } else {
@@ -252,19 +247,20 @@ export default function DataPage() {
     }
   }, [])
 
-  // 무한 스크롤을 위한 다음 페이지 로드 함수
-  const loadNextPage = useCallback(() => {
-    if (!isNextPageLoading && hasNextPage) {
-      const nextPage = Math.floor(keywords.length / itemsPerPage) + 1
-      loadKeywords(nextPage, true)
+  // 페이지 이동 핸들러
+  const handlePageChange = useCallback((newPage: number) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setCurrentPage(newPage)
+      loadKeywords(newPage)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
     }
-  }, [isNextPageLoading, hasNextPage, keywords.length, itemsPerPage, loadKeywords])
+  }, [totalPages, loadKeywords])
 
   // 필터 적용 시 초기화
   const handleApplyFilters = useCallback(() => {
     setCurrentPage(1)
     setKeywords([])
-    loadKeywords(1, false)
+    loadKeywords(1)
   }, [loadKeywords])
 
   // 필터 초기화
@@ -283,11 +279,11 @@ export default function DataPage() {
     })
     setCurrentPage(1)
     setKeywords([])
-    setTimeout(() => loadKeywords(1, false), 100)
+    setTimeout(() => loadKeywords(1), 100)
   }, [loadKeywords])
 
   useEffect(() => {
-    loadKeywords(1, false)
+    loadKeywords(1)
   }, [])
 
   // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침
@@ -301,7 +297,7 @@ export default function DataPage() {
         console.log('💾 키워드 저장 완료 감지, 자동 새로고침:', event.data.count)
         // 1초 후 새로고침 (저장 완료 대기)
         setTimeout(() => {
-          loadKeywords(1, false)
+          loadKeywords(1)
           setMessage(`✅ ${event.data.count}개의 새 키워드가 저장되어 자동으로 새로고침되었습니다.`)
         }, 1000)
       }
@@ -481,7 +477,7 @@ export default function DataPage() {
 
         <div className="flex space-x-4 mb-6">
           <button
-            onClick={() => loadKeywords(1, false)}
+            onClick={() => loadKeywords(currentPage)}
             className="btn-secondary"
           >
             새로고침
@@ -650,7 +646,6 @@ export default function DataPage() {
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
               키워드 목록 ({keywords.length.toLocaleString()}개 표시 / 총 {totalCount.toLocaleString()}개)
-              {isNextPageLoading && <span className="ml-2 text-blue-600">더 불러오는 중...</span>}
             </h2>
 
           <div className="overflow-x-auto">
@@ -709,15 +704,89 @@ export default function DataPage() {
             </table>
           </div>
 
-        {/* 무한 스크롤 안내 */}
-            {hasNextPage && (
-              <div className="text-center mt-6 text-sm text-gray-600">
-                스크롤하여 더 많은 키워드를 불러올 수 있습니다
-              </div>
-            )}
-            {!hasNextPage && keywords.length > 0 && (
-              <div className="text-center mt-6 text-sm text-green-600">
-                ✅ 모든 키워드를 불러왔습니다 (총 {totalCount.toLocaleString()}개)
+        {/* 페이지네이션 */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center space-x-2 flex-wrap">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    currentPage === 1
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  첫 페이지
+                </button>
+                
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    currentPage === 1
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  이전
+                </button>
+
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    currentPage === totalPages
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  다음
+                </button>
+
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-2 rounded text-sm font-medium transition-colors ${
+                    currentPage === totalPages
+                      ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  마지막 페이지
+                </button>
+
+                <span className="ml-4 text-sm text-gray-600">
+                  페이지 {currentPage} / {totalPages}
+                </span>
               </div>
             )}
           </div>
