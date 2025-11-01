@@ -197,11 +197,11 @@ export async function onRequest(context: any) {
             ).run(), 'insert keyword_metrics');
           }
           // 30일 이내 업데이트된 키워드는 건너뜀 (중복 시 30일 정책)
-          const lastUpdate = new Date(existing.updated_at);
+          const lastUpdateDate = existing.updated_at ? new Date(existing.updated_at) : new Date('2020-01-01'); // NULL이면 아주 오래된 날짜로 처리
           const now = new Date();
-          const daysSinceUpdate = (now.getTime() - lastUpdate.getTime()) / (1000 * 60 * 60 * 24);
+          const daysSinceUpdate = (now.getTime() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24);
 
-          console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${existing.updated_at}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
+          console.log(`📅 키워드 ${keyword.keyword} 마지막 업데이트: ${existing.updated_at || 'NULL'}, 경과일: ${daysSinceUpdate.toFixed(1)}일`);
 
           if (daysSinceUpdate < 30) {
             console.log(`⏭️ 30일 이내 업데이트된 키워드 건너뜀: ${keyword.keyword} (${daysSinceUpdate.toFixed(1)}일 전)`)

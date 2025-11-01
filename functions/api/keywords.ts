@@ -134,6 +134,7 @@ export async function onRequest(context: any) {
         COALESCE(km.ctr_mobile, 0) as ctr_mo,
         COALESCE(km.ad_count, 0) as ad_count,
         k.created_at,
+        k.updated_at,
         COALESCE(ndc.blog_total, 0) as blog_total,
         COALESCE(ndc.cafe_total, 0) as cafe_total,
         COALESCE(ndc.web_total, 0) as web_total,
