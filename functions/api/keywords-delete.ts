@@ -62,7 +62,7 @@ export async function onRequest(context: any) {
       await db.prepare('TRUNCATE TABLE naver_doc_counts').run();
       console.log('✅ naver_doc_counts 테이블 TRUNCATE 완료');
     } catch (truncateError) {
-      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', truncateError.message);
+      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', (truncateError as any).message);
       // TRUNCATE 실패 시 배치 삭제
       const batchSize = 500;
       while (true) {
@@ -80,7 +80,7 @@ export async function onRequest(context: any) {
       await db.prepare('TRUNCATE TABLE keywords').run();
       console.log('✅ keywords 테이블 TRUNCATE 완료');
     } catch (truncateError) {
-      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', truncateError.message);
+      console.log('⚠️ TRUNCATE 실패, 배치 삭제로 전환:', (truncateError as any).message);
       // TRUNCATE 실패 시 배치 삭제
       totalDeleted = 0;
       const batchSize = 500;
