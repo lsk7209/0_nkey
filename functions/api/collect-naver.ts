@@ -206,6 +206,7 @@ export async function onRequest(context: any) {
 
           // 기존 키워드 업데이트 (30일 정책 통과)
           console.log(`🔄 기존 키워드 업데이트 시작: ${keyword.keyword} (ID: ${existing.id})`);
+          console.log(`📊 업데이트할 데이터: pc=${keyword.pc_search}, mobile=${keyword.mobile_search}, avg=${keyword.avg_monthly_search}`);
           try {
             const updateResult = await runWithRetry(() => db.prepare(`
               UPDATE keywords SET
@@ -227,11 +228,19 @@ export async function onRequest(context: any) {
               existing.id
             ).run(), 'update existing keyword');
 
-            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${(updateResult as any).meta?.changes || 0}`);
-            updatedCount++;
+            const changes = (updateResult as any).meta?.changes || 0;
+            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}`);
+            if (changes > 0) {
+              updatedCount++;
+              console.log(`📈 updatedCount 증가: ${updatedCount}`);
+            } else {
+              console.warn(`⚠️ 업데이트했지만 변경된 행이 0임: ${keyword.keyword}`);
+            }
           } catch (updateError: any) {
             console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
             console.error('업데이트 에러 상세:', updateError);
+            console.error('키워드 데이터:', keyword);
+            console.error('existing 데이터:', existing);
           }
         } else {
           // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
