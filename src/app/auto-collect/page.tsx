@@ -101,6 +101,7 @@ export default function AutoCollectPage() {
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
   const [remaining, setRemaining] = useState<number | null>(null)
+  const [totalNewKeywords, setTotalNewKeywords] = useState(0) // 누적된 새로 추가된 키워드 수
   const [log, setLog] = useState<string[]>([])
   const [swRegistered, setSwRegistered] = useState(false)
   const timerRef = useRef<NodeJS.Timeout | null>(null)
