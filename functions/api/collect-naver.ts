@@ -135,6 +135,9 @@ export async function onRequest(context: any) {
       );
     }
 
+    // D1 데이터베이스에 저장 (청크 처리 + 안전 대기)
+    const db = env.DB;
+
     // 저장 전 총 키워드 수 확인
     let totalBefore = 0;
     try {
@@ -144,9 +147,6 @@ export async function onRequest(context: any) {
     } catch (countError: any) {
       console.warn(`⚠️ 저장 전 총 키워드 수 확인 실패:`, countError.message);
     }
-
-    // D1 데이터베이스에 저장 (청크 처리 + 안전 대기)
-    const db = env.DB;
     
     // 데이터베이스 연결 상태 확인
     console.log('🔍 데이터베이스 연결 상태 확인 중...');
