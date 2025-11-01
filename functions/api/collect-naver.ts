@@ -571,29 +571,52 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       throw new Error('네이버 API 키가 설정되지 않았습니다.');
     }
 
-    // API 키 유효성 검증 (간단한 형식 체크)
-    for (let i = 0; i < apiKeys.length; i++) {
-      const key = apiKeys[i];
-      if (!key.key.startsWith('0100000000') || key.key.length < 20) {
-        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패: 키 형식이 올바르지 않음`);
+    // API 키 유효성 검증 (엄격한 형식 체크 및 필터링)
+    const validApiKeys = apiKeys.filter((key, i) => {
+      const isValid = 
+        key.key && 
+        key.key.startsWith('0100000000') && 
+        key.key.length >= 40 && // 네이버 API 키는 보통 40자 이상
+        key.secret && 
+        key.secret.length > 10 &&
+        key.customerId && 
+        key.customerId.length >= 8;
+      
+      if (!isValid) {
+        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패 - 제외됨:`, {
+          keyStartsWith: key.key?.startsWith('0100000000'),
+          keyLength: key.key?.length,
+          hasSecret: !!key.secret,
+          secretLength: key.secret?.length,
+          hasCustomerId: !!key.customerId,
+          customerIdLength: key.customerId?.length
+        });
       }
-      if (!key.customerId || key.customerId.length < 8) {
-        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패: 고객 ID 형식이 올바르지 않음`);
-      }
+      
+      return isValid;
+    });
+
+    if (validApiKeys.length === 0) {
+      throw new Error('유효한 네이버 API 키가 없습니다. 모든 API 키가 형식 검증을 통과하지 못했습니다.');
     }
+
+    console.log(`🔑 유효한 API 키 수: ${validApiKeys.length}/${apiKeys.length}`);
+    
+    // validApiKeys를 사용하도록 변경
+    const apiKeysToUse = validApiKeys;
 
     // 시드 기반 API 키 로테이션 (다중 키 활용으로 속도 향상)
     const seedHash = seed.split('').reduce((a, b) => {
       a = ((a << 5) - a) + b.charCodeAt(0);
       return a & a;
     }, 0);
-    const keyIndex = Math.abs(seedHash) % apiKeys.length;
-    const apiKey = apiKeys[keyIndex];
+    const keyIndex = Math.abs(seedHash) % apiKeysToUse.length;
+    const apiKey = apiKeysToUse[keyIndex];
     const KEY = apiKey.key;
     const SECRET = apiKey.secret;
     const CID = apiKey.customerId;
 
-    console.log(`🔄 API 키 로테이션: ${keyIndex + 1}/${apiKeys.length}번 키 사용 (시드: ${seed})`);
+    console.log(`🔄 API 키 로테이션: ${keyIndex + 1}/${apiKeysToUse.length}번 키 사용 (시드: ${seed})`);
 
     console.log('Using official Naver SearchAd API:', {
       base: BASE,
@@ -601,17 +624,9 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       keyLength: KEY.length,
       customerId: CID,
       customerIdLength: CID.length,
-      secretLength: SECRET.length
+      secretLength: SECRET.length,
+      keyValidated: true
     });
-
-    // API 키 검증 디버깅
-    if (KEY.length < 20 || !KEY.startsWith('0100000000')) {
-      console.error('❌ API 키 형식이 올바르지 않음:', {
-        startsWith0100000000: KEY.startsWith('0100000000'),
-        length: KEY.length,
-        first12: KEY.substring(0, 12)
-      });
-    }
 
     // 공식 API 엔드포인트 및 파라미터
     const uri = '/keywordstool';
@@ -676,6 +691,109 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
     if (!res.ok) {
       const errorText = await res.text();
       console.error(`Official Naver API Error: ${res.status} - ${errorText}`);
+      
+      // API 키가 invalid인 경우 다른 키로 재시도
+      if (errorText.includes('invalid') || errorText.includes('Invalid') || res.status === 401 || res.status === 403) {
+        console.warn(`⚠️ API 키 ${keyIndex + 1}가 유효하지 않음. 다른 키로 재시도 시도...`);
+        
+        // 현재 키를 제외한 다른 키들로 재시도
+        const otherKeys = apiKeysToUse.filter((_, idx) => idx !== keyIndex);
+        
+        if (otherKeys.length > 0) {
+          console.log(`🔄 ${otherKeys.length}개의 다른 키로 재시도 시도`);
+          
+          for (let retryIndex = 0; retryIndex < otherKeys.length; retryIndex++) {
+            const retryKey = otherKeys[retryIndex];
+            const retryKeyIndex = apiKeysToUse.findIndex(k => k.key === retryKey.key);
+            
+            console.log(`🔄 재시도 ${retryIndex + 1}/${otherKeys.length}: 키 ${retryKeyIndex + 1} 사용`);
+            
+            try {
+              const retrySig = await generateOfficialHMACSignature(ts, 'GET', uri, retryKey.secret);
+              
+              const retryRes = await fetch(`${BASE}${uri}?${qs.toString()}`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json; charset=UTF-8',
+                  'X-Timestamp': ts,
+                  'X-API-KEY': retryKey.key,
+                  'X-Customer': retryKey.customerId,
+                  'X-Signature': retrySig,
+                },
+              });
+              
+              const retryResponseTime = Date.now() - startTime;
+              
+              // API 호출 로깅 (재시도)
+              try {
+                await env.DB.prepare(`
+                  INSERT INTO api_call_logs (api_type, endpoint, method, status_code, response_time_ms, success, error_message, api_key_index)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `).bind(
+                  'searchad',
+                  uri,
+                  'GET',
+                  retryRes.status,
+                  retryResponseTime,
+                  retryRes.ok,
+                  retryRes.ok ? null : `Status: ${retryRes.status}`,
+                  retryKeyIndex
+                ).run();
+              } catch (logError) {
+                console.warn('API 호출 로깅 실패:', logError);
+              }
+              
+              if (retryRes.ok) {
+                console.log(`✅ 재시도 성공! 키 ${retryKeyIndex + 1} 사용`);
+                const retryData = await retryRes.json();
+                
+                // 시스템 메트릭스 기록 (성공한 키 인덱스 사용)
+                try {
+                  await recordSystemMetrics(env.DB, retryData.keywordList?.length || 0, retryKeyIndex);
+                } catch (metricsError) {
+                  console.warn('시스템 메트릭스 기록 실패:', metricsError);
+                }
+                
+                // 성공한 응답 처리
+                if (!retryData.keywordList || !Array.isArray(retryData.keywordList)) {
+                  console.log('No keywordList data found in retry API response');
+                  return [];
+                }
+                
+                const keywords = retryData.keywordList.map((k: any) => ({
+                  keyword: k.relKeyword,
+                  pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+                  mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+                  avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+                  monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+                  monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+                  ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+                  ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+                  ad_count: parseInt(k.plAvgDepth || '0'),
+                  comp_idx: k.compIdx || null
+                })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
+                
+                console.log(`✅ Collected ${keywords.length} keywords from retry API call`);
+                return keywords;
+              } else {
+                console.warn(`⚠️ 재시도 ${retryIndex + 1} 실패: ${retryRes.status}`);
+                // 다음 키로 계속 시도
+                continue;
+              }
+            } catch (retryError: any) {
+              console.warn(`⚠️ 재시도 ${retryIndex + 1} 에러:`, retryError.message);
+              // 다음 키로 계속 시도
+              continue;
+            }
+          }
+          
+          // 모든 재시도 실패
+          throw new Error(`모든 API 키로 시도했으나 실패했습니다. 마지막 에러: ${res.status} - ${errorText}`);
+        } else {
+          throw new Error(`공식 네이버 SearchAd API 호출 실패: ${res.status} - ${errorText}. 사용 가능한 다른 키가 없습니다.`);
+        }
+      }
+      
       throw new Error(`공식 네이버 SearchAd API 호출 실패: ${res.status} - ${errorText}`);
     }
 
