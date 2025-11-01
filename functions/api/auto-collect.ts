@@ -154,7 +154,25 @@ export async function onRequest(context: any) {
       }
     }
 
-    // 남은 수 추정: 단순 카운트 (auto_seed_usage에 없는 키워드 수)
+    // 남은 수 추정: 정확한 계산 (keywords 테이블 기준)
+    // 1. 전체 키워드 수 조회
+    const totalKeywordsQuery = `SELECT COUNT(*) as total FROM keywords`;
+    const totalKeywordsResult = await db.prepare(totalKeywordsQuery).all();
+    const totalKeywords = totalKeywordsResult.results?.[0]?.total ?? 0;
+    
+    // 2. 실제로 사용된 시드 수 조회 (keywords 테이블에 존재하는 키워드 중에서만)
+    const usedSeedsQuery = `
+      SELECT COUNT(DISTINCT k.keyword) as used
+      FROM keywords k
+      INNER JOIN auto_seed_usage a ON a.seed = k.keyword
+    `;
+    const usedSeedsResult = await db.prepare(usedSeedsQuery).all();
+    const usedSeeds = usedSeedsResult.results?.[0]?.used ?? 0;
+    
+    // 3. 남은 시드 수 계산 (전체 - 사용된)
+    const actualRemaining = Math.max(0, totalKeywords - usedSeeds);
+    
+    // 4. 기존 쿼리로 계산한 값 (비교용)
     const remainingQuery = `
       SELECT COUNT(1) as remaining
       FROM keywords k
@@ -162,14 +180,26 @@ export async function onRequest(context: any) {
       WHERE a.seed IS NULL
     `;
     const remainingRow = await db.prepare(remainingQuery).all();
-    const remaining = remainingRow.results?.[0]?.remaining ?? 0;
+    const oldRemaining = remainingRow.results?.[0]?.remaining ?? 0;
+    
+    // 디버깅 로그
+    console.log(`📊 시드 키워드 통계:`, {
+      totalKeywords,
+      usedSeeds,
+      actualRemaining,
+      oldRemaining,
+      discrepancy: oldRemaining - actualRemaining,
+      note: oldRemaining !== actualRemaining ? '⚠️ 계산 방식 차이 감지됨' : '✅ 계산 일치'
+    });
 
     return new Response(
       JSON.stringify({
         success: true,
         processed,
         processedSeeds,
-        remaining,
+        remaining: actualRemaining, // 실제 남은 시드 수 (정확한 계산)
+        totalKeywords, // 전체 키워드 수 (디버깅용)
+        usedSeeds, // 사용된 시드 수 (디버깅용)
         unlimited,
         concurrentLimit,
         totalKeywordsCollected,
@@ -177,7 +207,7 @@ export async function onRequest(context: any) {
         totalNewKeywords, // 새로 추가된 키워드 수
         targetKeywords, // 목표 키워드 수
         targetReached: targetKeywords > 0 && totalNewKeywords >= targetKeywords, // 목표 도달 여부
-        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${remaining}개`
+        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${actualRemaining}개 (전체: ${totalKeywords}개, 사용됨: ${usedSeeds}개)`
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

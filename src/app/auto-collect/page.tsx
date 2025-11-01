@@ -101,6 +101,8 @@ export default function AutoCollectPage() {
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
   const [remaining, setRemaining] = useState<number | null>(null)
+  const [totalKeywords, setTotalKeywords] = useState<number | null>(null) // 전체 키워드 수 (디버깅용)
+  const [usedSeeds, setUsedSeeds] = useState<number | null>(null) // 사용된 시드 수 (디버깅용)
   const [totalNewKeywords, setTotalNewKeywords] = useState(0) // 누적된 새로 추가된 키워드 수
   const [log, setLog] = useState<string[]>([])
   const [swRegistered, setSwRegistered] = useState(false)
@@ -190,6 +192,8 @@ export default function AutoCollectPage() {
             if (status === 'running' && batchResult) {
               setProcessed(processedCount || 0)
               if (typeof remaining === 'number') setRemaining(remaining)
+              if (typeof batchResult.totalKeywords === 'number') setTotalKeywords(batchResult.totalKeywords)
+              if (typeof batchResult.usedSeeds === 'number') setUsedSeeds(batchResult.usedSeeds)
               
               const newKeywords = newKeywordsInBatch || 0
               const totalNew = totalNewKeywords || 0
@@ -317,6 +321,8 @@ export default function AutoCollectPage() {
         })
         
         if (typeof data.remaining === 'number') setRemaining(data.remaining)
+        if (typeof data.totalKeywords === 'number') setTotalKeywords(data.totalKeywords)
+        if (typeof data.usedSeeds === 'number') setUsedSeeds(data.usedSeeds)
         
         // 목표 도달 확인
         if (data.targetReached) {
@@ -572,6 +578,11 @@ export default function AutoCollectPage() {
             <div className="p-3 bg-gray-50 rounded">
               <div className="text-sm text-gray-600">남은 시드</div>
               <div className="text-xl font-semibold">{remaining ?? '-'}</div>
+              {totalKeywords !== null && usedSeeds !== null && (
+                <div className="text-xs text-gray-500 mt-1">
+                  전체: {totalKeywords.toLocaleString()}개 / 사용: {usedSeeds.toLocaleString()}개
+                </div>
+              )}
             </div>
             {targetKeywords > 0 && (
               <div className="p-3 bg-blue-50 rounded">
