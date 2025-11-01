@@ -732,54 +732,21 @@ export async function onRequest(context: any) {
     console.log(`📊 최종 카운트: 저장=${savedCount}, 업데이트=${updatedCount}, 실패=${failedCount}, 총계=${savedCount + updatedCount}`);
     
     // 실제 총 키워드 수 확인 (저장 전후 비교)
+    let actualNewKeywords = savedCount; // 기본값: savedCount
     try {
       const totalAfter = await db.prepare('SELECT COUNT(*) as total FROM keywords').first() as { total: number } | null;
-      console.log(`📊 데이터베이스 총 키워드 수: ${totalAfter?.total || 0}개`);
+      console.log(`📊 데이터베이스 총 키워드 수: ${totalAfter?.total || 0}개 (저장 전: ${totalBefore}개)`);
       
-      const actualNewKeywords = (totalAfter?.total || 0) - totalBefore;
+      actualNewKeywords = (totalAfter?.total || 0) - totalBefore;
       console.log(`📊 실제 추가된 키워드 수: ${actualNewKeywords}개 (savedCount: ${savedCount}, 실제 DB 증가: ${actualNewKeywords})`);
       
       if (actualNewKeywords !== savedCount) {
         console.warn(`⚠️ 불일치 감지: savedCount(${savedCount})와 실제 DB 증가(${actualNewKeywords})가 다릅니다!`);
-        // 실제 추가된 키워드 수를 savedCount에 반영 (정확성 향상)
-        const correctedSavedCount = actualNewKeywords;
-        const correctedUpdatedCount = updatedCount + (savedCount - actualNewKeywords); // 차이만큼 업데이트로 전환
-        console.log(`📊 보정: savedCount=${correctedSavedCount}, updatedCount=${correctedUpdatedCount}`);
-        
-        // 응답에 실제 추가된 수 포함
-        return new Response(
-          JSON.stringify({
-            success: true,
-            seed: seed.trim(),
-            totalCollected: keywords.length,
-            totalSavedOrUpdated: correctedSavedCount + correctedUpdatedCount,
-            savedCount: correctedSavedCount, // 실제 추가된 수
-            updatedCount: correctedUpdatedCount, // 보정된 업데이트 수
-            skippedCount: 0,
-            totalAttempted: uniqueKeywords.length,
-            keywords: uniqueKeywords,
-            failedCount,
-            failedSamples,
-            docCountsCollected,
-            hasOpenApiKeys,
-            warning: savedCount !== actualNewKeywords ? `⚠️ 카운트 불일치: 보고된 savedCount(${savedCount})와 실제 추가(${actualNewKeywords})가 다릅니다. 실제 추가 수를 기준으로 반환합니다.` : undefined,
-            message: `네이버 API로 ${keywords.length}개 수집 → 중복 제거 ${uniqueKeywords.length}개 중 실제 추가 ${correctedSavedCount}개, 업데이트 ${correctedUpdatedCount}개, 실패 ${failedCount}개.${docCountsCollected > 0 ? ` 문서수 ${docCountsCollected}개 수집.` : hasOpenApiKeys ? '' : ' (오픈API 키 미설정으로 문서수 건너뜀)'}`,
-            version: 'v9.1 - 실제 DB 카운트 검증 추가',
-            timestamp: new Date().toISOString(),
-            api_implementation: {
-              endpoint: 'https://api.naver.com/keywordstool',
-              authentication: 'HMAC-SHA256 + Base64',
-              parameters: 'hintKeywords, showDetail=1',
-              response_mapping: 'relKeyword → keyword, monthlyPcQcCnt → pc_search, etc.',
-              data_normalization: '< 10 strings handled',
-              rate_limit_handling: '429 → 5min cooldown'
-            }
-          }),
-          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
       }
     } catch (countError: any) {
       console.warn(`⚠️ 총 키워드 수 확인 실패:`, countError.message);
+      // 실패해도 기존 savedCount 사용
+      actualNewKeywords = savedCount;
     }
 
     return new Response(
