@@ -127,6 +127,24 @@ export async function onRequest(context: any) {
 
     // D1 데이터베이스에 저장 (청크 처리 + 안전 대기)
     const db = env.DB;
+    
+    // 데이터베이스 연결 상태 확인
+    console.log('🔍 데이터베이스 연결 상태 확인 중...');
+    try {
+      const dbTest = await db.prepare('SELECT COUNT(*) as total FROM keywords').first();
+      console.log(`✅ 데이터베이스 연결 성공: 현재 키워드 수 ${(dbTest as any)?.total || 0}개`);
+    } catch (dbTestError: any) {
+      console.error(`❌ 데이터베이스 연결 실패:`, dbTestError.message);
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: `데이터베이스 연결 실패: ${dbTestError.message}`,
+          error: dbTestError.message
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     let savedCount = 0;
     let updatedCount = 0;
     let skippedCount = 0; // 30일 이내 중복 키워드 건너뜀 카운트
@@ -354,16 +372,92 @@ export async function onRequest(context: any) {
           try {
             console.log(`📝 INSERT 쿼리 실행 전: keyword="${keyword.keyword}", pc_search=${keyword.pc_search}, mobile_search=${keyword.mobile_search}`);
             
-            const insertResult = await runWithRetry(() => db.prepare(`
-              INSERT INTO keywords (
-                keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
-                pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).bind(
-              keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
-              keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
-              new Date().toISOString(), new Date().toISOString()
-            ).run(), 'insert keywords');
+            // INSERT 전에 중복 확인 (더 명확한 에러 처리)
+            const existingCheck = await runWithRetry(
+              () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+              'check existing before insert'
+            ) as { id: number } | null;
+
+            if (existingCheck) {
+              console.log(`⚠️ 키워드가 이미 존재함 (중복): ${keyword.keyword} (ID: ${existingCheck.id})`);
+              keywordId = existingCheck.id;
+              // 이미 존재하므로 업데이트로 처리
+              updatedCount++;
+              console.log(`📈 updatedCount 증가 (중복 발견): ${updatedCount}`);
+              continue; // 다음 키워드로
+            }
+
+            // INSERT 값 검증
+            const insertValues = {
+              keyword: keyword.keyword,
+              seed_keyword_text: seed.trim(),
+              monthly_search_pc: keyword.pc_search || 0,
+              monthly_search_mob: keyword.mobile_search || 0,
+              pc_search: keyword.pc_search || 0,
+              mobile_search: keyword.mobile_search || 0,
+              avg_monthly_search: keyword.avg_monthly_search || 0,
+              comp_index: keyword.comp_idx || 0,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            };
+
+            console.log(`📝 INSERT 값 검증:`, insertValues);
+
+            // 필수 필드 검증
+            if (!insertValues.keyword || insertValues.keyword.trim() === '') {
+              console.error(`❌ 키워드가 비어있음: "${insertValues.keyword}"`);
+              failedCount++;
+              if (failedSamples.length < 5) {
+                failedSamples.push({ keyword: keyword.keyword || 'empty', error: '키워드가 비어있음' });
+              }
+              continue;
+            }
+
+            if (!insertValues.seed_keyword_text || insertValues.seed_keyword_text.trim() === '') {
+              console.error(`❌ 시드 키워드가 비어있음: "${insertValues.seed_keyword_text}"`);
+              failedCount++;
+              if (failedSamples.length < 5) {
+                failedSamples.push({ keyword: keyword.keyword || 'empty', error: '시드 키워드가 비어있음' });
+              }
+              continue;
+            }
+
+            let insertResult;
+            try {
+              insertResult = await db.prepare(`
+                INSERT INTO keywords (
+                  keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
+                  pc_search, mobile_search, avg_monthly_search, comp_index, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+              `).bind(
+                insertValues.keyword,
+                insertValues.seed_keyword_text,
+                insertValues.monthly_search_pc,
+                insertValues.monthly_search_mob,
+                insertValues.pc_search,
+                insertValues.mobile_search,
+                insertValues.avg_monthly_search,
+                insertValues.comp_index,
+                insertValues.created_at,
+                insertValues.updated_at
+              ).run();
+            } catch (insertQueryError: any) {
+              console.error(`❌ INSERT 쿼리 실행 실패:`, {
+                message: insertQueryError.message,
+                stack: insertQueryError.stack,
+                name: insertQueryError.name,
+                keyword: keyword.keyword,
+                insertValues
+              });
+              failedCount++;
+              if (failedSamples.length < 5) {
+                failedSamples.push({ 
+                  keyword: keyword.keyword || 'unknown', 
+                  error: `INSERT 쿼리 실행 실패: ${insertQueryError.message}` 
+                });
+              }
+              continue;
+            }
 
             console.log(`🔍 INSERT 결과 전체:`, JSON.stringify(insertResult, null, 2));
             console.log(`🔍 INSERT 결과 타입:`, typeof insertResult);
@@ -374,27 +468,50 @@ export async function onRequest(context: any) {
             console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
             console.log(`🔍 INSERT 결과 상세:`, { changes, keywordId, hasMeta: !!(insertResult as any)?.meta });
 
-            // INSERT 직후 실제 저장 여부 확인
-            const verifyInsert = await runWithRetry(
-              () => db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
-              'verify insert after insert'
-            ) as { id: number; keyword: string } | null;
+            // INSERT 직후 실제 저장 여부 확인 (즉시 확인 및 재시도)
+            let verifyInsert: { id: number; keyword: string } | null = null;
+            let verifyAttempts = 0;
+            const maxVerifyAttempts = 3;
+
+            while (!verifyInsert && verifyAttempts < maxVerifyAttempts) {
+              verifyAttempts++;
+              await new Promise(resolve => setTimeout(resolve, 100 * verifyAttempts)); // 점진적 대기
+              
+              try {
+                verifyInsert = await db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?')
+                  .bind(keyword.keyword)
+                  .first() as { id: number; keyword: string } | null;
+
+                if (verifyInsert) {
+                  break;
+                }
+              } catch (verifyError: any) {
+                console.warn(`⚠️ 검증 조회 실패 (시도 ${verifyAttempts}/${maxVerifyAttempts}):`, verifyError.message);
+              }
+            }
 
             if (verifyInsert) {
               keywordId = verifyInsert.id;
-              console.log(`✅ INSERT 검증 성공: 키워드가 실제로 저장됨 (ID: ${keywordId})`);
+              console.log(`✅ INSERT 검증 성공: 키워드가 실제로 저장됨 (ID: ${keywordId}, 검증 시도: ${verifyAttempts})`);
               savedCount++;
               console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId})`);
             } else {
               console.error(`❌ INSERT 검증 실패: 키워드가 실제로 저장되지 않음: ${keyword.keyword}`);
-              console.error(`❌ INSERT 결과: changes=${changes}, keywordId=${keywordId}`);
+              console.error(`❌ INSERT 결과 상세:`, {
+                changes,
+                keywordId,
+                hasMeta: !!(insertResult as any)?.meta,
+                metaKeys: insertResult ? Object.keys(insertResult) : [],
+                insertResult: JSON.stringify(insertResult, null, 2),
+                검증시도횟수: verifyAttempts
+              });
               // 저장 실패한 경우
               failedCount++;
               console.log(`📈 failedCount 증가: ${failedCount}`);
               if (failedSamples.length < 5) {
                 failedSamples.push({ 
                   keyword: keyword.keyword, 
-                  error: `INSERT 실행되었지만 검증 실패. changes=${changes}, keywordId=${keywordId}` 
+                  error: `INSERT 실행되었지만 검증 실패. changes=${changes}, keywordId=${keywordId}, 검증시도=${verifyAttempts}` 
                 });
               }
               // keywordId가 없으면 다음 단계 스킵
