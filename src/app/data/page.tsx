@@ -293,11 +293,27 @@ export default function DataPage() {
     
     channel.addEventListener('message', (event) => {
       if (event.data?.type === 'KEYWORD_SAVED') {
-        console.log('💾 키워드 저장 완료 감지, 자동 새로고침:', event.data.count)
+        const savedCount = event.data.savedCount || 0;
+        const updatedCount = event.data.updatedCount || 0;
+        const totalCount = event.data.count || 0;
+        
+        console.log('💾 키워드 저장 완료 감지, 자동 새로고침:', { savedCount, updatedCount, totalCount })
+        
         // 1초 후 새로고침 (저장 완료 대기)
         setTimeout(() => {
           loadKeywords(1)
-          setMessage(`✅ ${event.data.count}개의 새 키워드가 저장되어 자동으로 새로고침되었습니다.`)
+          let message = '';
+          if (savedCount > 0) {
+            message = `✅ ${savedCount}개의 새 키워드가 추가되어 총 키워드 수가 증가했습니다.`;
+            if (updatedCount > 0) {
+              message += ` (기존 키워드 ${updatedCount}개 업데이트)`;
+            }
+          } else if (updatedCount > 0) {
+            message = `✅ 기존 키워드 ${updatedCount}개가 업데이트되었습니다. (총 키워드 수는 변하지 않음)`;
+          } else {
+            message = `✅ ${totalCount}개의 키워드가 처리되었습니다.`;
+          }
+          setMessage(message)
         }, 1000)
       }
     })

@@ -68,9 +68,31 @@ export default function Home() {
         console.log('API 성공 응답:', result)
         
         if (result.success) {
-          const savedMsg = result.totalSavedOrUpdated > 0
-            ? `${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장(업데이트)했습니다.`
-            : '저장된 키워드가 없습니다.';
+          // 중복 제거 정보 포함
+          const duplicateCount = result.totalCollected - (result.totalAttempted || result.totalSavedOrUpdated);
+          const newSavedCount = result.savedCount || 0;
+          const updatedCount = result.updatedCount || 0;
+          
+          let savedMsg = '';
+          if (result.totalSavedOrUpdated > 0) {
+            savedMsg = `${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 처리했습니다.`;
+            if (newSavedCount > 0) {
+              savedMsg += ` (새로 추가: ${newSavedCount}개`;
+              if (updatedCount > 0) {
+                savedMsg += `, 기존 업데이트: ${updatedCount}개`;
+              }
+              savedMsg += ')';
+            } else if (updatedCount > 0) {
+              savedMsg += ` (모두 기존 키워드 업데이트: ${updatedCount}개)`;
+            }
+            
+            // 중복 제거 정보 추가
+            if (duplicateCount > 0) {
+              savedMsg += `\n📌 참고: ${result.totalCollected}개 수집 → 중복 제거 후 ${result.totalAttempted || result.totalSavedOrUpdated}개 처리`;
+            }
+          } else {
+            savedMsg = '저장된 키워드가 없습니다.';
+          }
 
           setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${savedMsg}`)
           
@@ -88,6 +110,8 @@ export default function Home() {
                 channel.postMessage({ 
                   type: 'KEYWORD_SAVED', 
                   count: result.totalSavedOrUpdated,
+                  savedCount: newSavedCount, // 새로 추가된 키워드 수
+                  updatedCount: updatedCount, // 업데이트된 키워드 수
                   timestamp: Date.now()
                 });
                 channel.close();
