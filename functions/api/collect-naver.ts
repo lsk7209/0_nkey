@@ -374,23 +374,33 @@ export async function onRequest(context: any) {
             console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
             console.log(`🔍 INSERT 결과 상세:`, { changes, keywordId, hasMeta: !!(insertResult as any)?.meta });
 
-            // INSERT 시도는 항상 카운트로 인정
-            savedCount++;
-            console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId || 'null'})`);
+            // INSERT 직후 실제 저장 여부 확인
+            const verifyInsert = await runWithRetry(
+              () => db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+              'verify insert after insert'
+            ) as { id: number; keyword: string } | null;
 
-            // keywordId가 없으면 다시 조회해서 가져오기
-            if (!keywordId) {
-              console.warn(`⚠️ keywordId가 없어서 다시 조회: ${keyword.keyword}`);
-              const retryCheck = await runWithRetry(
-                () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
-                'retry check after insert'
-              ) as { id: number } | null;
-              
-              if (retryCheck) {
-                keywordId = retryCheck.id;
-                console.log(`✅ 재확인: 키워드가 존재함 (ID: ${keywordId})`);
-              } else {
-                console.error(`❌ 재확인 실패: 키워드가 존재하지 않음: ${keyword.keyword}`);
+            if (verifyInsert) {
+              keywordId = verifyInsert.id;
+              console.log(`✅ INSERT 검증 성공: 키워드가 실제로 저장됨 (ID: ${keywordId})`);
+              savedCount++;
+              console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId})`);
+            } else {
+              console.error(`❌ INSERT 검증 실패: 키워드가 실제로 저장되지 않음: ${keyword.keyword}`);
+              console.error(`❌ INSERT 결과: changes=${changes}, keywordId=${keywordId}`);
+              // 저장 실패한 경우
+              failedCount++;
+              console.log(`📈 failedCount 증가: ${failedCount}`);
+              if (failedSamples.length < 5) {
+                failedSamples.push({ 
+                  keyword: keyword.keyword, 
+                  error: `INSERT 실행되었지만 검증 실패. changes=${changes}, keywordId=${keywordId}` 
+                });
+              }
+              // keywordId가 없으면 다음 단계 스킵
+              if (!keywordId) {
+                console.warn(`⚠️ keywordId가 없어서 keyword_metrics 저장 건너뜀`);
+                continue; // 다음 키워드로
               }
             }
 
