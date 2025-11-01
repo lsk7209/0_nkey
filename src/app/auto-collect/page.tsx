@@ -132,8 +132,10 @@ export default function AutoCollectPage() {
   const backgroundModeRef = useRef(backgroundMode)
   const limitRef = useRef(limit)
   const concurrentRef = useRef(concurrent)
+  const targetKeywordsRef = useRef(targetKeywords)
   const processedRef = useRef(processed)
   const processingRef = useRef(processing)
+  const totalNewKeywordsRef = useRef(totalNewKeywords)
 
   useEffect(() => {
     enabledRef.current = enabled
