@@ -121,6 +121,20 @@ export async function onRequest(context: any) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    // 필터 디버깅 로그
+    console.log(`🔍 필터 적용:`, {
+      conditions: conditions.length,
+      whereClause,
+      bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
+      filters: {
+        minAvgSearch, maxAvgSearch,
+        minCafeTotal, maxCafeTotal,
+        minBlogTotal, maxBlogTotal,
+        minWebTotal, maxWebTotal,
+        minNewsTotal, maxNewsTotal
+      }
+    });
+
     // D1 데이터베이스에서 키워드 조회 (최적화된 쿼리)
     const db = env.DB;
 
@@ -185,8 +199,18 @@ export async function onRequest(context: any) {
         whereClause: whereClause || '(없음)',
         countResultRaw: countResult.results?.[0],
         total,
-        bindingsCount: bindings.length
+        bindingsCount: bindings.length,
+        actualKeywordsReturned: result.results?.length || 0
       });
+
+      // 필터가 적용되었는데 결과가 없으면 경고
+      if (conditions.length > 0 && total === 0) {
+        console.warn(`⚠️ 필터 적용되었지만 결과가 0개:`, {
+          conditions,
+          bindings,
+          whereClause
+        });
+      }
 
     } catch (queryError: any) {
       console.error('키워드 조회 쿼리 에러:', queryError.message);
