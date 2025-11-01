@@ -9,6 +9,8 @@
 export async function onRequest(context: any) {
   const { request, env } = context;
 
+  console.log('🌐 system-monitor API 호출:', request.method, request.url);
+
   // CORS 헤더
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -30,6 +32,7 @@ export async function onRequest(context: any) {
   // 관리자 키 검증
   const adminKey = request.headers.get('x-admin-key');
   if (adminKey !== 'dev-key-2024') {
+    console.log('❌ 인증 실패:', adminKey);
     return new Response(
       JSON.stringify({ success: false, error: 'Unauthorized' }),
       { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -41,28 +44,37 @@ export async function onRequest(context: any) {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || 'status';
 
+    console.log('🔍 action 파라미터:', action);
+
     switch (action) {
       case 'status':
+        console.log('✅ getSystemStatus 호출');
         return await getSystemStatus(db, corsHeaders);
 
       case 'metrics':
+        console.log('✅ getSystemMetrics 호출');
         return await getSystemMetrics(db, corsHeaders);
 
       case 'api_stats':
+        console.log('✅ getApiStats 호출');
         return await getApiStats(db, corsHeaders, request);
 
       case 'api-status':
+        console.log('✅ getApiStatus 호출');
         return await getApiStatus(env, corsHeaders);
 
       case 'optimize':
+        console.log('✅ runOptimization 호출');
         return await runOptimization(db, corsHeaders);
 
       case 'cleanup-duplicates':
+        console.log('✅ cleanupDuplicates 호출');
         return await cleanupDuplicates(db, corsHeaders);
 
       default:
+        console.log('❌ 알 수 없는 action:', action);
         return new Response(
-          JSON.stringify({ success: false, error: 'Invalid action' }),
+          JSON.stringify({ success: false, error: 'Invalid action', receivedAction: action }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }
@@ -274,163 +286,222 @@ async function runOptimization(db: any, corsHeaders: any) {
 // API 키 상태 조회
 async function getApiStatus(env: any, corsHeaders: any) {
   try {
+    console.log('📊 getApiStatus 시작');
+    const db = env.DB;
+    
+    if (!db) {
+      throw new Error('Database connection not available');
+    }
+    
+    // 오늘 날짜 기준 (UTC) - SQLite 날짜 비교
+    const todayStart = new Date().toISOString().split('T')[0] + 'T00:00:00.000Z';
+    const todayEnd = new Date().toISOString().split('T')[0] + 'T23:59:59.999Z';
+    
+    console.log('📅 오늘 날짜 범위:', todayStart, '~', todayEnd);
+    
+    // API 사용량 통계 조회
+    const apiUsageStats = await db.prepare(`
+      SELECT 
+        api_type,
+        api_key_index,
+        COUNT(*) as used_count,
+        MAX(created_at) as last_used,
+        SUM(CASE WHEN success = 1 THEN 1 ELSE 0 END) as success_count
+      FROM api_call_logs
+      WHERE created_at >= ? AND created_at <= ?
+      GROUP BY api_type, api_key_index
+    `).bind(todayStart, todayEnd).all().catch((err: any) => {
+      console.error('❌ API 사용량 통계 조회 실패:', err);
+      return { results: [] };
+    });
+    
+    console.log('📈 API 사용량 통계 결과:', apiUsageStats.results?.length || 0, '개');
+
+    // 통계를 맵으로 변환 (빠른 조회를 위해)
+    const usageMap = new Map<string, { used: number; lastUsed: string | null; successCount: number }>();
+    (apiUsageStats.results || []).forEach((stat: any) => {
+      const key = `${stat.api_type}_${stat.api_key_index || 0}`;
+      usageMap.set(key, {
+        used: stat.used_count || 0,
+        lastUsed: stat.last_used || null,
+        successCount: stat.success_count || 0
+      });
+    });
+
+    const getUsage = (apiType: string, index: number) => {
+      const key = `${apiType}_${index}`;
+      return usageMap.get(key) || { used: 0, lastUsed: null, successCount: 0 };
+    };
+
     const apiKeys = {
       adsApiKeys: [
         {
           name: 'NAVER_API_KEY_1',
-          clientId: env.NAVER_API_KEY_1 ? env.NAVER_API_KEY_1.substring(0, 8) + '...' : null,
-          usedToday: 0, // 실제로는 API 사용량을 추적해야 함
-          dailyLimit: 25000, // 네이버 검색광고 API 일일 제한
-          remaining: 25000,
+          clientId: env.NAVER_API_KEY_1 ? env.NAVER_API_KEY_1.substring(0, 12) + '...' : null,
+          usedToday: getUsage('searchad', 1).used,
+          successCount: getUsage('searchad', 1).successCount,
+          dailyLimit: 25000,
+          remaining: 25000 - getUsage('searchad', 1).used,
           isActive: !!env.NAVER_API_KEY_1 && !!env.NAVER_API_SECRET_1 && !!env.NAVER_CUSTOMER_ID_1,
-          lastUsed: Date.now() - Math.random() * 86400000 // 임의의 최근 사용 시간
+          lastUsed: getUsage('searchad', 1).lastUsed
         },
         {
           name: 'NAVER_API_KEY_2',
-          clientId: env.NAVER_API_KEY_2 ? env.NAVER_API_KEY_2.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_API_KEY_2 ? env.NAVER_API_KEY_2.substring(0, 12) + '...' : null,
+          usedToday: getUsage('searchad', 2).used,
+          successCount: getUsage('searchad', 2).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('searchad', 2).used,
           isActive: !!env.NAVER_API_KEY_2 && !!env.NAVER_API_SECRET_2 && !!env.NAVER_CUSTOMER_ID_2,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('searchad', 2).lastUsed
         },
         {
           name: 'NAVER_API_KEY_3',
-          clientId: env.NAVER_API_KEY_3 ? env.NAVER_API_KEY_3.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_API_KEY_3 ? env.NAVER_API_KEY_3.substring(0, 12) + '...' : null,
+          usedToday: getUsage('searchad', 3).used,
+          successCount: getUsage('searchad', 3).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('searchad', 3).used,
           isActive: !!env.NAVER_API_KEY_3 && !!env.NAVER_API_SECRET_3 && !!env.NAVER_CUSTOMER_ID_3,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('searchad', 3).lastUsed
         },
         {
           name: 'NAVER_API_KEY_4',
-          clientId: env.NAVER_API_KEY_4 ? env.NAVER_API_KEY_4.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_API_KEY_4 ? env.NAVER_API_KEY_4.substring(0, 12) + '...' : null,
+          usedToday: getUsage('searchad', 4).used,
+          successCount: getUsage('searchad', 4).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('searchad', 4).used,
           isActive: !!env.NAVER_API_KEY_4 && !!env.NAVER_API_SECRET_4 && !!env.NAVER_CUSTOMER_ID_4,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('searchad', 4).lastUsed
         },
         {
           name: 'NAVER_API_KEY_5',
-          clientId: env.NAVER_API_KEY_5 ? env.NAVER_API_KEY_5.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_API_KEY_5 ? env.NAVER_API_KEY_5.substring(0, 12) + '...' : null,
+          usedToday: getUsage('searchad', 5).used,
+          successCount: getUsage('searchad', 5).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('searchad', 5).used,
           isActive: !!env.NAVER_API_KEY_5 && !!env.NAVER_API_SECRET_5 && !!env.NAVER_CUSTOMER_ID_5,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('searchad', 5).lastUsed
         }
       ],
       openApiKeys: [
         {
           name: 'NAVER_OPENAPI_KEY_1',
-          clientId: env.NAVER_OPENAPI_KEY_1 ? env.NAVER_OPENAPI_KEY_1.substring(0, 8) + '...' : null,
-          usedToday: 0, // 실제로는 API 사용량을 추적해야 함
-          dailyLimit: 25000, // 네이버 오픈API 일일 제한
-          remaining: 25000,
+          clientId: env.NAVER_OPENAPI_KEY_1 ? env.NAVER_OPENAPI_KEY_1.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 1).used,
+          successCount: getUsage('openapi', 1).successCount,
+          dailyLimit: 25000,
+          remaining: 25000 - getUsage('openapi', 1).used,
           isActive: !!env.NAVER_OPENAPI_KEY_1 && !!env.NAVER_OPENAPI_SECRET_1,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 1).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_2',
-          clientId: env.NAVER_OPENAPI_KEY_2 ? env.NAVER_OPENAPI_KEY_2.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_2 ? env.NAVER_OPENAPI_KEY_2.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 2).used,
+          successCount: getUsage('openapi', 2).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 2).used,
           isActive: !!env.NAVER_OPENAPI_KEY_2 && !!env.NAVER_OPENAPI_SECRET_2,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 2).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_3',
-          clientId: env.NAVER_OPENAPI_KEY_3 ? env.NAVER_OPENAPI_KEY_3.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_3 ? env.NAVER_OPENAPI_KEY_3.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 3).used,
+          successCount: getUsage('openapi', 3).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 3).used,
           isActive: !!env.NAVER_OPENAPI_KEY_3 && !!env.NAVER_OPENAPI_SECRET_3,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 3).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_4',
-          clientId: env.NAVER_OPENAPI_KEY_4 ? env.NAVER_OPENAPI_KEY_4.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_4 ? env.NAVER_OPENAPI_KEY_4.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 4).used,
+          successCount: getUsage('openapi', 4).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 4).used,
           isActive: !!env.NAVER_OPENAPI_KEY_4 && !!env.NAVER_OPENAPI_SECRET_4,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 4).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_5',
-          clientId: env.NAVER_OPENAPI_KEY_5 ? env.NAVER_OPENAPI_KEY_5.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_5 ? env.NAVER_OPENAPI_KEY_5.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 5).used,
+          successCount: getUsage('openapi', 5).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 5).used,
           isActive: !!env.NAVER_OPENAPI_KEY_5 && !!env.NAVER_OPENAPI_SECRET_5,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 5).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_6',
-          clientId: env.NAVER_OPENAPI_KEY_6 ? env.NAVER_OPENAPI_KEY_6.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_6 ? env.NAVER_OPENAPI_KEY_6.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 6).used,
+          successCount: getUsage('openapi', 6).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 6).used,
           isActive: !!env.NAVER_OPENAPI_KEY_6 && !!env.NAVER_OPENAPI_SECRET_6,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 6).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_7',
-          clientId: env.NAVER_OPENAPI_KEY_7 ? env.NAVER_OPENAPI_KEY_7.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_7 ? env.NAVER_OPENAPI_KEY_7.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 7).used,
+          successCount: getUsage('openapi', 7).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 7).used,
           isActive: !!env.NAVER_OPENAPI_KEY_7 && !!env.NAVER_OPENAPI_SECRET_7,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 7).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_8',
-          clientId: env.NAVER_OPENAPI_KEY_8 ? env.NAVER_OPENAPI_KEY_8.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_8 ? env.NAVER_OPENAPI_KEY_8.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 8).used,
+          successCount: getUsage('openapi', 8).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 8).used,
           isActive: !!env.NAVER_OPENAPI_KEY_8 && !!env.NAVER_OPENAPI_SECRET_8,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 8).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_9',
-          clientId: env.NAVER_OPENAPI_KEY_9 ? env.NAVER_OPENAPI_KEY_9.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_9 ? env.NAVER_OPENAPI_KEY_9.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 9).used,
+          successCount: getUsage('openapi', 9).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 9).used,
           isActive: !!env.NAVER_OPENAPI_KEY_9 && !!env.NAVER_OPENAPI_SECRET_9,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 9).lastUsed
         },
         {
           name: 'NAVER_OPENAPI_KEY_10',
-          clientId: env.NAVER_OPENAPI_KEY_10 ? env.NAVER_OPENAPI_KEY_10.substring(0, 8) + '...' : null,
-          usedToday: 0,
+          clientId: env.NAVER_OPENAPI_KEY_10 ? env.NAVER_OPENAPI_KEY_10.substring(0, 12) + '...' : null,
+          usedToday: getUsage('openapi', 10).used,
+          successCount: getUsage('openapi', 10).successCount,
           dailyLimit: 25000,
-          remaining: 25000,
+          remaining: 25000 - getUsage('openapi', 10).used,
           isActive: !!env.NAVER_OPENAPI_KEY_10 && !!env.NAVER_OPENAPI_SECRET_10,
-          lastUsed: Date.now() - Math.random() * 86400000
+          lastUsed: getUsage('openapi', 10).lastUsed
         }
       ]
     };
 
-    // 실제 API 사용량을 데이터베이스에서 조회 (향후 구현)
-    // const db = env.DB;
-    // const apiUsageStats = await db.prepare(`
-    //   SELECT api_type, api_key_index, COUNT(*) as calls
-    //   FROM api_call_logs
-    //   WHERE created_at >= datetime('now', '-1 day')
-    //   GROUP BY api_type, api_key_index
-    // `).all();
-
+    // 요약 정보 계산
     const adsSummary = {
       totalAdsKeys: apiKeys.adsApiKeys.length,
       activeAdsKeys: apiKeys.adsApiKeys.filter(k => k.isActive).length,
       totalRemaining: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.remaining, 0),
       totalUsed: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.usedToday, 0),
-      totalLimit: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0)
+      totalSuccess: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.successCount || 0), 0),
+      totalLimit: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0),
+      successRate: apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.usedToday || 0), 0) > 0
+        ? (apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.successCount || 0), 0) / 
+           apiKeys.adsApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.usedToday || 0), 0) * 100).toFixed(1)
+        : '0.0'
     };
 
     const openApiSummary = {
@@ -438,7 +509,12 @@ async function getApiStatus(env: any, corsHeaders: any) {
       activeOpenApiKeys: apiKeys.openApiKeys.filter(k => k.isActive).length,
       totalRemaining: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.remaining, 0),
       totalUsed: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.usedToday, 0),
-      totalLimit: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0)
+      totalSuccess: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.successCount || 0), 0),
+      totalLimit: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + k.dailyLimit, 0),
+      successRate: apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.usedToday || 0), 0) > 0
+        ? (apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.successCount || 0), 0) / 
+           apiKeys.openApiKeys.filter(k => k.isActive).reduce((sum, k) => sum + (k.usedToday || 0), 0) * 100).toFixed(1)
+        : '0.0'
     };
 
     const overallSummary = {
@@ -446,7 +522,12 @@ async function getApiStatus(env: any, corsHeaders: any) {
       activeApiKeys: adsSummary.activeAdsKeys + openApiSummary.activeOpenApiKeys,
       totalRemaining: adsSummary.totalRemaining + openApiSummary.totalRemaining,
       totalUsed: adsSummary.totalUsed + openApiSummary.totalUsed,
-      totalLimit: adsSummary.totalLimit + openApiSummary.totalLimit
+      totalSuccess: adsSummary.totalSuccess + openApiSummary.totalSuccess,
+      totalLimit: adsSummary.totalLimit + openApiSummary.totalLimit,
+      successRate: (adsSummary.totalUsed + openApiSummary.totalUsed) > 0
+        ? (((adsSummary.totalSuccess + openApiSummary.totalSuccess) / 
+            (adsSummary.totalUsed + openApiSummary.totalUsed)) * 100).toFixed(1)
+        : '0.0'
     };
 
     return new Response(
