@@ -239,6 +239,28 @@ export default function DataPage() {
     loadKeywords(1, false)
   }, [])
 
+  // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return
+
+    const channel = new BroadcastChannel('keyword-saved')
+    
+    channel.addEventListener('message', (event) => {
+      if (event.data?.type === 'KEYWORD_SAVED') {
+        console.log('💾 키워드 저장 완료 감지, 자동 새로고침:', event.data.count)
+        // 1초 후 새로고침 (저장 완료 대기)
+        setTimeout(() => {
+          loadKeywords(1, false)
+          setMessage(`✅ ${event.data.count}개의 새 키워드가 저장되어 자동으로 새로고침되었습니다.`)
+        }, 1000)
+      }
+    })
+
+    return () => {
+      channel.close()
+    }
+  }, [loadKeywords])
+
 
   const handleClearAll = async () => {
     if (!confirm('모든 키워드를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {

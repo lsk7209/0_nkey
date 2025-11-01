@@ -69,7 +69,32 @@ export default function Home() {
         
         if (result.success) {
           const skippedMsg = result.skippedCount > 0 ? ` (${result.skippedCount}개는 30일 이내 업데이트되어 건너뜀)` : '';
-          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.${skippedMsg}`)
+          const savedMsg = result.totalSavedOrUpdated > 0 
+            ? `${result.totalSavedOrUpdated}개를 클라우드 데이터베이스에 저장했습니다.`
+            : '저장된 키워드가 없습니다. (모두 30일 이내 업데이트된 키워드이거나 중복입니다)';
+          
+          setMessage(`✅ 성공! ${result.totalCollected}개의 키워드를 수집하여 ${savedMsg}${skippedMsg}`)
+          
+          // 저장 성공 시 데이터 페이지로 안내 (브라우저가 데이터 페이지에 있다면 자동 새로고침)
+          if (result.totalSavedOrUpdated > 0) {
+            // 현재 페이지가 데이터 페이지인지 확인
+            if (typeof window !== 'undefined') {
+              // 데이터 페이지로 리다이렉트된 경우를 위한 메시지 추가
+              const dataPageMessage = `💡 저장된 키워드는 "데이터" 메뉴에서 확인할 수 있습니다.`;
+              setMessage(prev => prev + `\n\n${dataPageMessage}`)
+              
+              // 다른 탭/윈도우에 저장 완료 메시지 전송 (BroadcastChannel 사용)
+              if (typeof BroadcastChannel !== 'undefined') {
+                const channel = new BroadcastChannel('keyword-saved');
+                channel.postMessage({ 
+                  type: 'KEYWORD_SAVED', 
+                  count: result.totalSavedOrUpdated,
+                  timestamp: Date.now()
+                });
+                channel.close();
+              }
+            }
+          }
           
           // API 응답에서 직접 키워드 데이터 표시
           if (result.keywords && Array.isArray(result.keywords)) {
