@@ -153,6 +153,13 @@ export async function onRequest(context: any) {
           'select keywords'
         ) as { id: number; updated_at: string } | null;
 
+        console.log(`🔍 키워드 ${keyword.keyword} existing 조회 결과:`, {
+          existing: !!existing,
+          id: existing?.id,
+          updated_at: existing?.updated_at,
+          typeof_existing: typeof existing
+        });
+
         let keywordId: number | null = null;
 
         if (existing) {
