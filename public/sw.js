@@ -150,8 +150,8 @@ async function runBatch() {
         })
       })
 
-      // 제한 도달 시 중단
-      if (autoCollectConfig.limit > 0 && processedCount >= autoCollectConfig.limit) {
+      // 제한 도달 시 중단 (null 체크 추가)
+      if (autoCollectConfig && autoCollectConfig.limit > 0 && processedCount >= autoCollectConfig.limit) {
         console.log('[SW] 목표 개수 도달, 자동 중단')
         stopAutoCollect()
       }

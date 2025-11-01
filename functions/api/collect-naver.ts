@@ -259,6 +259,7 @@ export async function onRequest(context: any) {
           }
         } else {
           // 새 키워드 삽입 - 중복 시 업데이트 (기존 created_at 유지)
+          console.log(`➕ 새 키워드 삽입 시작: ${keyword.keyword}`);
           const insertResult = await runWithRetry(() => db.prepare(`
             INSERT INTO keywords (
               keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
@@ -277,21 +278,29 @@ export async function onRequest(context: any) {
             keyword.keyword, seed.trim(), keyword.pc_search, keyword.mobile_search,
             keyword.pc_search, keyword.mobile_search, keyword.avg_monthly_search, keyword.comp_idx || 0,
             new Date().toISOString(), new Date().toISOString()
-          ).run(), 'insert keywords') as { meta: { last_row_id: number } };
+          ).run(), 'insert keywords') as { meta: { last_row_id: number; changes: number } };
 
+          const changes = (insertResult as any).meta?.changes || 0;
           keywordId = insertResult.meta.last_row_id;
 
-          // keyword_metrics 테이블에 메트릭 데이터 삽입
-          await runWithRetry(() => db.prepare(`
-            INSERT INTO keyword_metrics (
-              keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
-            ) VALUES (?, ?, ?, ?, ?, ?)
-          `).bind(
-            keywordId,
-            keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
-            keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
-          ).run(), 'insert keyword_metrics');
-          savedCount++;
+          console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
+
+          if (changes > 0) {
+            // keyword_metrics 테이블에 메트릭 데이터 삽입
+            await runWithRetry(() => db.prepare(`
+              INSERT INTO keyword_metrics (
+                keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
+              ) VALUES (?, ?, ?, ?, ?, ?)
+            `).bind(
+              keywordId,
+              keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
+              keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
+            ).run(), 'insert keyword_metrics');
+            savedCount++;
+            console.log(`📈 savedCount 증가: ${savedCount} (현재 총계: ${savedCount})`);
+          } else {
+            console.warn(`⚠️ 키워드 삽입했지만 changes가 0임: ${keyword.keyword} - ON CONFLICT로 업데이트되었을 가능성`);
+          }
         }
 
         // 문서수 수집 (최대 10개까지, API 제한 고려)
