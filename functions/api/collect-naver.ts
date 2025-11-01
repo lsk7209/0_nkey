@@ -214,6 +214,9 @@ export async function onRequest(context: any) {
           // 기존 키워드 업데이트 (30일 정책 통과)
           console.log(`🔄 기존 키워드 업데이트 시작: ${keyword.keyword} (ID: ${existing.id})`);
           try {
+            const newUpdatedAt = new Date().toISOString();
+            console.log(`📝 업데이트할 값: avg_monthly_search=${keyword.avg_monthly_search}, updated_at=${newUpdatedAt}`);
+
             // 간단한 업데이트 쿼리로 테스트
             const updateResult = await runWithRetry(() => db.prepare(`
               UPDATE keywords SET
@@ -222,18 +225,23 @@ export async function onRequest(context: any) {
               WHERE id = ?
             `).bind(
               keyword.avg_monthly_search,
-              new Date().toISOString(),
+              newUpdatedAt,
               existing.id
             ).run(), 'update existing keyword simple');
 
             const changes = (updateResult as any).meta?.changes || 0;
-            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}`);
+            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}, ID: ${existing.id}`);
 
             if (changes > 0) {
               updatedCount++;
               console.log(`📈 updatedCount 증가: ${updatedCount} (현재 총계: ${updatedCount})`);
             } else {
-              console.warn(`⚠️ 업데이트 쿼리 실행되었지만 변경된 행이 0임: ${keyword.keyword}`);
+              console.warn(`⚠️ 업데이트 쿼리 실행되었지만 변경된 행이 0임: ${keyword.keyword} (ID: ${existing.id})`);
+              console.warn('업데이트 값 확인:', {
+                new_avg: keyword.avg_monthly_search,
+                new_updated_at: newUpdatedAt,
+                existing_id: existing.id
+              });
             }
           } catch (updateError: any) {
             console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
