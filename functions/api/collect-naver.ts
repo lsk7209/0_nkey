@@ -411,8 +411,21 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       { key: env.NAVER_API_KEY_5, secret: env.NAVER_API_SECRET_5, customerId: env.NAVER_CUSTOMER_ID_5 }
     ].filter(api => api.key && api.secret && api.customerId);
 
+    console.log(`🔑 사용 가능한 API 키 수: ${apiKeys.length}`);
+
     if (apiKeys.length === 0) {
       throw new Error('네이버 API 키가 설정되지 않았습니다.');
+    }
+
+    // API 키 유효성 검증 (간단한 형식 체크)
+    for (let i = 0; i < apiKeys.length; i++) {
+      const key = apiKeys[i];
+      if (!key.key.startsWith('0100000000') || key.key.length < 20) {
+        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패: 키 형식이 올바르지 않음`);
+      }
+      if (!key.customerId || key.customerId.length < 8) {
+        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패: 고객 ID 형식이 올바르지 않음`);
+      }
     }
 
     // 시드 기반 API 키 로테이션 (다중 키 활용으로 속도 향상)
@@ -430,9 +443,21 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
 
     console.log('Using official Naver SearchAd API:', {
       base: BASE,
-      key: KEY.substring(0, 8) + '...',
-      customerId: CID
+      key: KEY.substring(0, 12) + '...',
+      keyLength: KEY.length,
+      customerId: CID,
+      customerIdLength: CID.length,
+      secretLength: SECRET.length
     });
+
+    // API 키 검증 디버깅
+    if (KEY.length < 20 || !KEY.startsWith('0100000000')) {
+      console.error('❌ API 키 형식이 올바르지 않음:', {
+        startsWith0100000000: KEY.startsWith('0100000000'),
+        length: KEY.length,
+        first12: KEY.substring(0, 12)
+      });
+    }
 
     // 공식 API 엔드포인트 및 파라미터
     const uri = '/keywordstool';
