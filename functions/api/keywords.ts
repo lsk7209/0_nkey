@@ -68,8 +68,11 @@ export async function onRequest(context: any) {
     const conditions: string[] = [];
     const bindings: any[] = [];
 
-    // 기본 조건: 문서수 0 제외 (카페, 블로그, 웹, 뉴스 중 적어도 하나는 0이 아님)
-    conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
+    // 문서 수 0 제외 옵션 (선택적, 기본값: false - 모든 키워드 표시)
+    const excludeZeroDocs = url.searchParams.get('excludeZeroDocs') === 'true';
+    if (excludeZeroDocs) {
+      conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
+    }
 
     if (seedKeywordText) {
       conditions.push('k.seed_keyword_text = ?');
@@ -147,8 +150,13 @@ export async function onRequest(context: any) {
       LIMIT ? OFFSET ?
     `;
 
-    // 최적화된 COUNT 쿼리 (단순화하여 JOIN 문제 방지)
-    const countQuery = `SELECT COUNT(*) as total FROM keywords`;
+    // 최적화된 COUNT 쿼리 (WHERE 절 조건 반영)
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM keywords k
+      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+      ${whereClause}
+    `;
 
     let result, total = 0;
 
