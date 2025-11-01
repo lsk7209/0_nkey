@@ -49,7 +49,7 @@ export default function InsightsPage() {
     setLoading(true)
     try {
       // keywords API에서 모든 데이터를 가져옴 (페이징 없이)
-      const response = await fetch(`/functions/keywords?pageSize=10000`, {
+      const response = await fetch(`/api/keywords?pageSize=10000`, {
         headers: {
           'x-admin-key': 'dev-key-2024'
         }

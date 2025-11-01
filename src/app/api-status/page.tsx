@@ -48,7 +48,7 @@ export default function ApiStatusPage() {
   const fetchApiStatus = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/functions/system-monitor?action=api-status', {
+      const response = await fetch('/api/system-monitor?action=api-status', {
         headers: {
           'x-admin-key': 'dev-key-2024'
         }

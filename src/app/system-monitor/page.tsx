@@ -41,7 +41,7 @@ export default function SystemMonitorPage() {
   const fetchStatus = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/functions/system-monitor?action=status', {
+      const response = await fetch('/api/system-monitor?action=status', {
         headers: {
           'x-admin-key': 'dev-key-2024'
         }
@@ -63,7 +63,7 @@ export default function SystemMonitorPage() {
   const runOptimization = async () => {
     setLoading(true)
     try {
-      const response = await fetch('/functions/system-monitor?action=optimize', {
+      const response = await fetch('/api/system-monitor?action=optimize', {
         method: 'POST',
         headers: {
           'x-admin-key': 'dev-key-2024'
@@ -320,7 +320,7 @@ export default function SystemMonitorPage() {
 
                   setLoading(true)
                   try {
-                    const response = await fetch('/functions/system-monitor?action=cleanup-duplicates', {
+                    const response = await fetch('/api/system-monitor?action=cleanup-duplicates', {
                       method: 'POST',
                       headers: {
                         'x-admin-key': 'dev-key-2024'
