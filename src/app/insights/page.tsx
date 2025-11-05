@@ -47,23 +47,36 @@ export default function InsightsPage() {
     }
   }
 
-  // 키워드 데이터를 인사이트로 분석하는 함수 (검색량 높은 순으로 정렬)
+  // 키워드 데이터를 인사이트로 분석하는 함수
+  // 개선: 검색량 상위권 키워드 중에서 문서수가 적은 순으로 정렬
   const analyzeKeywordsForInsights = (keywords: any[], limit: number) => {
+    // 검색량 상위권 키워드 선정 (상위 100개 또는 전체의 상위 10%)
+    const topSearchKeywords = keywords
+      .filter(k => (k.avg_monthly_search || 0) > 0)
+      .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0))
+      .slice(0, Math.max(100, Math.floor(keywords.length * 0.1)))
+    
     // 카페 문서수 범위 계산 (안전하게)
     const cafeTotals = keywords.map(k => k.cafe_total || 0).filter(v => v > 0)
-    const maxCafeTotal = cafeTotals.length > 0 ? Math.min(1000, Math.max(...cafeTotals)) : 0
+    const maxCafeTotal = cafeTotals.length > 0 ? Math.min(5000, Math.max(...cafeTotals)) : 0
     
-    // 1. 카페 잠재력: 검색량 높고 카페 문서수 낮음 (1-1000개, 검색량 0 제외)
+    // 1. 카페 잠재력: 검색량 상위권 중 카페 문서수 낮음 (0개 제외)
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
       description: `검색량 상위권 + 카페 문서수 낮음 (1-${maxCafeTotal}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const cafeDocs = k.cafe_total || 0
           const searchVol = k.avg_monthly_search || 0
-          return cafeDocs > 0 && cafeDocs < 1000 && searchVol > 0 // 검색량 0도 제외
+          return cafeDocs > 0 && searchVol > 0 // 카페 문서수 0개 제외, 검색량 0 제외
         })
-        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .sort((a, b) => {
+          // 1순위: 카페 문서수 오름차순 (적은 순)
+          const cafeDiff = (a.cafe_total || 0) - (b.cafe_total || 0)
+          if (cafeDiff !== 0) return cafeDiff
+          // 2순위: 검색량 내림차순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
+        })
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
@@ -83,19 +96,25 @@ export default function InsightsPage() {
 
     // 블로그 문서수 범위 계산 (안전하게)
     const blogTotals = keywords.map(k => k.blog_total || 0).filter(v => v > 0)
-    const maxBlogTotal = blogTotals.length > 0 ? Math.min(1000, Math.max(...blogTotals)) : 0
+    const maxBlogTotal = blogTotals.length > 0 ? Math.min(5000, Math.max(...blogTotals)) : 0
     
-    // 2. 블로그 잠재력: 검색량 높고 블로그 문서수 낮음 (1-1000개, 검색량 0 제외)
+    // 2. 블로그 잠재력: 검색량 상위권 중 블로그 문서수 낮음 (0개 제외)
     const blogInsights = {
       title: "📝 블로그 잠재력 키워드",
       description: `검색량 상위권 + 블로그 문서수 낮음 (1-${maxBlogTotal}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const blogDocs = k.blog_total || 0
           const searchVol = k.avg_monthly_search || 0
-          return blogDocs > 0 && blogDocs < 1000 && searchVol > 0 // 검색량 0도 제외
+          return blogDocs > 0 && searchVol > 0 // 블로그 문서수 0개 제외, 검색량 0 제외
         })
-        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .sort((a, b) => {
+          // 1순위: 블로그 문서수 오름차순 (적은 순)
+          const blogDiff = (a.blog_total || 0) - (b.blog_total || 0)
+          if (blogDiff !== 0) return blogDiff
+          // 2순위: 검색량 내림차순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
+        })
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
@@ -115,19 +134,25 @@ export default function InsightsPage() {
 
     // 웹 문서수 범위 계산 (안전하게)
     const webTotals = keywords.map(k => k.web_total || 0).filter(v => v > 0)
-    const maxWebTotal = webTotals.length > 0 ? Math.min(1000, Math.max(...webTotals)) : 0
+    const maxWebTotal = webTotals.length > 0 ? Math.min(5000, Math.max(...webTotals)) : 0
     
-    // 3. 웹 잠재력: 검색량 높고 웹 문서수 낮음 (1-1000개, 검색량 0 제외)
+    // 3. 웹 잠재력: 검색량 상위권 중 웹 문서수 낮음 (0개 제외)
     const webInsights = {
       title: "🌐 웹 잠재력 키워드",
       description: `검색량 상위권 + 웹 문서수 낮음 (1-${maxWebTotal}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const webDocs = k.web_total || 0
           const searchVol = k.avg_monthly_search || 0
-          return webDocs > 0 && webDocs < 1000 && searchVol > 0 // 검색량 0도 제외
+          return webDocs > 0 && searchVol > 0 // 웹 문서수 0개 제외, 검색량 0 제외
         })
-        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .sort((a, b) => {
+          // 1순위: 웹 문서수 오름차순 (적은 순)
+          const webDiff = (a.web_total || 0) - (b.web_total || 0)
+          if (webDiff !== 0) return webDiff
+          // 2순위: 검색량 내림차순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
+        })
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
@@ -147,19 +172,25 @@ export default function InsightsPage() {
 
     // 뉴스 문서수 범위 계산 (안전하게)
     const newsTotals = keywords.map(k => k.news_total || 0).filter(v => v > 0)
-    const maxNewsTotal = newsTotals.length > 0 ? Math.min(100, Math.max(...newsTotals)) : 0
+    const maxNewsTotal = newsTotals.length > 0 ? Math.min(5000, Math.max(...newsTotals)) : 0
     
-    // 4. 뉴스 잠재력: 검색량 높고 뉴스 문서수 낮음 (1-100개, 검색량 0 제외)
+    // 4. 뉴스 잠재력: 검색량 상위권 중 뉴스 문서수 낮음 (0개 제외)
     const newsInsights = {
       title: "📰 뉴스 잠재력 키워드",
       description: `검색량 상위권 + 뉴스 문서수 낮음 (1-${maxNewsTotal}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const newsDocs = k.news_total || 0
           const searchVol = k.avg_monthly_search || 0
-          return newsDocs > 0 && newsDocs < 100 && searchVol > 0 // 검색량 0도 제외
+          return newsDocs > 0 && searchVol > 0 // 뉴스 문서수 0개 제외, 검색량 0 제외
         })
-        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .sort((a, b) => {
+          // 1순위: 뉴스 문서수 오름차순 (적은 순)
+          const newsDiff = (a.news_total || 0) - (b.news_total || 0)
+          if (newsDiff !== 0) return newsDiff
+          // 2순위: 검색량 내림차순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
+        })
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
@@ -181,17 +212,23 @@ export default function InsightsPage() {
     const adCounts = keywords.map(k => k.ad_count || 0)
     const maxAdCount = adCounts.length > 0 ? Math.min(5, Math.max(...adCounts)) : 0
     
-    // 5. 광고 잠재력: 검색량 높고 광고수 낮음 (검색량 0 제외)
+    // 5. 광고 잠재력: 검색량 상위권 중 광고수 낮음 (검색량 0 제외)
     const adCountInsights = {
       title: "💰 광고 잠재력 키워드",
       description: `검색량 상위권 + 월 광고수 낮음 (0-${maxAdCount}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const adCount = k.ad_count || 0
           const searchVol = k.avg_monthly_search || 0
           return adCount < 5 && searchVol > 0 // 검색량 0도 제외
         })
-        .sort((a, b) => b.avg_monthly_search - a.avg_monthly_search)
+        .sort((a, b) => {
+          // 1순위: 광고수 오름차순 (적은 순)
+          const adDiff = (a.ad_count || 0) - (b.ad_count || 0)
+          if (adDiff !== 0) return adDiff
+          // 2순위: 검색량 내림차순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
+        })
         .slice(0, limit)
         .map(k => ({
           keyword: k.keyword,
@@ -213,22 +250,22 @@ export default function InsightsPage() {
     const totalDocsValues = keywords.map(k => (k.cafe_total || 0) + (k.blog_total || 0) + (k.web_total || 0) + (k.news_total || 0)).filter(v => v > 0)
     const maxTotalDocs = totalDocsValues.length > 0 ? Math.min(5000, Math.max(...totalDocsValues)) : 0
     
-    // 6. 총문서 인사이트: 검색량 높고 총 문서수 낮음 (1-5000개, 검색량 0 제외)
+    // 6. 총문서 인사이트: 검색량 상위권 중 총 문서수 낮음 (0개 제외)
     const totalDocsInsights = {
       title: "📊 총문서 인사이트",
       description: `검색량 상위권 + 총 문서수 낮음 (1-${maxTotalDocs}개)`,
-      keywords: keywords
+      keywords: topSearchKeywords
         .filter(k => {
           const totalDocs = (k.cafe_total || 0) + (k.blog_total || 0) + (k.web_total || 0) + (k.news_total || 0)
           const searchVol = k.avg_monthly_search || 0
-          return totalDocs > 0 && totalDocs < 5000 && searchVol > 0 // 검색량 0도 제외
+          return totalDocs > 0 && searchVol > 0 // 총 문서수 0개 제외, 검색량 0 제외
         })
         .sort((a, b) => {
           const totalA = (a.cafe_total || 0) + (a.blog_total || 0) + (a.web_total || 0) + (a.news_total || 0)
           const totalB = (b.cafe_total || 0) + (b.blog_total || 0) + (b.web_total || 0) + (b.news_total || 0)
           // 총문서수 오름차순 1순위, 검색량 내림차순 2순위
           if (totalA !== totalB) return totalA - totalB
-          return b.avg_monthly_search - a.avg_monthly_search
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
         })
         .slice(0, limit)
         .map(k => ({
