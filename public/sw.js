@@ -4,6 +4,7 @@
 let autoCollectInterval = null
 let autoCollectConfig = null
 let processedCount = 0
+let totalNewKeywordsAccumulated = 0 // 누적된 새로 추가된 키워드 수
 
 // Service Worker 메시지 핸들러
 self.addEventListener('message', (event) => {
@@ -35,6 +36,7 @@ function startAutoCollect(config) {
 
   autoCollectConfig = config
   processedCount = 0
+  totalNewKeywordsAccumulated = 0 // 초기화
 
   // 즉시 첫 배치 실행
   runBatch()
@@ -67,6 +69,7 @@ function stopAutoCollect() {
   }
 
   autoCollectConfig = null
+  totalNewKeywordsAccumulated = 0 // 초기화
 
   // 중단 상태 알림
   self.clients.matchAll().then(clients => {
@@ -108,7 +111,16 @@ async function runBatch() {
     const batchLimit = autoCollectConfig.limit === 0 ? 5 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 5))
     const concurrent = autoCollectConfig.concurrent || 3
     const targetKeywords = autoCollectConfig.targetKeywords || 0
-    const currentNewKeywords = processedCount // 임시로 processedCount 사용 (실제로는 별도 추적 필요)
+    const remainingTargetKeywords = targetKeywords > 0 ? Math.max(0, targetKeywords - totalNewKeywordsAccumulated) : 0
+
+    console.log('[SW] 배치 실행 준비:', {
+      batchLimit,
+      concurrent,
+      targetKeywords,
+      totalNewKeywordsAccumulated,
+      remainingTargetKeywords,
+      processedCount
+    })
 
     const response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
       method: 'POST',
@@ -119,7 +131,7 @@ async function runBatch() {
       body: JSON.stringify({
         limit: batchLimit,
         concurrent: concurrent,
-        targetKeywords: targetKeywords > 0 ? Math.max(0, targetKeywords - currentNewKeywords) : 0
+        targetKeywords: remainingTargetKeywords
       })
     })
 
@@ -134,12 +146,15 @@ async function runBatch() {
       const processedInBatch = data.processed || 0
       const newKeywordsInBatch = data.totalNewKeywords || 0
       processedCount += processedInBatch
+      totalNewKeywordsAccumulated += newKeywordsInBatch // 누적값 업데이트
 
       console.log('[SW] 배치 완료:', {
         processedInBatch,
         totalProcessed: processedCount,
         newKeywordsInBatch,
-        remaining: data.remaining
+        totalNewKeywordsAccumulated,
+        remaining: data.remaining,
+        targetKeywords: targetKeywords
       })
 
       // 진행 상태 알림
@@ -150,7 +165,7 @@ async function runBatch() {
             status: 'running',
             processedCount,
             newKeywordsInBatch,
-            totalNewKeywords: data.totalNewKeywords || 0,
+            totalNewKeywords: totalNewKeywordsAccumulated, // 누적값 사용
             batchResult: data,
             remaining: data.remaining
           })
@@ -165,9 +180,23 @@ async function runBatch() {
           stopAutoCollect()
           return
         }
-        // 목표 키워드 수 도달 확인
-        if (autoCollectConfig.targetKeywords > 0 && (data.totalNewKeywords || 0) >= autoCollectConfig.targetKeywords) {
-          console.log('[SW] 목표 키워드 수 도달, 자동 중단')
+        // 목표 키워드 수 도달 확인 (누적값 기준)
+        if (autoCollectConfig.targetKeywords > 0 && totalNewKeywordsAccumulated >= autoCollectConfig.targetKeywords) {
+          console.log('[SW] 목표 키워드 수 도달, 자동 중단:', {
+            totalNewKeywordsAccumulated,
+            targetKeywords: autoCollectConfig.targetKeywords
+          })
+          stopAutoCollect()
+          return
+        }
+        
+        // 남은 시드가 없으면 중단
+        if (data.remaining === 0 || data.remaining === null) {
+          console.log('[SW] 남은 시드가 없음, 자동 중단:', {
+            remaining: data.remaining,
+            processedCount,
+            totalNewKeywordsAccumulated
+          })
           stopAutoCollect()
           return
         }
@@ -214,7 +243,12 @@ self.addEventListener('activate', (event) => {
 
 // 주기적으로 상태 확인 (선택사항)
 setInterval(() => {
-  if (autoCollectInterval) {
-    console.log('[SW] 백그라운드 실행 중:', { processedCount, config: autoCollectConfig })
+  if (autoCollectInterval && autoCollectConfig) {
+    console.log('[SW] 백그라운드 실행 중:', { 
+      processedCount, 
+      totalNewKeywordsAccumulated,
+      targetKeywords: autoCollectConfig.targetKeywords,
+      config: autoCollectConfig 
+    })
   }
 }, 60000) // 1분마다 로그

@@ -48,6 +48,7 @@ class BackgroundCollector {
   }
 
   async startBackgroundCollect(config: { limit: number; concurrent: number; targetKeywords?: number }): Promise<void> {
+    console.log('[BackgroundCollector] 백그라운드 수집 시작:', config)
     if (!this.worker) return
 
     this.worker.postMessage({
@@ -481,9 +482,65 @@ export default function AutoCollectPage() {
   const handleReset = () => {
     setProcessed(0)
     setRemaining(null)
+    setTotalNewKeywords(0)
     setLog([])
     processedRef.current = 0
     appendLog('🔄 카운터 초기화')
+  }
+
+  const handleCheckServiceWorkerStatus = async () => {
+    if (!backgroundCollectorRef.current) {
+      appendLog('❌ Service Worker가 등록되지 않았습니다.')
+      return
+    }
+
+    try {
+      const status = await backgroundCollectorRef.current.getStatus()
+      if (status) {
+        appendLog(`📊 Service Worker 상태: ${status.enabled ? '실행 중' : '중지됨'}`)
+        appendLog(`📊 처리된 시드: ${status.processedCount || 0}개`)
+        appendLog(`📊 설정: ${JSON.stringify(status.config || {})}`)
+        
+        if (status.enabled) {
+          appendLog('✅ 백그라운드 수집이 실행 중입니다.')
+        } else {
+          appendLog('⚠️ 백그라운드 수집이 중지되었습니다. 다시 시작하려면 토글을 켜세요.')
+        }
+      } else {
+        appendLog('⚠️ Service Worker 상태를 확인할 수 없습니다.')
+      }
+    } catch (error: any) {
+      appendLog(`❌ Service Worker 상태 확인 실패: ${error.message}`)
+    }
+  }
+
+  const handleRestartServiceWorker = async () => {
+    if (!backgroundCollectorRef.current) {
+      appendLog('❌ Service Worker가 등록되지 않았습니다.')
+      return
+    }
+
+    if (!enabled || !backgroundMode) {
+      appendLog('⚠️ 자동수집과 백그라운드 모드를 먼저 켜세요.')
+      return
+    }
+
+    try {
+      appendLog('🔄 Service Worker 재시작 중...')
+      // 먼저 중지
+      await backgroundCollectorRef.current.stopBackgroundCollect()
+      await new Promise(resolve => setTimeout(resolve, 1000)) // 1초 대기
+      
+      // 다시 시작
+      await backgroundCollectorRef.current.startBackgroundCollect({
+        limit: limitRef.current,
+        concurrent: concurrentRef.current,
+        targetKeywords: targetKeywordsRef.current
+      })
+      appendLog('✅ Service Worker 재시작 완료')
+    } catch (error: any) {
+      appendLog(`❌ Service Worker 재시작 실패: ${error.message}`)
+    }
   }
 
   return (
@@ -566,8 +623,18 @@ export default function AutoCollectPage() {
             </div>
           )}
 
-          <div className="flex justify-center">
+          <div className="flex justify-center gap-2 flex-wrap">
             <button onClick={handleReset} className="btn-secondary">카운터 초기화</button>
+            {backgroundMode && swRegistered && (
+              <>
+                <button onClick={handleCheckServiceWorkerStatus} className="btn-secondary">
+                  Service Worker 상태 확인
+                </button>
+                <button onClick={handleRestartServiceWorker} className="btn-secondary">
+                  Service Worker 재시작
+                </button>
+              </>
+            )}
           </div>
 
           <div className={`grid gap-4 ${targetKeywords > 0 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-2'}`}>
