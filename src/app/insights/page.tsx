@@ -20,7 +20,13 @@ export default function InsightsPage() {
       })
 
       if (!response.ok) {
-        throw new Error('키워드 데이터 조회에 실패했습니다.')
+        const apiError = await handleApiError(response)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          action: 'fetchInsights',
+          limit 
+        })
+        throw new Error(apiError.message)
       }
 
       const data = await response.json()
@@ -32,7 +38,10 @@ export default function InsightsPage() {
       const insights = analyzeKeywordsForInsights(keywords, limit)
       setInsights(insights)
     } catch (error) {
-      console.error('인사이트 조회 에러:', error)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'fetchInsights', limit })
+      console.error('인사이트 조회 에러:', errorMessage)
+      // 사용자에게 에러 메시지 표시 (필요시)
     } finally {
       setLoading(false)
     }
