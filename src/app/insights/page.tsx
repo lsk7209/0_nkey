@@ -490,5 +490,3 @@ export default function InsightsPage() {
     </div>
   )
 }
-}
-}
