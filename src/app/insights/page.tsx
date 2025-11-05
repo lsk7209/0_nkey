@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { InsightsResponse } from '@/types/api'
+import type { InsightsResponse, InsightData } from '@/types/api'
 import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 export default function InsightsPage() {
