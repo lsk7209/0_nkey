@@ -24,9 +24,7 @@ class BackgroundCollector {
           scope: '/'
         })
 
-        this.worker = registration.active || registration.waiting || registration.installing
-
-        // Service Worker 메시지 리스너
+        // Service Worker 메시지 리스너 (등록 후 즉시 설정)
         navigator.serviceWorker.addEventListener('message', (event) => {
           if (event.data.type === 'AUTO_COLLECT_UPDATE') {
             // 백그라운드 수집 상태 업데이트 이벤트 발생
@@ -36,8 +34,33 @@ class BackgroundCollector {
           }
         })
 
+        // Service Worker가 완전히 활성화될 때까지 대기
+        await navigator.serviceWorker.ready
+        
+        // 활성화된 worker 가져오기
+        this.worker = registration.active
+        
+        if (!this.worker) {
+          console.warn('[BackgroundCollector] Service Worker가 활성화되지 않았습니다.')
+          // 활성화를 기다림
+          registration.addEventListener('updatefound', () => {
+            const newWorker = registration.installing
+            if (newWorker) {
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'activated') {
+                  this.worker = newWorker
+                  console.log('[BackgroundCollector] Service Worker 활성화 완료')
+                }
+              })
+            }
+          })
+        }
+
         this.isRegistered = true
-        console.log('[BackgroundCollector] Service Worker 등록 완료')
+        console.log('[BackgroundCollector] Service Worker 등록 완료', {
+          worker: this.worker ? '활성화됨' : '대기 중',
+          state: this.worker?.state
+        })
         return true
       }
     } catch (error) {
@@ -49,7 +72,33 @@ class BackgroundCollector {
 
   async startBackgroundCollect(config: { limit: number; concurrent: number; targetKeywords?: number }): Promise<void> {
     console.log('[BackgroundCollector] 백그라운드 수집 시작:', config)
-    if (!this.worker) return
+    
+    // Service Worker가 활성화되지 않았으면 대기
+    if (!this.worker) {
+      console.log('[BackgroundCollector] Service Worker 활성화 대기 중...')
+      try {
+        const registration = await navigator.serviceWorker.ready
+        this.worker = registration.active
+        if (!this.worker) {
+          console.error('[BackgroundCollector] Service Worker를 활성화할 수 없습니다.')
+          return
+        }
+      } catch (error) {
+        console.error('[BackgroundCollector] Service Worker 준비 실패:', error)
+        return
+      }
+    }
+
+    if (!this.worker) {
+      console.error('[BackgroundCollector] Service Worker가 없습니다.')
+      return
+    }
+
+    console.log('[BackgroundCollector] Service Worker에 메시지 전송:', {
+      type: 'START_AUTO_COLLECT',
+      config,
+      workerState: this.worker.state
+    })
 
     this.worker.postMessage({
       type: 'START_AUTO_COLLECT',

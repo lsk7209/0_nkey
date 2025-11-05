@@ -9,19 +9,27 @@ let totalNewKeywordsAccumulated = 0 // 누적된 새로 추가된 키워드 수
 // Service Worker 메시지 핸들러
 self.addEventListener('message', (event) => {
   const { type, config } = event.data
+  
+  console.log('[SW] 메시지 수신:', { type, config, source: event.source?.constructor?.name || 'unknown' })
 
   switch (type) {
     case 'START_AUTO_COLLECT':
+      console.log('[SW] START_AUTO_COLLECT 메시지 처리 시작')
       startAutoCollect(config)
       break
 
     case 'STOP_AUTO_COLLECT':
+      console.log('[SW] STOP_AUTO_COLLECT 메시지 처리')
       stopAutoCollect()
       break
 
     case 'GET_AUTO_COLLECT_STATUS':
+      console.log('[SW] GET_AUTO_COLLECT_STATUS 메시지 처리')
       sendStatus()
       break
+      
+    default:
+      console.warn('[SW] 알 수 없는 메시지 타입:', type)
   }
 })
 
