@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import type { KeywordData, CollectNaverResponse } from '@/types/api'
 import { validateSeedKeyword } from '@/utils/validation'
 import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
