@@ -1114,8 +1114,31 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
               firstItemKeys: data.keywordList?.[0] ? Object.keys(data.keywordList[0]) : null
             });
 
+            // "챗GPT" 키워드가 포함된 경우 상세 로그 출력
+            const chatgptKeyword = data.keywordList?.find((k: any) => 
+              (k.relKeyword || k.keyword || '').includes('챗GPT') || 
+              (k.relKeyword || k.keyword || '').includes('ChatGPT')
+            );
+            if (chatgptKeyword) {
+              console.log('🔍 [DEBUG] 챗GPT 키워드 상세 정보:', JSON.stringify(chatgptKeyword, null, 2));
+              console.log('🔍 [DEBUG] 챗GPT - plAvgDepth:', chatgptKeyword.plAvgDepth);
+              console.log('🔍 [DEBUG] 챗GPT - 모든 필드:', Object.keys(chatgptKeyword));
+            }
+
             const keywords = data.keywordList.map((k: any) => {
-              console.log('🔍 개별 키워드 객체:', k);
+              // 챗GPT 키워드인 경우 상세 로그
+              const isChatGPT = (k.relKeyword || k.keyword || '').includes('챗GPT') || 
+                                (k.relKeyword || k.keyword || '').includes('ChatGPT');
+              if (isChatGPT) {
+                console.log('🔍 [DEBUG] 챗GPT 키워드 매핑:', {
+                  keyword: k.relKeyword || k.keyword,
+                  plAvgDepth: k.plAvgDepth,
+                  plAvgDepthType: typeof k.plAvgDepth,
+                  allFields: Object.keys(k),
+                  fullObject: JSON.stringify(k, null, 2)
+                });
+              }
+              
               return {
                 keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
                 pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
@@ -1130,7 +1153,9 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
               };
             }).filter((kw: any) => {
               const isValid = kw.keyword && kw.keyword.trim() !== '';
-              console.log(`🔍 키워드 필터링 결과: "${kw.keyword}" -> ${isValid ? '유지' : '제거'}`);
+              if (isValid && (kw.keyword.includes('챗GPT') || kw.keyword.includes('ChatGPT'))) {
+                console.log(`🔍 [DEBUG] 챗GPT 필터링 후 최종 객체:`, kw);
+              }
               return isValid;
             });
 
