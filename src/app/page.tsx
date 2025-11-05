@@ -12,6 +12,8 @@
 'use client'
 
 import { useState } from 'react'
+import { validateSeedKeyword } from '@/utils/validation'
+import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 interface KeywordData {
   keyword: string
@@ -34,8 +36,10 @@ export default function Home() {
 
 
   const handleCollect = async () => {
-    if (!seed.trim()) {
-      setMessage('시드 키워드를 입력해주세요.')
+    // 입력 검증
+    const validation = validateSeedKeyword(seed)
+    if (!validation.isValid) {
+      setMessage(`❌ ${validation.error}`)
       return
     }
 
@@ -131,20 +135,26 @@ export default function Home() {
           setMessage(`❌ 실패: ${result.message}`)
         }
       } else {
-        const errorResult = await response.json()
-        console.error('API 에러 응답:', response.status, errorResult)
+        // 통일된 에러 처리
+        const apiError = await handleApiError(response)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          seed: seed.trim(),
+          errorDetails: apiError.details 
+        })
         
         // 네이버 API 키 문제인 경우 특별 처리
-        if (errorResult.error && errorResult.error.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
-          setMessage(`❌ 네이버 API 키 문제: ${errorResult.error}\n\n해결 방법: ${errorResult.solution || '관리자에게 문의하세요.'}`)
+        if (apiError.details?.error?.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
+          setMessage(`❌ 네이버 API 키 문제: ${apiError.details.error}\n\n해결 방법: ${apiError.details.solution || '관리자에게 문의하세요.'}`)
         } else {
-          setMessage(`❌ API 호출 실패: ${errorResult.message || 'Unknown error'}`)
+          setMessage(`❌ ${apiError.message}`)
         }
       }
       
     } catch (error) {
-      console.error('키워드 수집 에러:', error)
-      setMessage('❌ 오류가 발생했습니다: ' + (error as Error).message)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { seed: seed.trim(), action: 'collect' })
+      setMessage(`❌ ${errorMessage}`)
     } finally {
       setLoading(false)
     }
