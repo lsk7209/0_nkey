@@ -34,10 +34,10 @@ export async function onRequest(context: any) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const limitInput = Number(body.limit ?? 5); // 한 번 호출당 처리할 최대 시드 수 (기본 5개로 감소)
-    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 5;
+    const limitInput = Number(body.limit ?? 15); // 한 번 호출당 처리할 최대 시드 수 (기본 15개로 증가)
+    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 15;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
-    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 3), 1), 5); // 동시에 처리할 시드 수 (1-5, 기본 3)
+    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 10), 1), 15); // 동시에 처리할 시드 수 (1-15, 기본 10)
     const targetKeywords = Number(body.targetKeywords ?? 0); // 목표 키워드 수 (0이면 무제한)
 
     const db = env.DB;

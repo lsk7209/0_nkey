@@ -147,7 +147,7 @@ export default function AutoCollectPage() {
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
-  const [concurrentInput, setConcurrentInput] = useState('3') // 동시 처리 수
+  const [concurrentInput, setConcurrentInput] = useState('10') // 동시 처리 수 (기본값 3 → 10으로 증가)
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
