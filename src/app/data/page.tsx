@@ -12,23 +12,8 @@
 'use client'
 
 import { useState, useEffect, useMemo, useCallback, memo } from 'react'
-
-interface KeywordData {
-  keyword: string
-  avg_monthly_search: number
-  blog_total?: number
-  cafe_total?: number
-  web_total?: number
-  news_total?: number
-  monthly_click_pc?: number
-  monthly_click_mo?: number
-  ctr_pc?: number
-  ctr_mo?: number
-  ad_count?: number
-  pc_search: number
-  mobile_search: number
-  created_at?: string
-}
+import type { KeywordData, KeywordsResponse } from '@/types/api'
+import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 interface FilterValues {
   minAvgSearch: string
@@ -151,7 +136,7 @@ export default function DataPage() {
       })
 
       if (response.ok) {
-        const data = await response.json()
+        const data = await response.json() as KeywordsResponse
         if (data.success && Array.isArray(data.keywords)) {
           setKeywords(data.keywords)
           setTotalCount(typeof data.total === 'number' ? data.total : data.keywords.length)
@@ -191,8 +176,9 @@ export default function DataPage() {
                   }
                 })
                 .catch(err => {
-                  console.error('자동 문서수 수집 실패:', err)
-                  setMessage(`⚠️ 문서수 자동 수집 중 오류가 발생했습니다: ${err.message}`)
+                  const errorMessage = getUserFriendlyErrorMessage(err as Error)
+                  logError(err as Error, { action: 'autoCollectDocCounts', keywordCount: keywordsWithoutDocCounts.length })
+                  setMessage(`⚠️ 문서수 자동 수집 중 오류가 발생했습니다: ${errorMessage}`)
                 })
             }
           }
@@ -201,12 +187,19 @@ export default function DataPage() {
           setMessage('키워드 데이터를 찾을 수 없습니다.')
         }
       } else {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `데이터 조회 실패: ${response.status}`)
+        // 통일된 에러 처리
+        const apiError = await handleApiError(response)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          page,
+          filters 
+        })
+        throw new Error(apiError.message)
       }
     } catch (error) {
-      console.error('키워드 조회 실패:', error)
-      setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${(error as Error).message}`)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'loadKeywords', page })
+      setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${errorMessage}`)
       setKeywords([])
     } finally {
       setLoading(false)
@@ -233,15 +226,20 @@ export default function DataPage() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.message || `문서수 수집 실패: ${response.status}`)
+        const apiError = await handleApiError(response)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          action: 'collectDocCounts',
+          keywordCount: keywords.length 
+        })
+        throw new Error(apiError.message)
       }
 
       const result = await response.json()
       return result
 
     } catch (error) {
-      console.error('문서수 수집 API 호출 실패:', error)
+      logError(error as Error, { action: 'collectDocCounts', keywordCount: keywords.length })
       throw error
     }
   }, [])
@@ -348,12 +346,17 @@ export default function DataPage() {
           throw new Error(data.message || '삭제 실패');
         }
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `삭제 실패: ${response.status}`);
+        const apiError = await handleApiError(response)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          action: 'deleteKeywords' 
+        })
+        throw new Error(apiError.message)
       }
     } catch (error) {
-      console.error('키워드 삭제 실패:', error);
-      setMessage(`❌ 키워드 삭제 실패: ${(error as Error).message}`);
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'deleteKeywords' })
+      setMessage(`❌ 키워드 삭제 실패: ${errorMessage}`)
     } finally {
       setLoading(false);
     }
@@ -431,8 +434,9 @@ export default function DataPage() {
       URL.revokeObjectURL(url)
       setMessage(`✅ 키워드 데이터를 CSV 파일로 내보냈습니다. (${keywords.length}개)`)
     } catch (error) {
-      console.error('CSV 내보내기 실패:', error)
-      setMessage('❌ 데이터 내보내기에 실패했습니다: ' + (error as Error).message)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'exportToCSV', keywordCount: keywords.length })
+      setMessage(`❌ 데이터 내보내기에 실패했습니다: ${errorMessage}`)
     }
   }
 

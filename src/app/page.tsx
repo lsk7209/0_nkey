@@ -12,21 +12,9 @@
 'use client'
 
 import { useState } from 'react'
+import type { KeywordData, CollectNaverResponse } from '@/types/api'
 import { validateSeedKeyword } from '@/utils/validation'
 import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
-
-interface KeywordData {
-  keyword: string
-  pc_search: number
-  mobile_search: number
-  avg_monthly_search: number
-  monthly_click_pc?: number
-  monthly_click_mo?: number
-  ctr_pc?: number
-  ctr_mo?: number
-  ad_count?: number
-  comp_idx?: string | number
-}
 
 export default function Home() {
   const [seed, setSeed] = useState('')
@@ -68,7 +56,7 @@ export default function Home() {
       console.log('API 응답 상태:', response.status, response.statusText)
 
       if (response.ok) {
-        const result = await response.json()
+        const result = await response.json() as CollectNaverResponse
         console.log('API 성공 응답:', result)
         
         if (result.success) {

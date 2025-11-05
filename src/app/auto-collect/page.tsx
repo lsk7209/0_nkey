@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { AutoCollectResponse } from '@/types/api'
+import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 // Service Worker 등록 및 백그라운드 수집 관리
 class BackgroundCollector {
@@ -342,13 +344,17 @@ export default function AutoCollectPage() {
       console.log('[AutoCollect] API 응답 상태:', res.status)
 
       if (!res.ok) {
-        const errText = await res.text().catch(() => '')
-        appendLog(`❌ HTTP ${res.status} ${res.statusText} ${errText}`)
-        console.error('[AutoCollect] API 에러:', res.status, errText)
+        const apiError = await handleApiError(res)
+        logError(new Error(apiError.message), { 
+          statusCode: apiError.statusCode,
+          batchLimit,
+          concurrentLimit 
+        })
+        appendLog(`❌ ${apiError.message}`)
         return
       }
 
-      const data = await res.json().catch(() => ({}))
+      const data = await res.json().catch(() => ({})) as AutoCollectResponse
       console.log('[AutoCollect] API 응답 데이터:', data)
 
       if (data && data.success) {
@@ -385,11 +391,14 @@ export default function AutoCollectPage() {
           appendLog(`✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리, +${newKeywordsInBatch}개 새로운 키워드 (누적: ${updatedTotalNewKeywords}개${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''})`)
         }
       } else {
-        appendLog(`❌ 배치 실패: ${data?.error || data?.message || 'unknown error'}`)
+        const errorMessage = data?.error || data?.message || '알 수 없는 오류'
+        logError(new Error(errorMessage), { action: 'runBatch', data })
+        appendLog(`❌ 배치 실패: ${errorMessage}`)
       }
     } catch (e: any) {
-      appendLog(`❌ 예외: ${e.message || String(e)}`)
-      console.error('[AutoCollect] 예외 발생:', e)
+      const errorMessage = getUserFriendlyErrorMessage(e as Error)
+      logError(e as Error, { action: 'runBatch', batchLimit, concurrentLimit })
+      appendLog(`❌ 예외: ${errorMessage}`)
     } finally {
       console.log('[AutoCollect] finally: processing을 false로 설정')
       setProcessing(false)
@@ -559,7 +568,9 @@ export default function AutoCollectPage() {
         appendLog('⚠️ Service Worker 상태를 확인할 수 없습니다.')
       }
     } catch (error: any) {
-      appendLog(`❌ Service Worker 상태 확인 실패: ${error.message}`)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'checkServiceWorkerStatus' })
+      appendLog(`❌ Service Worker 상태 확인 실패: ${errorMessage}`)
     }
   }
 
@@ -588,7 +599,9 @@ export default function AutoCollectPage() {
       })
       appendLog('✅ Service Worker 재시작 완료')
     } catch (error: any) {
-      appendLog(`❌ Service Worker 재시작 실패: ${error.message}`)
+      const errorMessage = getUserFriendlyErrorMessage(error as Error)
+      logError(error as Error, { action: 'restartServiceWorker' })
+      appendLog(`❌ Service Worker 재시작 실패: ${errorMessage}`)
     }
   }
 
