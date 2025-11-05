@@ -23,7 +23,7 @@ export default function Home() {
   const [keywords, setKeywords] = useState<KeywordData[]>([])
 
 
-  const handleCollect = async () => {
+  const handleCollect = useCallback(async () => {
     // 입력 검증
     const validation = validateSeedKeyword(seed)
     if (!validation.isValid) {

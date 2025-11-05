@@ -440,13 +440,25 @@ export default function DataPage() {
     }
   }
 
-  // 통계 계산 (현재 로드된 데이터 기반)
+  // 통계 계산 (현재 로드된 데이터 기반) - useMemo로 최적화
   const totalKeywords = totalCount
   const loadedKeywords = keywords
-  const totalSearchVolume = loadedKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
-  const avgSearchVolume = loadedKeywords.length > 0 ? Math.round(totalSearchVolume / loadedKeywords.length) : 0
-  const totalPcSearch = loadedKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
-  const totalMobileSearch = loadedKeywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
+  
+  const totalSearchVolume = useMemo(() => {
+    return loadedKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
+  }, [loadedKeywords])
+  
+  const avgSearchVolume = useMemo(() => {
+    return loadedKeywords.length > 0 ? Math.round(totalSearchVolume / loadedKeywords.length) : 0
+  }, [loadedKeywords.length, totalSearchVolume])
+  
+  const totalPcSearch = useMemo(() => {
+    return loadedKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)
+  }, [loadedKeywords])
+  
+  const totalMobileSearch = useMemo(() => {
+    return loadedKeywords.reduce((sum, k) => sum + (k.mobile_search || 0), 0)
+  }, [loadedKeywords])
 
   if (loading) {
     return (

@@ -2,6 +2,8 @@
  * 통일된 에러 처리 유틸리티
  */
 
+import { logger } from './logger'
+
 export interface ApiError {
   message: string
   code?: string
@@ -54,7 +56,7 @@ export async function handleApiError(response: Response): Promise<ApiError> {
 }
 
 /**
- * 에러 로깅 (향후 에러 추적 서비스 연동)
+ * 에러 로깅 (구조화된 로거 사용)
  * 
  * @param {Error | AppError} error - 에러 객체
  * @param {Record<string, any>} context - 추가 컨텍스트 정보
@@ -67,20 +69,7 @@ export async function handleApiError(response: Response): Promise<ApiError> {
  * }
  */
 export function logError(error: Error | AppError, context?: Record<string, any>) {
-  const errorInfo = {
-    message: error.message,
-    name: error.name,
-    stack: error.stack,
-    context,
-    timestamp: new Date().toISOString()
-  }
-
-  console.error('🚨 Error:', errorInfo)
-
-  // TODO: 에러 추적 서비스로 전송
-  // if (process.env.NODE_ENV === 'production') {
-  //   errorTrackingService.captureException(error, { extra: context })
-  // }
+  logger.error(error.message, error, context)
 }
 
 /**
