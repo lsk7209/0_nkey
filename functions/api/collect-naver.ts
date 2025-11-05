@@ -1056,7 +1056,14 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
                 });
 
                 const keywords = retryData.keywordList.map((k: any) => {
-                  console.log('🔍 재시도 개별 키워드 객체:', k);
+                  // 챗GPT 키워드인 경우 상세 로그
+                  const isChatGPT = (k.relKeyword || k.keyword || '').includes('챗GPT') || 
+                                    (k.relKeyword || k.keyword || '').includes('ChatGPT');
+                  if (isChatGPT) {
+                    console.log('🔍 [DEBUG] 재시도 - 챗GPT 키워드 상세 정보:', JSON.stringify(k, null, 2));
+                    console.log('🔍 [DEBUG] 재시도 - 챗GPT plAvgDepth:', k.plAvgDepth);
+                  }
+                  
                   return {
                     keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
                     pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
@@ -1071,7 +1078,9 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
                   };
                 }).filter((kw: any) => {
                   const isValid = kw.keyword && kw.keyword.trim() !== '';
-                  console.log(`🔍 재시도 키워드 필터링 결과: "${kw.keyword}" -> ${isValid ? '유지' : '제거'}`);
+                  if (isValid && (kw.keyword.includes('챗GPT') || kw.keyword.includes('ChatGPT'))) {
+                    console.log(`🔍 [DEBUG] 재시도 - 챗GPT 필터링 후 최종 객체:`, kw);
+                  }
                   return isValid;
                 });
                 
