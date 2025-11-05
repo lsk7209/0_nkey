@@ -483,18 +483,10 @@ export default function DataPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="bg-blue-50 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-blue-800">총 키워드 수</h3>
             <p className="text-2xl font-bold text-blue-900">{totalKeywords.toLocaleString()}</p>
-          </div>
-          <div className="bg-green-50 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-green-800">총 검색량</h3>
-            <p className="text-2xl font-bold text-green-900">{totalSearchVolume.toLocaleString()}</p>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <h3 className="text-sm font-medium text-purple-800">평균 검색량</h3>
-            <p className="text-2xl font-bold text-purple-900">{avgSearchVolume.toLocaleString()}</p>
           </div>
           <div className="bg-orange-50 p-4 rounded-lg">
             <h3 className="text-sm font-medium text-orange-800">PC/모바일 비율</h3>
