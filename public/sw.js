@@ -1,5 +1,6 @@
 // Service Worker for Background Auto Collection
 // 백그라운드 자동 수집을 위한 Service Worker
+// Version: 2.0 - 속도 개선 (batchLimit 15, concurrent 기본 10, 간격 20초)
 
 let autoCollectInterval = null
 let autoCollectConfig = null
