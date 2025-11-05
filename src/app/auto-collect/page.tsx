@@ -168,7 +168,7 @@ export default function AutoCollectPage() {
 
   const concurrent = useMemo(() => {
     const n = Number(concurrentInput)
-    return Number.isFinite(n) && n >= 1 && n <= 5 ? n : 3
+    return Number.isFinite(n) && n >= 1 && n <= 15 ? n : 10 // 최대값 5 → 15, 기본값 3 → 10
   }, [concurrentInput])
 
   const targetKeywords = useMemo(() => {
@@ -652,11 +652,11 @@ export default function AutoCollectPage() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700">동시 처리 수 (1-5)</label>
+              <label className="text-sm text-gray-700">동시 처리 수 (1-15)</label>
               <input
                 type="number"
                 min={1}
-                max={5}
+                max={15}
                 value={concurrentInput}
                 onChange={(e) => setConcurrentInput(e.target.value)}
                 className="input-field w-16"
