@@ -50,10 +50,10 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 20초마다 반복 실행 (속도 개선)
+  // 30초마다 반복 실행 (API 응답 시간 고려)
   autoCollectInterval = setInterval(() => {
     runBatch()
-  }, 20000) // 20초 간격 (60초 → 20초로 감소)
+  }, 30000) // 30초 간격 (API 응답 시간 고려하여 20초 → 30초로 조정)
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
@@ -143,6 +143,13 @@ async function runBatch() {
 
     let response
     try {
+      // 타임아웃 설정 (5분)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+        console.error('[SW] API 호출 타임아웃 (5분)')
+      }, 300000) // 5분
+
       response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
         headers: {
@@ -153,9 +160,11 @@ async function runBatch() {
           limit: batchLimit,
           concurrent: concurrent,
           targetKeywords: remainingTargetKeywords
-        })
+        }),
+        signal: controller.signal
       })
 
+      clearTimeout(timeoutId)
       console.log('[SW] API 응답 상태:', response.status, response.statusText)
 
       if (!response.ok) {
@@ -170,8 +179,20 @@ async function runBatch() {
     } catch (fetchError) {
       console.error('[SW] API 호출 중 에러:', {
         error: fetchError.message,
-        stack: fetchError.stack
+        stack: fetchError.stack,
+        name: fetchError.name,
+        isAbort: fetchError.name === 'AbortError'
       })
+      
+      // 타임아웃이나 네트워크 에러인 경우 재시도 로직으로
+      if (fetchError.name === 'AbortError' || 
+          fetchError.message.includes('Failed to fetch') ||
+          fetchError.message.includes('timeout')) {
+        console.log('[SW] 네트워크/타임아웃 에러, 다음 배치에서 재시도')
+        // 다음 배치에서 자동으로 재시도됨 (인터벌에 의해)
+        return
+      }
+      
       throw fetchError
     }
 
