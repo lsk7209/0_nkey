@@ -528,7 +528,3 @@ export default function InsightsPage() {
   )
 }
 }
-}
-}
-}
-}
