@@ -146,9 +146,9 @@ export default function Home() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [seed])
 
-  const handleClearStorage = () => {
+  const handleClearStorage = useCallback(() => {
     setKeywords([])
     setMessage('화면에서 키워드 목록을 지웠습니다. (실제 데이터베이스는 변경되지 않음)')
   }
