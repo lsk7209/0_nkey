@@ -319,12 +319,13 @@ export default function AutoCollectPage() {
       return
     }
 
+    // 변수 선언을 try 블록 밖으로 이동 (catch 블록에서도 접근 가능하도록)
+    const batchLimit = currentLimit === 0 ? 15 : Math.max(1, Math.min(currentLimit - currentProcessed, 15))
+    const concurrentLimit = concurrentRef.current
+
     try {
       setProcessing(true)
       appendLog('🚀 포그라운드 배치 시작...')
-
-      const batchLimit = currentLimit === 0 ? 15 : Math.max(1, Math.min(currentLimit - currentProcessed, 15))
-      const concurrentLimit = concurrentRef.current
 
       console.log('[AutoCollect] API 호출:', { batchLimit, concurrentLimit, currentProcessed, currentLimit })
 
