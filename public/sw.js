@@ -130,25 +130,68 @@ async function runBatch() {
       processedCount
     })
 
-    const response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
+    console.log('[SW] API 호출 시작:', {
+      url: 'https://0-nkey.pages.dev/api/auto-collect',
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-admin-key': 'dev-key-2024'
-      },
-      body: JSON.stringify({
+      body: {
         limit: batchLimit,
         concurrent: concurrent,
         targetKeywords: remainingTargetKeywords
-      })
+      }
     })
 
-    if (!response.ok) {
-      console.error('[SW] API 호출 실패:', response.status)
-      return
+    let response
+    try {
+      response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': 'dev-key-2024'
+        },
+        body: JSON.stringify({
+          limit: batchLimit,
+          concurrent: concurrent,
+          targetKeywords: remainingTargetKeywords
+        })
+      })
+
+      console.log('[SW] API 응답 상태:', response.status, response.statusText)
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => '')
+        console.error('[SW] API 호출 실패:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorText: errorText.substring(0, 200)
+        })
+        return
+      }
+    } catch (fetchError) {
+      console.error('[SW] API 호출 중 에러:', {
+        error: fetchError.message,
+        stack: fetchError.stack
+      })
+      throw fetchError
     }
 
-    const data = await response.json()
+    let data
+    try {
+      data = await response.json()
+      console.log('[SW] API 응답 데이터:', {
+        success: data.success,
+        processed: data.processed,
+        totalNewKeywords: data.totalNewKeywords,
+        remaining: data.remaining,
+        message: data.message
+      })
+    } catch (jsonError) {
+      console.error('[SW] JSON 파싱 실패:', {
+        error: jsonError.message,
+        responseStatus: response?.status,
+        responseText: await response.text().catch(() => '')
+      })
+      return
+    }
 
     if (data.success) {
       const processedInBatch = data.processed || 0
@@ -212,7 +255,13 @@ async function runBatch() {
     }
 
   } catch (error) {
-    console.error('[SW] 배치 실행 에러:', error)
+    console.error('[SW] 배치 실행 에러:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      processedCount,
+      hasConfig: !!autoCollectConfig
+    })
 
     // 에러 상태 알림
     self.clients.matchAll().then(clients => {
@@ -220,20 +269,37 @@ async function runBatch() {
         client.postMessage({
           type: 'AUTO_COLLECT_UPDATE',
           status: 'error',
-          error: error.message,
-          processedCount
+          error: error.message || '알 수 없는 에러',
+          processedCount,
+          errorDetails: {
+            name: error.name,
+            message: error.message
+          }
         })
       })
+    }).catch(notifyError => {
+      console.error('[SW] 에러 알림 전송 실패:', notifyError)
     })
 
     // 타임아웃이나 네트워크 에러 시 잠시 대기 후 재시도
-    if (error.message.includes('Failed to fetch') || error.message.includes('timeout') || error.message.includes('504')) {
-      console.log('[SW] 네트워크 에러, 2분 후 재시도')
+    const errorMessage = error.message || ''
+    if (errorMessage.includes('Failed to fetch') || 
+        errorMessage.includes('timeout') || 
+        errorMessage.includes('504') ||
+        errorMessage.includes('NetworkError') ||
+        error.name === 'TypeError') {
+      console.log('[SW] 네트워크 에러 감지, 2분 후 재시도:', errorMessage)
       setTimeout(() => {
-        runBatch() // 재시도
+        if (autoCollectConfig && autoCollectInterval) {
+          console.log('[SW] 네트워크 에러 재시도 시작')
+          runBatch() // 재시도
+        } else {
+          console.log('[SW] 재시도 취소: 자동수집이 중단되었습니다.')
+        }
       }, 120000) // 2분 대기
+    } else {
+      console.log('[SW] 다른 종류의 에러, 계속 진행 (다음 인터벌에서 재시도)')
     }
-    // 다른 에러는 계속 진행
   }
 }
 
