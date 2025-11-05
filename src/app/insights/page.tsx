@@ -1,44 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-
-interface InsightKeyword {
-  keyword: string
-  searchVolume: number
-  cafeDocs: number
-  blogDocs: number
-  webDocs: number
-  newsDocs: number
-  totalDocs: number
-  adCount: number
-  cpc: number
-  compIndex: number
-}
-
-interface InsightData {
-  title: string
-  description: string
-  keywords: InsightKeyword[]
-  count: number
-}
-
-interface InsightsResponse {
-  success: boolean
-  insights: {
-    cafeInsights: InsightData
-    blogInsights: InsightData
-    webInsights: InsightData
-    newsInsights: InsightData
-    totalDocsInsights: InsightData
-    adCountInsights: InsightData
-  }
-  summary: {
-    totalKeywords: number
-    minSearchVolume: number
-    limit: number
-    generatedAt: string
-  }
-}
+import type { InsightsResponse } from '@/types/api'
+import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 export default function InsightsPage() {
   const [insights, setInsights] = useState<InsightsResponse['insights'] | null>(null)
