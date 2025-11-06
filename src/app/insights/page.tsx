@@ -48,27 +48,28 @@ export default function InsightsPage() {
   }
 
   // 키워드 데이터를 인사이트로 분석하는 함수
-  // 개선: 검색량 상위에서 넓게 선정 → 문서수 0개 제외 → 검색량 높은 순 → 문서수 적은 순 정렬 → 최대 20개 노출
+  // 규칙: 총검색량 상위 20개 선정 → 각 카테고리별 문서수 0개 제외 → 문서수 적은 순 정렬 → 최대 20개 노출
   const analyzeKeywordsForInsights = (keywords: KeywordData[], _limit: number) => {
     const TARGET_COUNT = 20 // 최대 20개 노출
-    const SEARCH_TOP_COUNT = 500 // 검색량 상위 500개에서 선정 (각 카테고리별 20개 확보를 위해 넓게)
     
-    // 1. 카페 잠재력: 검색량 상위 → 문서수 0개 제외 → 검색량 높은 순 → 문서수 적은 순 → 최대 20개
+    // 1단계: 총검색량 상위 20개 선정
+    const topSearchKeywords = keywords
+      .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
+      .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
+      .slice(0, TARGET_COUNT) // 상위 20개
+    
+    // 1. 카페 잠재력: 상위 20개 중 카페 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
       description: `검색량 상위권 + 카페 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => {
-          const searchVol = k.avg_monthly_search || 0
-          const cafeDocs = k.cafe_total || 0
-          return searchVol > 0 && cafeDocs > 0 // 검색량 0 제외, 카페 문서수 0개 제외
-        })
+      keywords: topSearchKeywords
+        .filter(k => (k.cafe_total || 0) > 0) // 카페 문서수 0개 제외
         .sort((a, b) => {
-          // 1차 정렬: 검색량 내림차순 (상위권 우선)
-          const searchDiff = (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
-          if (searchDiff !== 0) return searchDiff
-          // 2차 정렬: 문서수 적은 순
-          return (a.cafe_total || 0) - (b.cafe_total || 0)
+          // 1차 정렬: 문서수 적은 순
+          const cafeDiff = (a.cafe_total || 0) - (b.cafe_total || 0)
+          if (cafeDiff !== 0) return cafeDiff
+          // 2차 정렬: 검색량 높은 순
+          return (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)
         })
         .slice(0, TARGET_COUNT) // 최대 20개
         .map(k => ({
