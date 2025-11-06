@@ -260,7 +260,7 @@ export default function Home() {
         <h3 className="text-lg font-semibold text-gray-900 mb-4">사용 방법</h3>
         <div className="space-y-2 text-sm text-gray-600">
           <p>1. 시드 키워드를 입력하세요</p>
-          <p>2. "연관검색어 수집" 버튼을 클릭하세요</p>
+          <p>2. &quot;연관검색어 수집&quot; 버튼을 클릭하세요</p>
           <p>3. 수집된 키워드가 클라우드플레어 D1 데이터베이스에 저장됩니다</p>
           <p>4. 데이터 페이지에서 저장된 모든 키워드를 확인할 수 있습니다</p>
         </div>

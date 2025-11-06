@@ -821,8 +821,8 @@ export default function DataPage() {
         <div className="space-y-2 text-sm text-gray-600">
           <p>• 데이터는 Cloudflare D1 데이터베이스에 안전하게 저장됩니다</p>
           <p>• 홈 페이지에서 수집한 키워드는 자동으로 이 페이지에 표시됩니다</p>
-          <p>• "새로고침" 버튼을 클릭하여 최신 데이터를 불러올 수 있습니다</p>
-          <p>• 중요한 데이터는 "CSV 내보내기" 기능으로 백업하세요</p>
+          <p>• &quot;새로고침&quot; 버튼을 클릭하여 최신 데이터를 불러올 수 있습니다</p>
+          <p>• 중요한 데이터는 &quot;CSV 내보내기&quot; 기능으로 백업하세요</p>
           <p>• 데이터는 Pages Functions를 통해 D1에서 조회됩니다</p>
         </div>
       </div>

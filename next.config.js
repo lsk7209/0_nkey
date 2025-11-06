@@ -1,7 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Cloudflare Pages 설정
-  output: 'export',
+  // Cloudflare Pages 설정 (빌드 시에만 적용)
+  // 개발 모드에서는 output: 'export'를 사용하지 않음
+  ...(process.env.NODE_ENV === 'production' && {
+    output: 'export',
+  }),
   trailingSlash: true,
   images: {
     unoptimized: true
