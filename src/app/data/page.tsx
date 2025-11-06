@@ -448,9 +448,10 @@ export default function DataPage() {
     return loadedKeywords.reduce((sum, k) => sum + (k.avg_monthly_search || 0), 0)
   }, [loadedKeywords])
   
-  const avgSearchVolume = useMemo(() => {
-    return loadedKeywords.length > 0 ? Math.round(totalSearchVolume / loadedKeywords.length) : 0
-  }, [loadedKeywords.length, totalSearchVolume])
+  // 평균 검색량 계산 (현재 사용되지 않지만 향후 사용 가능)
+  // const avgSearchVolume = useMemo(() => {
+  //   return loadedKeywords.length > 0 ? Math.round(totalSearchVolume / loadedKeywords.length) : 0
+  // }, [loadedKeywords.length, totalSearchVolume])
   
   const totalPcSearch = useMemo(() => {
     return loadedKeywords.reduce((sum, k) => sum + (k.pc_search || 0), 0)

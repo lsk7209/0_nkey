@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import type { InsightsResponse, InsightData } from '@/types/api'
+import type { InsightsResponse, InsightData, KeywordData } from '@/types/api'
 import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
 export default function InsightsPage() {
@@ -49,7 +49,7 @@ export default function InsightsPage() {
 
   // 키워드 데이터를 인사이트로 분석하는 함수
   // 개선: 검색량 상위 20개 선정 → 문서수 0개 제외 → 문서수 적은 순 정렬 → 최대 20개 노출
-  const analyzeKeywordsForInsights = (keywords: any[], limit: number) => {
+  const analyzeKeywordsForInsights = (keywords: KeywordData[], _limit: number) => {
     const TARGET_COUNT = 20 // 최대 20개 노출
     const SEARCH_TOP_COUNT = 100 // 검색량 상위 100개에서 선정 (풀 확보)
     

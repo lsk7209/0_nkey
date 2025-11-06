@@ -8,7 +8,7 @@ export interface ApiError {
   message: string
   code?: string
   statusCode?: number
-  details?: any
+  details?: unknown
 }
 
 export class AppError extends Error {
@@ -16,7 +16,7 @@ export class AppError extends Error {
     message: string,
     public code?: string,
     public statusCode: number = 500,
-    public details?: any
+    public details?: unknown
   ) {
     super(message)
     this.name = 'AppError'
@@ -38,18 +38,25 @@ export class AppError extends Error {
  */
 export async function handleApiError(response: Response): Promise<ApiError> {
   let errorMessage = '알 수 없는 오류가 발생했습니다.'
-  let errorData: any = null
+  let errorData: unknown = null
 
   try {
     errorData = await response.json()
-    errorMessage = errorData.error || errorData.message || errorMessage
+    // 타입 가드: errorData가 객체인지 확인
+    if (errorData && typeof errorData === 'object') {
+      const data = errorData as Record<string, unknown>
+      errorMessage = (data.error as string) || (data.message as string) || errorMessage
+    }
   } catch {
     errorMessage = `HTTP ${response.status}: ${response.statusText}`
   }
 
+  // 타입 가드: errorData가 객체인지 확인
+  const data = errorData && typeof errorData === 'object' ? errorData as Record<string, unknown> : null
+
   return {
     message: errorMessage,
-    code: errorData?.code,
+    code: data?.code as string | undefined,
     statusCode: response.status,
     details: errorData
   }
@@ -68,7 +75,7 @@ export async function handleApiError(response: Response): Promise<ApiError> {
  *   logError(error, { userId: 123, action: 'collect' })
  * }
  */
-export function logError(error: Error | AppError, context?: Record<string, any>) {
+export function logError(error: Error | AppError, context?: Record<string, unknown>) {
   logger.error(error.message, error, context)
 }
 
