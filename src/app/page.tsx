@@ -132,8 +132,14 @@ export default function Home() {
         })
         
         // 네이버 API 키 문제인 경우 특별 처리
-        if (apiError.details?.error?.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
-          setMessage(`❌ 네이버 API 키 문제: ${apiError.details.error}\n\n해결 방법: ${apiError.details.solution || '관리자에게 문의하세요.'}`)
+        const details = apiError.details && typeof apiError.details === 'object' 
+          ? apiError.details as Record<string, unknown>
+          : null
+        const errorMessage = details?.error as string | undefined
+        const solution = details?.solution as string | undefined
+        
+        if (errorMessage?.includes('네이버 검색광고 API 키가 유효하지 않거나 만료되었습니다')) {
+          setMessage(`❌ 네이버 API 키 문제: ${errorMessage}\n\n해결 방법: ${solution || '관리자에게 문의하세요.'}`)
         } else {
           setMessage(`❌ ${apiError.message}`)
         }
