@@ -48,19 +48,21 @@ export default function InsightsPage() {
   }
 
   // 키워드 데이터를 인사이트로 분석하는 함수
-  // 규칙: 각 카테고리별로 독립적으로 검색량 상위에서 선정 → 문서수 0개 제외 → 문서수 적은 순 정렬 → 최대 20개 노출
+  // 규칙: 전체 키워드 중 검색량 상위 20개 선정 → 각 카테고리별 문서수 0개 제외 → 문서수 적은 순 정렬 → 최대 20개 노출
   const analyzeKeywordsForInsights = (keywords: KeywordData[], _limit: number) => {
     const TARGET_COUNT = 20 // 최대 20개 노출
-    const SEARCH_POOL_SIZE = 500 // 검색량 상위 500개 풀에서 선정 (각 카테고리별 20개 확보)
     
-    // 1. 카페 잠재력: 검색량 상위 → 카페 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
+    // 1단계: 전체 키워드 중 검색량 상위 20개 선정
+    const top20Keywords = keywords
+      .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
+      .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
+      .slice(0, TARGET_COUNT) // 상위 20개
+    
+    // 1. 카페 잠재력: 상위 20개 중 카페 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
     const cafeInsights = {
       title: "🔥 카페 잠재력 키워드",
       description: `검색량 상위권 + 카페 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
-        .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
-        .slice(0, SEARCH_POOL_SIZE) // 검색량 상위 500개 풀
+      keywords: top20Keywords
         .filter(k => (k.cafe_total || 0) > 0) // 카페 문서수 0개 제외
         .sort((a, b) => {
           // 1차 정렬: 문서수 적은 순
@@ -86,14 +88,11 @@ export default function InsightsPage() {
     }
     cafeInsights.count = cafeInsights.keywords.length
 
-    // 2. 블로그 잠재력: 검색량 상위 → 블로그 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
+    // 2. 블로그 잠재력: 상위 20개 중 블로그 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
     const blogInsights = {
       title: "📝 블로그 잠재력 키워드",
       description: `검색량 상위권 + 블로그 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
-        .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
-        .slice(0, SEARCH_POOL_SIZE) // 검색량 상위 500개 풀
+      keywords: top20Keywords
         .filter(k => (k.blog_total || 0) > 0) // 블로그 문서수 0개 제외
         .sort((a, b) => {
           // 1차 정렬: 문서수 적은 순
@@ -119,14 +118,11 @@ export default function InsightsPage() {
     }
     blogInsights.count = blogInsights.keywords.length
 
-    // 3. 웹 잠재력: 검색량 상위 → 웹 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
+    // 3. 웹 잠재력: 상위 20개 중 웹 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
     const webInsights = {
       title: "🌐 웹 잠재력 키워드",
       description: `검색량 상위권 + 웹 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
-        .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
-        .slice(0, SEARCH_POOL_SIZE) // 검색량 상위 500개 풀
+      keywords: top20Keywords
         .filter(k => (k.web_total || 0) > 0) // 웹 문서수 0개 제외
         .sort((a, b) => {
           // 1차 정렬: 문서수 적은 순
@@ -152,14 +148,11 @@ export default function InsightsPage() {
     }
     webInsights.count = webInsights.keywords.length
 
-    // 4. 뉴스 잠재력: 검색량 상위 → 뉴스 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
+    // 4. 뉴스 잠재력: 상위 20개 중 뉴스 문서수 0개 제외 → 문서수 적은 순 → 최대 20개
     const newsInsights = {
       title: "📰 뉴스 잠재력 키워드",
       description: `검색량 상위권 + 뉴스 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
-        .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
-        .slice(0, SEARCH_POOL_SIZE) // 검색량 상위 500개 풀
+      keywords: top20Keywords
         .filter(k => (k.news_total || 0) > 0) // 뉴스 문서수 0개 제외
         .sort((a, b) => {
           // 1차 정렬: 문서수 적은 순
@@ -220,14 +213,11 @@ export default function InsightsPage() {
     }
     adCountInsights.count = adCountInsights.keywords.length
 
-    // 6. 총문서 인사이트: 검색량 상위 → 총 문서수 0개 제외 → 총 문서수 적은 순 → 최대 20개
+    // 6. 총문서 인사이트: 상위 20개 중 총 문서수 0개 제외 → 총 문서수 적은 순 → 최대 20개
     const totalDocsInsights = {
       title: "📊 총문서 인사이트",
       description: `검색량 상위권 + 총 문서수 낮음 (0개 제외)`,
-      keywords: keywords
-        .filter(k => (k.avg_monthly_search || 0) > 0) // 검색량 0 제외
-        .sort((a, b) => (b.avg_monthly_search || 0) - (a.avg_monthly_search || 0)) // 검색량 내림차순
-        .slice(0, SEARCH_POOL_SIZE) // 검색량 상위 500개 풀
+      keywords: top20Keywords
         .filter(k => {
           const totalDocs = (k.cafe_total || 0) + (k.blog_total || 0) + (k.web_total || 0) + (k.news_total || 0)
           return totalDocs > 0 // 총 문서수 0개 제외
