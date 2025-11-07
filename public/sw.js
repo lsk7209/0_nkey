@@ -52,10 +52,10 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 30초마다 반복 실행 (API 응답 시간 고려)
+  // 20초마다 반복 실행 (속도 최적화)
   autoCollectInterval = setInterval(() => {
     runBatch()
-  }, 30000) // 30초 간격 (API 응답 시간 고려하여 20초 → 30초로 조정)
+  }, 20000) // 20초 간격 (속도 최적화)
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {

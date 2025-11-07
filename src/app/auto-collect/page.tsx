@@ -147,7 +147,7 @@ export default function AutoCollectPage() {
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
-  const [concurrentInput, setConcurrentInput] = useState('10') // 동시 처리 수 (기본값 3 → 10으로 증가)
+  const [concurrentInput, setConcurrentInput] = useState('15') // 동시 처리 수 (기본값 15 - 최대값 활용)
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -168,7 +168,7 @@ export default function AutoCollectPage() {
 
   const concurrent = useMemo(() => {
     const n = Number(concurrentInput)
-    return Number.isFinite(n) && n >= 1 && n <= 15 ? n : 10 // 최대값 5 → 15, 기본값 3 → 10
+    return Number.isFinite(n) && n >= 1 && n <= 15 ? n : 15 // 최대값 15, 기본값 15
   }, [concurrentInput])
 
   const targetKeywords = useMemo(() => {
@@ -320,7 +320,7 @@ export default function AutoCollectPage() {
     }
 
     // 변수 선언을 try 블록 밖으로 이동 (catch 블록에서도 접근 가능하도록)
-    const batchLimit = currentLimit === 0 ? 15 : Math.max(1, Math.min(currentLimit - currentProcessed, 15))
+    const batchLimit = currentLimit === 0 ? 30 : Math.max(1, Math.min(currentLimit - currentProcessed, 30)) // 배치 크기 15 → 30으로 증가
     const concurrentLimit = concurrentRef.current
 
     try {
@@ -515,14 +515,14 @@ export default function AutoCollectPage() {
       // 즉시 1회 실행
       runBatchRef.current()
 
-      // 이후 5초마다 반복 실행 (API 응답 시간 고려하여 3초 → 5초로 증가)
+      // 이후 3초마다 반복 실행 (속도 최적화)
       timerRef.current = setInterval(() => {
         // 최신 상태 체크를 위해 ref 사용
         console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current, processing: processingRef.current })
         if (enabledRef.current && !processingRef.current) {
           runBatchRef.current()
         }
-      }, 5000) // 5초 간격으로 증가 (API 응답 시간 고려)
+      }, 3000) // 3초 간격 (속도 최적화)
 
       // cleanup: 타이머 정리
       return () => {

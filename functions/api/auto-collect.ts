@@ -34,10 +34,10 @@ export async function onRequest(context: any) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const limitInput = Number(body.limit ?? 15); // 한 번 호출당 처리할 최대 시드 수 (기본 15개로 증가)
-    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 15;
+    const limitInput = Number(body.limit ?? 30); // 한 번 호출당 처리할 최대 시드 수 (기본 30개로 증가)
+    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 30;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
-    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 10), 1), 15); // 동시에 처리할 시드 수 (1-15, 기본 10)
+    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 15), 1), 15); // 동시에 처리할 시드 수 (1-15, 기본 15)
     const targetKeywords = Number(body.targetKeywords ?? 0); // 목표 키워드 수 (0이면 무제한)
 
     const db = env.DB;
@@ -52,7 +52,7 @@ export async function onRequest(context: any) {
       LIMIT ?
     `;
 
-    const take = unlimited ? 10 : Math.max(1, Math.min(batchSize, 50));
+    const take = unlimited ? 30 : Math.max(1, Math.min(batchSize, 100)); // 최대 100개까지 처리 가능
     const seeds = await db.prepare(seedsQuery).bind(take).all();
     const seedRows = seeds.results || [];
 
@@ -169,10 +169,10 @@ export async function onRequest(context: any) {
         break; // 청크 루프 종료
       }
 
-      // 청크 간 Rate Limit 방지 간격 (5개 API 키 고려하여 800ms로 증가)
+      // 청크 간 Rate Limit 방지 간격 (5개 API 키 사용 시 500ms로 최적화)
       if (chunks.indexOf(chunk) < chunks.length - 1) {
-        console.log(`⏳ 청크 간 대기: 800ms (5개 API 키 최적화)`);
-        await new Promise(r => setTimeout(r, 800));
+        console.log(`⏳ 청크 간 대기: 500ms (5개 API 키 최적화)`);
+        await new Promise(r => setTimeout(r, 500)); // 800ms → 500ms로 감소
       }
     }
 
