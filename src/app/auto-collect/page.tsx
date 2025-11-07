@@ -598,20 +598,30 @@ export default function AutoCollectPage() {
       if (savedLimit) {
         setLimitInput(savedLimit)
       }
+      
+      // 동시 처리 수 처리 (최대값 15로 제한)
       if (savedConcurrent) {
         const savedConcurrentNum = Number(savedConcurrent)
         // 최대값 15로 제한 (이전에 20 이상으로 설정된 경우)
         if (savedConcurrentNum > 15) {
-          setConcurrentInput('15')
-          localStorage.setItem('auto-collect-concurrent', '15')
+          const correctedValue = '15'
+          setConcurrentInput(correctedValue)
+          localStorage.setItem('auto-collect-concurrent', correctedValue)
+          console.log(`[AutoCollect] 동시 처리 수 자동 수정: ${savedConcurrent} → ${correctedValue}`)
         } else if (savedConcurrentNum < 1) {
           // 최소값 1로 제한
-          setConcurrentInput('10')
-          localStorage.setItem('auto-collect-concurrent', '10')
+          const correctedValue = '10'
+          setConcurrentInput(correctedValue)
+          localStorage.setItem('auto-collect-concurrent', correctedValue)
+          console.log(`[AutoCollect] 동시 처리 수 자동 수정: ${savedConcurrent} → ${correctedValue}`)
         } else {
           setConcurrentInput(savedConcurrent)
         }
+      } else {
+        // 저장된 값이 없으면 기본값 10 설정
+        setConcurrentInput('10')
       }
+      
       setIsInitialized(true)
     }
   }, [isInitialized])
