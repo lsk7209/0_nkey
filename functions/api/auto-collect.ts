@@ -79,66 +79,96 @@ export async function onRequest(context: any) {
       chunks.push(seedRows.slice(i, i + concurrentLimit));
     }
 
-    for (const chunk of chunks) {
-      console.log(`🔄 청크 처리 시작: ${chunk.length}개 시드 동시 처리`);
+      for (const chunk of chunks) {
+        console.log(`🔄 청크 처리 시작: ${chunk.length}개 시드 동시 처리 (시드 목록: ${chunk.map((r: any) => r.keyword).join(', ')})`);
 
       // 청크 내 시드들을 병렬로 처리
       const chunkPromises = chunk.map(async (row: any) => {
         const seed: string = row.keyword;
         try {
-          // 타임아웃 설정 (30초)
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => {
-            controller.abort();
-          }, 30000); // 30초 타임아웃
+            // 타임아웃 설정 (60초로 증가 - 네이버 API 응답 시간 고려)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => {
+              controller.abort();
+            }, 60000); // 60초 타임아웃 (30초 → 60초로 증가)
 
-          const res = await fetch(collectUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
-            body: JSON.stringify({ seed }),
-            signal: controller.signal
-          });
+            const res = await fetch(collectUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
+              body: JSON.stringify({ seed }),
+              signal: controller.signal
+            });
 
-          clearTimeout(timeoutId);
+            clearTimeout(timeoutId);
 
-          let collectResult = null;
-          if (res.ok) {
-            collectResult = await res.json();
-            if (collectResult.success) {
-              return {
-                seed,
-                success: true,
-                totalCollected: collectResult.totalCollected || 0,
-                totalSavedOrUpdated: collectResult.totalSavedOrUpdated || 0,
-                savedCount: collectResult.savedCount || collectResult.actualNewKeywords || 0 // 새로 추가된 키워드 수
-              };
+            let collectResult = null;
+            if (res.ok) {
+              collectResult = await res.json();
+              if (collectResult.success) {
+                const savedCount = collectResult.savedCount || collectResult.actualNewKeywords || 0;
+                const totalCollected = collectResult.totalCollected || 0;
+                const totalSavedOrUpdated = collectResult.totalSavedOrUpdated || 0;
+                
+                // 상세 로깅 (디버깅용)
+                if (savedCount === 0 && totalCollected === 0) {
+                  console.log(`⚠️ 시드 "${seed}" 처리 완료했지만 키워드 수집 없음 (이미 수집되었거나 키워드 없음)`);
+                } else {
+                  console.log(`✅ 시드 "${seed}" 처리 성공: 수집 ${totalCollected}개, 저장 ${savedCount}개 (신규), 업데이트 ${totalSavedOrUpdated - savedCount}개`);
+                }
+                
+                return {
+                  seed,
+                  success: true,
+                  totalCollected,
+                  totalSavedOrUpdated,
+                  savedCount // 새로 추가된 키워드 수
+                };
+              } else {
+                // collect-naver API가 실패한 경우
+                const errorMessage = collectResult.error || collectResult.message || '알 수 없는 오류';
+                console.warn(`⚠️ 시드 "${seed}" collect-naver API 실패: ${errorMessage}`);
+                return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: errorMessage };
+              }
+            } else {
+              // HTTP 응답이 실패한 경우
+              const errorText = await res.text().catch(() => '');
+              console.error(`❌ 시드 "${seed}" HTTP ${res.status} 에러: ${errorText.substring(0, 200)}`);
+              return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: `HTTP ${res.status}` };
             }
-          }
-
-          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
         } catch (e: any) {
           const error = e as Error;
           // 타임아웃 에러는 로그만 남기고 계속 진행
           if (error.name === 'AbortError') {
-            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 30초 초과`);
+            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 60초 초과`);
           } else {
             console.error(`❌ 시드 처리 실패 (${seed}):`, error.message || error);
           }
-          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
+          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown error' };
         }
       });
 
       // 청크 내 모든 시드 처리 완료 대기 (일부 실패해도 계속 진행)
       const chunkResults = await Promise.allSettled(chunkPromises).then(results =>
-        results.map(result => result.status === 'fulfilled' ? result.value : {
-          seed: 'unknown',
-          success: false,
-          totalCollected: 0,
-          totalSavedOrUpdated: 0
+        results.map(result => {
+          if (result.status === 'fulfilled') {
+            return result.value;
+          } else {
+            console.error(`❌ 시드 처리 Promise 실패:`, result.reason);
+            return {
+              seed: 'unknown',
+              success: false,
+              totalCollected: 0,
+              totalSavedOrUpdated: 0,
+              savedCount: 0,
+              error: result.reason?.message || 'Promise rejected'
+            };
+          }
         })
       );
 
       // 결과 집계 및 DB 기록
+      let chunkSuccessCount = 0;
+      let chunkFailureCount = 0;
       for (const result of chunkResults) {
         // collect 결과와 무관하게 활용 이력 기록 (중복 방지용)
         await db.prepare(`
@@ -155,14 +185,24 @@ export async function onRequest(context: any) {
           totalNewKeywords += result.savedCount || 0; // 새로 추가된 키워드 수 누적
           processed++;
           processedSeeds.push(result.seed);
+          chunkSuccessCount++;
           
           // 목표 키워드 수 도달 확인
           if (targetKeywords > 0 && totalNewKeywords >= targetKeywords) {
             console.log(`🎯 목표 키워드 수 도달: ${totalNewKeywords}개 (목표: ${targetKeywords}개)`);
             break; // 청크 루프 종료
           }
+        } else {
+          chunkFailureCount++;
+          // 실패한 시드의 에러 정보 로깅 (최대 3개만)
+          if (chunkFailureCount <= 3 && result.error) {
+            console.warn(`⚠️ 시드 "${result.seed}" 처리 실패: ${result.error}`);
+          }
         }
       }
+      
+      // 청크 처리 결과 요약 로깅
+      console.log(`📊 청크 처리 완료: 성공 ${chunkSuccessCount}개, 실패 ${chunkFailureCount}개 (총 ${chunk.length}개)`);
 
       // 목표 키워드 수 도달 확인 (청크 간에도 확인)
       if (targetKeywords > 0 && totalNewKeywords >= targetKeywords) {
