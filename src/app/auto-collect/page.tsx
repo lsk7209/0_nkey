@@ -147,7 +147,7 @@ export default function AutoCollectPage() {
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
-  const [concurrentInput, setConcurrentInput] = useState('10') // 동시 처리 수 (기본값 10 - 안정성 우선)
+  const [concurrentInput, setConcurrentInput] = useState('20') // 동시 처리 수 (기본값 20 - 5개 API 키 활용)
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -168,7 +168,7 @@ export default function AutoCollectPage() {
 
   const concurrent = useMemo(() => {
     const n = Number(concurrentInput)
-    return Number.isFinite(n) && n >= 1 && n <= 15 ? n : 10 // 최대값 15, 기본값 10 (안정성 우선)
+    return Number.isFinite(n) && n >= 1 && n <= 25 ? n : 20 // 최대값 25, 기본값 20 (5개 API 키 활용)
   }, [concurrentInput])
 
   const targetKeywords = useMemo(() => {
@@ -320,7 +320,7 @@ export default function AutoCollectPage() {
     }
 
     // 변수 선언을 try 블록 밖으로 이동 (catch 블록에서도 접근 가능하도록)
-    const batchLimit = currentLimit === 0 ? 20 : Math.max(1, Math.min(currentLimit - currentProcessed, 20)) // 배치 크기 20으로 감소 (안정성 우선)
+    const batchLimit = currentLimit === 0 ? 50 : Math.max(1, Math.min(currentLimit - currentProcessed, 50)) // 배치 크기 50 (5개 API 키 활용)
     const concurrentLimit = concurrentRef.current
 
     try {
@@ -599,18 +599,18 @@ export default function AutoCollectPage() {
         setLimitInput(savedLimit)
       }
       
-      // 동시 처리 수 처리 (최대값 15로 제한)
+      // 동시 처리 수 처리 (최대값 25로 제한)
       if (savedConcurrent) {
         const savedConcurrentNum = Number(savedConcurrent)
-        // 최대값 15로 제한 (이전에 20 이상으로 설정된 경우)
-        if (savedConcurrentNum > 15) {
-          const correctedValue = '15'
+        // 최대값 25로 제한
+        if (savedConcurrentNum > 25) {
+          const correctedValue = '25'
           setConcurrentInput(correctedValue)
           localStorage.setItem('auto-collect-concurrent', correctedValue)
           console.log(`[AutoCollect] 동시 처리 수 자동 수정: ${savedConcurrent} → ${correctedValue}`)
         } else if (savedConcurrentNum < 1) {
           // 최소값 1로 제한
-          const correctedValue = '10'
+          const correctedValue = '20'
           setConcurrentInput(correctedValue)
           localStorage.setItem('auto-collect-concurrent', correctedValue)
           console.log(`[AutoCollect] 동시 처리 수 자동 수정: ${savedConcurrent} → ${correctedValue}`)
@@ -618,8 +618,8 @@ export default function AutoCollectPage() {
           setConcurrentInput(savedConcurrent)
         }
       } else {
-        // 저장된 값이 없으면 기본값 10 설정
-        setConcurrentInput('10')
+        // 저장된 값이 없으면 기본값 20 설정 (5개 API 키 활용)
+        setConcurrentInput('20')
       }
       
       setIsInitialized(true)
@@ -754,11 +754,11 @@ export default function AutoCollectPage() {
               />
             </div>
             <div className="flex items-center gap-3">
-                    <label className="text-sm text-gray-700">동시 처리 수 (1-15)</label>
+                    <label className="text-sm text-gray-700">동시 처리 수 (1-25)</label>
                     <input
                       type="number"
                       min={1}
-                      max={15}
+                      max={25}
                 value={concurrentInput}
                 onChange={(e) => setConcurrentInput(e.target.value)}
                 className="input-field w-16"

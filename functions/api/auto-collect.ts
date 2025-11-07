@@ -34,10 +34,10 @@ export async function onRequest(context: any) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const limitInput = Number(body.limit ?? 20); // 한 번 호출당 처리할 최대 시드 수 (기본 20개로 감소 - 안정성 우선)
-    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 20;
+    const limitInput = Number(body.limit ?? 50); // 한 번 호출당 처리할 최대 시드 수 (기본 50개 - 5개 API 키 활용)
+    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 50;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
-    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 10), 1), 15); // 동시에 처리할 시드 수 (1-15, 기본 10 - 안정성 우선)
+    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 20), 1), 25); // 동시에 처리할 시드 수 (1-25, 기본 20 - 5개 API 키 활용)
     const targetKeywords = Number(body.targetKeywords ?? 0); // 목표 키워드 수 (0이면 무제한)
 
     const db = env.DB;
@@ -52,7 +52,7 @@ export async function onRequest(context: any) {
       LIMIT ?
     `;
 
-    const take = unlimited ? 20 : Math.max(1, Math.min(batchSize, 50)); // 최대 50개까지 처리 가능 (안정성 우선)
+    const take = unlimited ? 50 : Math.max(1, Math.min(batchSize, 200)); // 최대 200개까지 처리 가능 (5개 API 키 활용)
     const seeds = await db.prepare(seedsQuery).bind(take).all();
     const seedRows = seeds.results || [];
 
