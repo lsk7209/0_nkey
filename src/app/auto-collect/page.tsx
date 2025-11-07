@@ -329,6 +329,13 @@ export default function AutoCollectPage() {
 
       console.log('[AutoCollect] API 호출:', { batchLimit, concurrentLimit, currentProcessed, currentLimit })
 
+      // 타임아웃 설정 (2분)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => {
+        controller.abort()
+        console.error('[AutoCollect] API 호출 타임아웃 (2분)')
+      }, 120000) // 2분
+
       const res = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
         headers: {
@@ -339,8 +346,11 @@ export default function AutoCollectPage() {
           limit: batchLimit,
           concurrent: concurrentLimit,
           targetKeywords: targetKeywords > 0 ? targetKeywords - totalNewKeywords : 0 // 남은 목표 키워드 수
-        })
+        }),
+        signal: controller.signal
       })
+
+      clearTimeout(timeoutId)
 
       console.log('[AutoCollect] API 응답 상태:', res.status)
 
@@ -397,14 +407,25 @@ export default function AutoCollectPage() {
         appendLog(`❌ 배치 실패: ${errorMessage}`)
       }
     } catch (e: any) {
-      const errorMessage = getUserFriendlyErrorMessage(e as Error)
-      logError(e as Error, { action: 'runBatch', batchLimit, concurrentLimit })
-      appendLog(`❌ 예외: ${errorMessage}`)
+      const error = e as Error
+      const errorMessage = getUserFriendlyErrorMessage(error)
+      
+      // 타임아웃이나 네트워크 에러인 경우 재시도 로직
+      if (error.name === 'AbortError' || 
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('timeout') ||
+          errorMessage.includes('NetworkError')) {
+        logError(error, { action: 'runBatch', batchLimit, concurrentLimit, retryable: true })
+        appendLog(`⚠️ 네트워크/타임아웃 에러: ${errorMessage} (다음 배치에서 재시도)`)
+      } else {
+        logError(error, { action: 'runBatch', batchLimit, concurrentLimit })
+        appendLog(`❌ 예외: ${errorMessage}`)
+      }
     } finally {
       console.log('[AutoCollect] finally: processing을 false로 설정')
       setProcessing(false)
     }
-  }, [appendLog])
+  }, [appendLog, targetKeywords, totalNewKeywords])
 
   // runBatch를 ref로 안정화
   const runBatchRef = useRef(runBatch)
@@ -494,14 +515,14 @@ export default function AutoCollectPage() {
       // 즉시 1회 실행
       runBatchRef.current()
 
-      // 이후 3초마다 반복 실행
+      // 이후 5초마다 반복 실행 (API 응답 시간 고려하여 3초 → 5초로 증가)
       timerRef.current = setInterval(() => {
         // 최신 상태 체크를 위해 ref 사용
         console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current, processing: processingRef.current })
         if (enabledRef.current && !processingRef.current) {
           runBatchRef.current()
         }
-      }, 3000)
+      }, 5000) // 5초 간격으로 증가 (API 응답 시간 고려)
 
       // cleanup: 타이머 정리
       return () => {

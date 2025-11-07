@@ -86,11 +86,20 @@ export async function onRequest(context: any) {
       const chunkPromises = chunk.map(async (row: any) => {
         const seed: string = row.keyword;
         try {
+          // 타임아웃 설정 (30초)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+          }, 30000); // 30초 타임아웃
+
           const res = await fetch(collectUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-admin-key': 'dev-key-2024' },
-            body: JSON.stringify({ seed })
+            body: JSON.stringify({ seed }),
+            signal: controller.signal
           });
+
+          clearTimeout(timeoutId);
 
           let collectResult = null;
           if (res.ok) {
@@ -106,8 +115,14 @@ export async function onRequest(context: any) {
           }
 
           return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
-        } catch (e) {
-          console.error(`❌ 시드 처리 실패 (${seed}):`, e);
+        } catch (e: any) {
+          const error = e as Error;
+          // 타임아웃 에러는 로그만 남기고 계속 진행
+          if (error.name === 'AbortError') {
+            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 30초 초과`);
+          } else {
+            console.error(`❌ 시드 처리 실패 (${seed}):`, error.message || error);
+          }
           return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0 };
         }
       });
