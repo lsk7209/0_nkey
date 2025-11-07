@@ -52,10 +52,10 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 20초마다 반복 실행 (속도 최적화)
+  // 15초마다 반복 실행 (다중 API 키 활용으로 속도 최적화)
   autoCollectInterval = setInterval(() => {
     runBatch()
-  }, 20000) // 20초 간격 (속도 최적화)
+  }, 15000) // 15초 간격 (다중 API 키 활용으로 속도 최적화)
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
@@ -119,8 +119,8 @@ async function runBatch() {
   try {
     console.log('[SW] 배치 실행 시작')
 
-    const batchLimit = autoCollectConfig.limit === 0 ? 30 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 30)) // 배치 크기 30으로 증가
-    const concurrent = autoCollectConfig.concurrent || 15 // 기본값 15로 증가
+    const batchLimit = autoCollectConfig.limit === 0 ? 50 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 50)) // 배치 크기 50으로 증가 (5개 API 키 활용)
+    const concurrent = autoCollectConfig.concurrent || 20 // 기본값 20으로 증가 (5개 API 키 활용)
     const targetKeywords = autoCollectConfig.targetKeywords || 0
     const remainingTargetKeywords = targetKeywords > 0 ? Math.max(0, targetKeywords - totalNewKeywordsAccumulated) : 0
 
