@@ -7,6 +7,7 @@ let autoCollectConfig = null
 let processedCount = 0
 let totalNewKeywordsAccumulated = 0 // 누적된 새로 추가된 키워드 수
 let consecutiveTimeouts = 0 // 연속 타임아웃 횟수
+let isBatchRunning = false // 배치 실행 중 플래그 (중복 실행 방지)
 
 // Service Worker 메시지 핸들러
 self.addEventListener('message', (event) => {
@@ -52,10 +53,15 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 15초마다 반복 실행 (다중 API 키 활용으로 속도 최적화)
+  // 30초마다 반복 실행 (API 응답 시간 고려하여 간격 증가)
   autoCollectInterval = setInterval(() => {
-    runBatch()
-  }, 15000) // 15초 간격 (다중 API 키 활용으로 속도 최적화)
+    // 이전 배치가 실행 중이면 건너뛰기
+    if (!isBatchRunning) {
+      runBatch()
+    } else {
+      console.log('[SW] 이전 배치 실행 중, 건너뜀')
+    }
+  }, 30000) // 30초 간격 (API 응답 시간 고려)
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
@@ -115,8 +121,15 @@ function sendStatus() {
 // 배치 실행
 async function runBatch() {
   if (!autoCollectConfig) return
+  
+  // 이미 실행 중이면 건너뛰기
+  if (isBatchRunning) {
+    console.log('[SW] 배치가 이미 실행 중입니다. 건너뜀')
+    return
+  }
 
   try {
+    isBatchRunning = true // 배치 실행 시작
     console.log('[SW] 배치 실행 시작')
 
            const batchLimit = autoCollectConfig.limit === 0 ? 20 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 20)) // 배치 크기 20으로 감소 (안정성 우선)
