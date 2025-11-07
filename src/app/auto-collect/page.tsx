@@ -412,6 +412,25 @@ export default function AutoCollectPage() {
     runBatchRef.current = runBatch
   }, [runBatch])
 
+  // 컴포넌트 언마운트 시 리소스 정리
+  useEffect(() => {
+    return () => {
+      console.log('[AutoCollect] 컴포넌트 언마운트 cleanup')
+      
+      // 포그라운드 모드 타이머 정리
+      if (timerRef.current) {
+        clearInterval(timerRef.current)
+        timerRef.current = null
+      }
+      
+      // 백그라운드 모드 Service Worker 중단
+      if (backgroundCollectorRef.current) {
+        backgroundCollectorRef.current.stopBackgroundCollect()
+      }
+    }
+  }, []) // 컴포넌트 언마운트 시에만 실행
+
+  // 자동수집 실행 로직
   useEffect(() => {
     // 초기화가 완료되지 않았으면 대기
     if (!isInitialized) {
@@ -420,9 +439,9 @@ export default function AutoCollectPage() {
 
     console.log('[AutoCollect] useEffect 실행:', { enabled, backgroundMode })
 
-    // cleanup 함수: 모드 변경 시 이전 모드의 리소스 정리
+    // cleanup 함수: 상태 변경 시 이전 리소스 정리
     return () => {
-      console.log('[AutoCollect] useEffect cleanup')
+      console.log('[AutoCollect] useEffect cleanup - 리소스 정리')
       
       // 포그라운드 모드 타이머 정리
       if (timerRef.current) {
@@ -446,12 +465,6 @@ export default function AutoCollectPage() {
 
     // 백그라운드 모드 처리
     if (enabled && backgroundMode && backgroundCollectorRef.current) {
-      // 포그라운드 타이머가 실행 중이면 먼저 정리
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-      
       appendLog('🚀 백그라운드 자동수집 시작')
       backgroundCollectorRef.current.startBackgroundCollect({
         limit: limitRef.current,
@@ -471,17 +484,6 @@ export default function AutoCollectPage() {
 
     // 포그라운드 모드 처리
     if (!backgroundMode) {
-      // 백그라운드 수집이 실행 중이면 먼저 중단
-      if (backgroundCollectorRef.current) {
-        backgroundCollectorRef.current.stopBackgroundCollect()
-      }
-      
-      // 기존 타이머 정리
-      if (timerRef.current) {
-        clearInterval(timerRef.current)
-        timerRef.current = null
-      }
-
       if (!enabled) {
         appendLog('⏹️ 포그라운드 자동수집 OFF')
         return
@@ -500,6 +502,14 @@ export default function AutoCollectPage() {
           runBatchRef.current()
         }
       }, 3000)
+
+      // cleanup: 타이머 정리
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current)
+          timerRef.current = null
+        }
+      }
     }
   }, [enabled, backgroundMode, isInitialized, appendLog])
 
