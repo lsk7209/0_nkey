@@ -1,6 +1,6 @@
 // Service Worker for Background Auto Collection
 // 백그라운드 자동 수집을 위한 Service Worker
-// Version: 2.0 - 속도 개선 (batchLimit 15, concurrent 기본 10, 간격 20초)
+// Version: 2.3 - 상세 통계 로깅 추가 (성공률, 타임아웃, API실패 추적)
 
 let autoCollectInterval = null
 let autoCollectConfig = null
@@ -233,8 +233,20 @@ async function runBatch() {
         processed: data.processed,
         totalNewKeywords: data.totalNewKeywords,
         remaining: data.remaining,
-        message: data.message
+        message: data.message,
+        stats: data.stats || null // 상세 통계 정보
       })
+      
+      // 상세 통계 정보가 있으면 별도로 로깅
+      if (data.stats) {
+        console.log('[SW] 📊 배치 처리 통계:', {
+          시도한시드수: data.stats.totalAttempted,
+          성공률: data.stats.successRate,
+          타임아웃: data.stats.timeoutCount,
+          API실패: data.stats.apiFailureCount,
+          실패한시드목록: data.stats.failedSeeds?.slice(0, 5) || [] // 최대 5개만 표시
+        })
+      }
     } catch (jsonError) {
       console.error('[SW] JSON 파싱 실패:', {
         error: jsonError.message,
