@@ -109,7 +109,8 @@ export async function onRequest(context: any) {
                 seed,
                 success: true,
                 totalCollected: collectResult.totalCollected || 0,
-                totalSavedOrUpdated: collectResult.totalSavedOrUpdated || 0
+                totalSavedOrUpdated: collectResult.totalSavedOrUpdated || 0,
+                savedCount: collectResult.savedCount || collectResult.actualNewKeywords || 0 // 새로 추가된 키워드 수
               };
             }
           }
