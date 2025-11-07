@@ -119,8 +119,8 @@ async function runBatch() {
   try {
     console.log('[SW] 배치 실행 시작')
 
-    const batchLimit = autoCollectConfig.limit === 0 ? 15 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 15))
-    const concurrent = autoCollectConfig.concurrent || 10
+    const batchLimit = autoCollectConfig.limit === 0 ? 30 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 30)) // 배치 크기 30으로 증가
+    const concurrent = autoCollectConfig.concurrent || 15 // 기본값 15로 증가
     const targetKeywords = autoCollectConfig.targetKeywords || 0
     const remainingTargetKeywords = targetKeywords > 0 ? Math.max(0, targetKeywords - totalNewKeywordsAccumulated) : 0
 
