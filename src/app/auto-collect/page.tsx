@@ -147,7 +147,7 @@ export default function AutoCollectPage() {
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
-  const [concurrentInput, setConcurrentInput] = useState('20') // 동시 처리 수 (기본값 20 - 5개 API 키 활용)
+  const [concurrentInput, setConcurrentInput] = useState('10') // 동시 처리 수 (기본값 10 - 안정성 우선)
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -168,7 +168,7 @@ export default function AutoCollectPage() {
 
   const concurrent = useMemo(() => {
     const n = Number(concurrentInput)
-    return Number.isFinite(n) && n >= 1 && n <= 25 ? n : 20 // 최대값 25, 기본값 20 (5개 API 키 활용)
+    return Number.isFinite(n) && n >= 1 && n <= 15 ? n : 10 // 최대값 15, 기본값 10 (안정성 우선)
   }, [concurrentInput])
 
   const targetKeywords = useMemo(() => {
@@ -320,7 +320,7 @@ export default function AutoCollectPage() {
     }
 
     // 변수 선언을 try 블록 밖으로 이동 (catch 블록에서도 접근 가능하도록)
-    const batchLimit = currentLimit === 0 ? 50 : Math.max(1, Math.min(currentLimit - currentProcessed, 50)) // 배치 크기 50으로 증가 (5개 API 키 활용)
+    const batchLimit = currentLimit === 0 ? 20 : Math.max(1, Math.min(currentLimit - currentProcessed, 20)) // 배치 크기 20으로 감소 (안정성 우선)
     const concurrentLimit = concurrentRef.current
 
     try {

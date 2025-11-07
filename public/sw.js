@@ -119,8 +119,8 @@ async function runBatch() {
   try {
     console.log('[SW] 배치 실행 시작')
 
-    const batchLimit = autoCollectConfig.limit === 0 ? 50 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 50)) // 배치 크기 50으로 증가 (5개 API 키 활용)
-    const concurrent = autoCollectConfig.concurrent || 20 // 기본값 20으로 증가 (5개 API 키 활용)
+           const batchLimit = autoCollectConfig.limit === 0 ? 20 : Math.max(1, Math.min(autoCollectConfig.limit - processedCount, 20)) // 배치 크기 20으로 감소 (안정성 우선)
+           const concurrent = autoCollectConfig.concurrent || 10 // 기본값 10으로 감소 (안정성 우선)
     const targetKeywords = autoCollectConfig.targetKeywords || 0
     const remainingTargetKeywords = targetKeywords > 0 ? Math.max(0, targetKeywords - totalNewKeywordsAccumulated) : 0
 
