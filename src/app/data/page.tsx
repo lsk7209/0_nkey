@@ -84,7 +84,8 @@ export default function DataPage() {
   const [message, setMessage] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(50) // 페이지당 50개 표시
-  const [totalCount, setTotalCount] = useState(0)
+  const [totalCount, setTotalCount] = useState(0) // 필터링된 키워드 수
+  const [totalAllCount, setTotalAllCount] = useState<number | null>(null) // 전체 키워드 수
   const [totalPages, setTotalPages] = useState(1)
   const [filters, setFilters] = useState<FilterValues>({
     minAvgSearch: '',
