@@ -740,11 +740,11 @@ export default function AutoCollectPage() {
               />
             </div>
             <div className="flex items-center gap-3">
-              <label className="text-sm text-gray-700">동시 처리 수 (1-25)</label>
-              <input
-                type="number"
-                min={1}
-                max={25}
+                    <label className="text-sm text-gray-700">동시 처리 수 (1-15)</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={15}
                 value={concurrentInput}
                 onChange={(e) => setConcurrentInput(e.target.value)}
                 className="input-field w-16"
