@@ -217,13 +217,19 @@ export async function onRequest(context: any) {
       throw queryError;
     }
 
-    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개 (총 ${total}개)`);
+    // 전체 키워드 수 조회 (필터링 없이)
+    const totalAllKeywordsQuery = `SELECT COUNT(*) as total FROM keywords`;
+    const totalAllKeywordsResult = await db.prepare(totalAllKeywordsQuery).all();
+    const totalAllKeywords = totalAllKeywordsResult.results?.[0]?.total || 0;
+
+    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개 (필터링: ${total}개 / 전체: ${totalAllKeywords}개)`);
 
     // 응답 데이터 준비
     const responseData = {
       success: true,
       keywords: result.results || [],
-      total,
+      total, // 필터링된 키워드 수
+      totalAll: totalAllKeywords, // 전체 키워드 수 (필터링 없이)
       page,
       pageSize,
       message: `${result.results?.length || 0}개의 키워드를 조회했습니다.`

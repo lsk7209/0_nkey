@@ -61,7 +61,8 @@ export interface CollectNaverResponse extends ApiResponse {
  */
 export interface KeywordsResponse extends ApiResponse {
   keywords: KeywordData[]
-  total: number
+  total: number // 필터링된 키워드 수
+  totalAll?: number // 전체 키워드 수 (필터링 없이)
   page: number
   pageSize: number
 }

@@ -139,9 +139,17 @@ export default function DataPage() {
         const data = await response.json() as KeywordsResponse
         if (data.success && Array.isArray(data.keywords)) {
           setKeywords(data.keywords)
+          // 필터링된 키워드 수 사용 (문서수 0 제외 옵션 반영)
           setTotalCount(typeof data.total === 'number' ? data.total : data.keywords.length)
+          // 전체 키워드 수 저장
+          setTotalAllCount(typeof data.totalAll === 'number' ? data.totalAll : null)
 
-          setMessage(`✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (총 ${data.total ?? data.keywords.length}개 중, 페이지 ${page}) 불러왔습니다.`)
+          // 전체 키워드 수가 있으면 표시
+          const totalAll = data.totalAll || data.total
+          const displayMessage = data.totalAll && data.totalAll !== data.total
+            ? `✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (필터링: ${data.total.toLocaleString()}개 / 전체: ${totalAll.toLocaleString()}개 중, 페이지 ${page}) 불러왔습니다.`
+            : `✅ 클라우드 D1 데이터베이스에서 ${data.keywords.length}개 (총 ${data.total.toLocaleString()}개 중, 페이지 ${page}) 불러왔습니다.`
+          setMessage(displayMessage)
 
           // 전체 페이지 수 계산
           const calculatedTotalPages = Math.ceil((data.total ?? data.keywords.length) / itemsPerPage)
@@ -669,7 +677,7 @@ export default function DataPage() {
         <>
           <div className="card">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              키워드 목록 ({keywords.length.toLocaleString()}개 표시 / 총 {totalCount.toLocaleString()}개)
+              키워드 목록 ({keywords.length.toLocaleString()}개 표시 / 필터링: {totalCount.toLocaleString()}개{totalAllCount !== null && totalAllCount !== totalCount ? ` / 전체: ${totalAllCount.toLocaleString()}개` : ''})
             </h2>
 
           <div className="overflow-x-auto">
