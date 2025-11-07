@@ -772,10 +772,10 @@ export default function AutoCollectPage() {
             </div>
             <div className="p-3 bg-gray-50 rounded">
               <div className="text-sm text-gray-600">남은 시드</div>
-              <div className="text-xl font-semibold">{remaining ?? '-'}</div>
+              <div className="text-xl font-semibold">{remaining !== null ? remaining.toLocaleString() : '-'}</div>
               {totalKeywords !== null && usedSeeds !== null && (
                 <div className="text-xs text-gray-500 mt-1">
-                  전체: {totalKeywords.toLocaleString()}개 / 사용: {usedSeeds.toLocaleString()}개
+                  총 키워드: {totalKeywords.toLocaleString()}개 / 시드 사용: {usedSeeds.toLocaleString()}개
                 </div>
               )}
             </div>
