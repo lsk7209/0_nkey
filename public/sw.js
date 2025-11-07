@@ -6,6 +6,7 @@ let autoCollectInterval = null
 let autoCollectConfig = null
 let processedCount = 0
 let totalNewKeywordsAccumulated = 0 // 누적된 새로 추가된 키워드 수
+let consecutiveTimeouts = 0 // 연속 타임아웃 횟수
 
 // Service Worker 메시지 핸들러
 self.addEventListener('message', (event) => {
@@ -46,6 +47,7 @@ function startAutoCollect(config) {
   autoCollectConfig = config
   processedCount = 0
   totalNewKeywordsAccumulated = 0 // 초기화
+  consecutiveTimeouts = 0 // 연속 타임아웃 횟수 초기화
 
   // 즉시 첫 배치 실행
   runBatch()
@@ -143,12 +145,30 @@ async function runBatch() {
 
     let response
     try {
-      // 타임아웃 설정 (5분)
+      // 타임아웃 설정 (10분) - 대용량 처리 시간 고려
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         controller.abort()
-        console.error('[SW] API 호출 타임아웃 (5분)')
-      }, 300000) // 5분
+        consecutiveTimeouts++
+        console.error(`[SW] API 호출 타임아웃 (10분) - 연속 타임아웃: ${consecutiveTimeouts}회`)
+        
+        // 연속 타임아웃 3회 이상 시 일시 중단
+        if (consecutiveTimeouts >= 3) {
+          console.error('[SW] 연속 타임아웃 3회 이상, 자동수집 일시 중단')
+          stopAutoCollect()
+          self.clients.matchAll().then(clients => {
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'AUTO_COLLECT_UPDATE',
+                status: 'error',
+                error: '연속 타임아웃으로 인한 자동 중단. API 응답이 너무 느립니다.',
+                processedCount
+              })
+            })
+          })
+          return
+        }
+      }, 600000) // 10분으로 증가
 
       response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
@@ -165,6 +185,7 @@ async function runBatch() {
       })
 
       clearTimeout(timeoutId)
+      consecutiveTimeouts = 0 // 성공 시 연속 타임아웃 횟수 초기화
       console.log('[SW] API 응답 상태:', response.status, response.statusText)
 
       if (!response.ok) {
@@ -189,6 +210,14 @@ async function runBatch() {
           fetchError.message.includes('Failed to fetch') ||
           fetchError.message.includes('timeout')) {
         console.log('[SW] 네트워크/타임아웃 에러, 다음 배치에서 재시도')
+        
+        // 연속 타임아웃이 2회 이상이면 재시도 간격을 늘림
+        if (consecutiveTimeouts >= 2) {
+          console.log('[SW] 연속 타임아웃 감지, 재시도 간격 증가 (60초 대기)')
+          // 다음 배치까지 대기 시간 증가
+          return
+        }
+        
         // 다음 배치에서 자동으로 재시도됨 (인터벌에 의해)
         return
       }
