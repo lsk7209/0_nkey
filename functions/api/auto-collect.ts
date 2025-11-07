@@ -72,6 +72,10 @@ export async function onRequest(context: any) {
     let totalKeywordsSaved = 0;
     let totalNewKeywords = 0; // 새로 추가된 키워드 수 누적
     const processedSeeds: string[] = [];
+    const failedSeeds: Array<{ seed: string; error: string }> = []; // 실패한 시드 목록
+    let totalAttempted = 0; // 시도한 총 시드 수
+    let timeoutCount = 0; // 타임아웃 발생 횟수
+    let apiFailureCount = 0; // API 실패 횟수
 
     // 시드들을 청크로 나누어 병렬 처리 (Rate Limit 고려)
     const chunks = [];
@@ -81,6 +85,7 @@ export async function onRequest(context: any) {
 
       for (const chunk of chunks) {
         console.log(`🔄 청크 처리 시작: ${chunk.length}개 시드 동시 처리 (시드 목록: ${chunk.map((r: any) => r.keyword).join(', ')})`);
+        totalAttempted += chunk.length;
 
       // 청크 내 시드들을 병렬로 처리
       const chunkPromises = chunk.map(async (row: any) => {
@@ -140,10 +145,11 @@ export async function onRequest(context: any) {
           // 타임아웃 에러는 로그만 남기고 계속 진행
           if (error.name === 'AbortError') {
             console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 60초 초과`);
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (60초 초과)' };
           } else {
             console.error(`❌ 시드 처리 실패 (${seed}):`, error.message || error);
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown error' };
           }
-          return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown error' };
         }
       });
 
@@ -194,6 +200,16 @@ export async function onRequest(context: any) {
           }
         } else {
           chunkFailureCount++;
+          // 실패한 시드 정보 수집 (최대 10개)
+          if (failedSeeds.length < 10) {
+            failedSeeds.push({ seed: result.seed, error: result.error || 'Unknown error' });
+          }
+          // 타임아웃 및 API 실패 카운트
+          if (result.error?.includes('Timeout')) {
+            timeoutCount++;
+          } else if (result.error) {
+            apiFailureCount++;
+          }
           // 실패한 시드의 에러 정보 로깅 (최대 3개만)
           if (chunkFailureCount <= 3 && result.error) {
             console.warn(`⚠️ 시드 "${result.seed}" 처리 실패: ${result.error}`);
@@ -248,34 +264,52 @@ export async function onRequest(context: any) {
     const remainingRow = await db.prepare(remainingQuery).all();
     const exactRemaining = remainingRow.results?.[0]?.remaining ?? 0;
     
-    // 디버깅 로그
-    console.log(`📊 시드 키워드 통계:`, {
-      totalKeywords: `${totalKeywords.toLocaleString()}개 (수집된 총 키워드 수)`,
-      usedSeeds: `${usedSeeds.toLocaleString()}개 (시드로 사용된 키워드 수)`,
-      actualRemaining: `${actualRemaining.toLocaleString()}개 (계산된 남은 시드)`,
-      exactRemaining: `${exactRemaining.toLocaleString()}개 (실제 남은 시드)`,
-      note: actualRemaining === exactRemaining ? '✅ 계산 일치' : '⚠️ 계산 방식 차이 감지됨'
-    });
+           // 디버깅 로그
+           console.log(`📊 시드 키워드 통계:`, {
+             totalKeywords: `${totalKeywords.toLocaleString()}개 (수집된 총 키워드 수)`,
+             usedSeeds: `${usedSeeds.toLocaleString()}개 (시드로 사용된 키워드 수)`,
+             actualRemaining: `${actualRemaining.toLocaleString()}개 (계산된 남은 시드)`,
+             exactRemaining: `${exactRemaining.toLocaleString()}개 (실제 남은 시드)`,
+             note: actualRemaining === exactRemaining ? '✅ 계산 일치' : '⚠️ 계산 방식 차이 감지됨'
+           });
+           
+           // 처리 통계 로그
+           console.log(`📊 배치 처리 통계:`, {
+             totalAttempted: `${totalAttempted}개 (시도한 시드 수)`,
+             processed: `${processed}개 (성공한 시드 수)`,
+             successRate: totalAttempted > 0 ? `${((processed / totalAttempted) * 100).toFixed(1)}%` : '0%',
+             timeoutCount: `${timeoutCount}개 (타임아웃 발생)`,
+             apiFailureCount: `${apiFailureCount}개 (API 실패)`,
+             totalNewKeywords: `${totalNewKeywords}개 (새로 추가된 키워드)`
+           });
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        processed,
-        processedSeeds,
-        remaining: exactRemaining, // 실제 남은 시드 수 (keywords 테이블 기준)
-        totalKeywords, // 전체 키워드 수 (keywords 테이블의 실제 수집된 키워드 수)
-        usedSeeds, // 사용된 시드 수 (keywords 테이블에 존재하는 키워드 중 시드로 사용된 수)
-        unlimited,
-        concurrentLimit,
-        totalKeywordsCollected,
-        totalKeywordsSaved,
-        totalNewKeywords, // 새로 추가된 키워드 수
-        targetKeywords, // 목표 키워드 수
-        targetReached: targetKeywords > 0 && totalNewKeywords >= targetKeywords, // 목표 도달 여부
-        message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${exactRemaining.toLocaleString()}개 (전체 키워드: ${totalKeywords.toLocaleString()}개, 시드로 사용됨: ${usedSeeds.toLocaleString()}개)`
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+           return new Response(
+             JSON.stringify({
+               success: true,
+               processed,
+               processedSeeds,
+               remaining: exactRemaining, // 실제 남은 시드 수 (keywords 테이블 기준)
+               totalKeywords, // 전체 키워드 수 (keywords 테이블의 실제 수집된 키워드 수)
+               usedSeeds, // 사용된 시드 수 (keywords 테이블에 존재하는 키워드 중 시드로 사용된 수)
+               unlimited,
+               concurrentLimit,
+               totalKeywordsCollected,
+               totalKeywordsSaved,
+               totalNewKeywords, // 새로 추가된 키워드 수
+               targetKeywords, // 목표 키워드 수
+               targetReached: targetKeywords > 0 && totalNewKeywords >= targetKeywords, // 목표 도달 여부
+               // 디버깅 정보 추가
+               stats: {
+                 totalAttempted, // 시도한 총 시드 수
+                 successRate: totalAttempted > 0 ? ((processed / totalAttempted) * 100).toFixed(1) + '%' : '0%',
+                 timeoutCount, // 타임아웃 발생 횟수
+                 apiFailureCount, // API 실패 횟수
+                 failedSeeds: failedSeeds.slice(0, 10) // 실패한 시드 목록 (최대 10개)
+               },
+               message: `시드 ${processed}개 처리 (${concurrentLimit}개 동시, 시도: ${totalAttempted}개, 성공률: ${totalAttempted > 0 ? ((processed / totalAttempted) * 100).toFixed(1) : 0}%), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${exactRemaining.toLocaleString()}개 (전체 키워드: ${totalKeywords.toLocaleString()}개, 시드로 사용됨: ${usedSeeds.toLocaleString()}개)${timeoutCount > 0 ? `, 타임아웃: ${timeoutCount}개` : ''}${apiFailureCount > 0 ? `, API 실패: ${apiFailureCount}개` : ''}`
+             }),
+             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+           );
   } catch (error: any) {
     return new Response(
       JSON.stringify({ success: false, error: error?.message || 'Unknown error' }),
