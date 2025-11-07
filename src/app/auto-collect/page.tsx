@@ -600,10 +600,14 @@ export default function AutoCollectPage() {
       }
       if (savedConcurrent) {
         const savedConcurrentNum = Number(savedConcurrent)
-        // 이전 값이 5 이하이면 기본값 10으로 업그레이드
-        if (savedConcurrentNum <= 15) {
-          setConcurrentInput('20')
-          localStorage.setItem('auto-collect-concurrent', '20')
+        // 최대값 15로 제한 (이전에 20 이상으로 설정된 경우)
+        if (savedConcurrentNum > 15) {
+          setConcurrentInput('15')
+          localStorage.setItem('auto-collect-concurrent', '15')
+        } else if (savedConcurrentNum < 1) {
+          // 최소값 1로 제한
+          setConcurrentInput('10')
+          localStorage.setItem('auto-collect-concurrent', '10')
         } else {
           setConcurrentInput(savedConcurrent)
         }
