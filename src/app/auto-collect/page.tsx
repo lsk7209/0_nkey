@@ -329,12 +329,12 @@ export default function AutoCollectPage() {
 
       console.log('[AutoCollect] API 호출:', { batchLimit, concurrentLimit, currentProcessed, currentLimit })
 
-      // 타임아웃 설정 (2분)
+      // 타임아웃 설정 (5분 - 대량 처리 시 시간 필요)
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         controller.abort()
-        console.error('[AutoCollect] API 호출 타임아웃 (2분)')
-      }, 120000) // 2분
+        console.error('[AutoCollect] API 호출 타임아웃 (5분)')
+      }, 300000) // 5분 (대량 처리 시 시간 필요)
 
       const res = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',
@@ -367,6 +367,17 @@ export default function AutoCollectPage() {
 
       const data = await res.json().catch(() => ({})) as AutoCollectResponse
       console.log('[AutoCollect] API 응답 데이터:', data)
+      
+      // 상세 통계 정보 로깅
+      if (data.stats) {
+        console.log('[AutoCollect] 📊 배치 처리 통계:', {
+          시도한시드수: data.stats.totalAttempted,
+          성공률: data.stats.successRate,
+          타임아웃: data.stats.timeoutCount,
+          API실패: data.stats.apiFailureCount,
+          실패한시드목록: data.stats.failedSeeds?.slice(0, 3) || []
+        })
+      }
 
       if (data && data.success) {
         const processedCount = Number(data.processed) || 0
@@ -399,7 +410,19 @@ export default function AutoCollectPage() {
             localStorage.setItem('auto-collect-enabled', 'false')
           }
         } else {
-          appendLog(`✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리, +${newKeywordsInBatch}개 새로운 키워드 (누적: ${updatedTotalNewKeywords}개${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''})`)
+          // 상세 통계 정보 포함한 로그
+          let logMessage = `✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리, +${newKeywordsInBatch}개 새로운 키워드 (누적: ${updatedTotalNewKeywords}개${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''})`
+          if (data.stats) {
+            logMessage += ` (시도: ${data.stats.totalAttempted}개, 성공률: ${data.stats.successRate}`
+            if (data.stats.timeoutCount > 0) {
+              logMessage += `, 타임아웃: ${data.stats.timeoutCount}개`
+            }
+            if (data.stats.apiFailureCount > 0) {
+              logMessage += `, API실패: ${data.stats.apiFailureCount}개`
+            }
+            logMessage += ')'
+          }
+          appendLog(logMessage)
         }
       } else {
         const errorMessage = data?.error || data?.message || '알 수 없는 오류'

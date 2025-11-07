@@ -84,6 +84,13 @@ export interface AutoCollectResponse extends ApiResponse {
   targetKeywords: number
   targetReached: boolean
   message: string
+  stats?: {
+    totalAttempted: number
+    successRate: string
+    timeoutCount: number
+    apiFailureCount: number
+    failedSeeds: Array<{ seed: string; error: string }>
+  }
 }
 
 /**
