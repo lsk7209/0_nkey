@@ -127,8 +127,15 @@ export async function onRequest(context: any) {
         }
       });
 
-      // 청크 내 모든 시드 처리 완료 대기
-      const chunkResults = await Promise.all(chunkPromises);
+      // 청크 내 모든 시드 처리 완료 대기 (일부 실패해도 계속 진행)
+      const chunkResults = await Promise.allSettled(chunkPromises).then(results =>
+        results.map(result => result.status === 'fulfilled' ? result.value : {
+          seed: 'unknown',
+          success: false,
+          totalCollected: 0,
+          totalSavedOrUpdated: 0
+        })
+      );
 
       // 결과 집계 및 DB 기록
       for (const result of chunkResults) {
