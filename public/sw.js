@@ -308,14 +308,25 @@ async function runBatch() {
           stopAutoCollect()
           return
         }
-        // 목표 키워드 수 도달 확인 (누적값 기준)
+        // 목표 키워드 수 도달 확인 (누적값 기준) - 알림만 표시하고 계속 진행
         if (autoCollectConfig.targetKeywords > 0 && totalNewKeywordsAccumulated >= autoCollectConfig.targetKeywords) {
-          console.log('[SW] 목표 키워드 수 도달, 자동 중단:', {
+          console.log('[SW] 🎯 목표 키워드 수 도달:', {
             totalNewKeywordsAccumulated,
             targetKeywords: autoCollectConfig.targetKeywords
           })
-          stopAutoCollect()
-          return
+          // 목표 달성 알림만 전송하고 계속 진행 (자동 중단하지 않음)
+          self.clients.matchAll().then(clients => {
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'AUTO_COLLECT_UPDATE',
+                status: 'target_reached',
+                message: `🎯 목표 달성! 총 ${totalNewKeywordsAccumulated}개의 새로운 키워드가 추가되었습니다. (목표: ${autoCollectConfig.targetKeywords}개)`,
+                totalNewKeywords: totalNewKeywordsAccumulated,
+                targetKeywords: autoCollectConfig.targetKeywords
+              })
+            })
+          })
+          // 자동 중단하지 않고 계속 진행
         }
         
         // 남은 시드가 없으면 중단

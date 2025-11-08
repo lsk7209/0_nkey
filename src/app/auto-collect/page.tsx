@@ -308,13 +308,10 @@ export default function AutoCollectPage() {
                 appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 (남은: ${remaining ?? '-'}개)`)
               }
               
-              // 목표 도달 확인
+              // 목표 도달 확인 (알림만 표시하고 계속 진행)
               if (batchResult.targetReached) {
-                appendLog(`🎯 목표 달성! 총 ${totalNew}개의 새로운 키워드가 추가되었습니다.`)
-                setEnabled(false)
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('auto-collect-enabled', 'false')
-                }
+                appendLog(`🎯 목표 달성! 총 ${totalNew}개의 새로운 키워드가 추가되었습니다. (목표: ${currentTarget}개) - 계속 진행 중...`)
+                // 자동 중단하지 않고 계속 진행
               }
             } else if (status === 'stopped') {
               setEnabled(false)
@@ -452,14 +449,13 @@ export default function AutoCollectPage() {
         if (typeof data.totalKeywords === 'number') setTotalKeywords(data.totalKeywords)
         if (typeof data.usedSeeds === 'number') setUsedSeeds(data.usedSeeds)
         
-        // 목표 도달 확인
-        if (data.targetReached) {
-          appendLog(`🎯 목표 달성! 총 ${updatedTotalNewKeywords}개의 새로운 키워드가 추가되었습니다.`)
-          setEnabled(false)
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('auto-collect-enabled', 'false')
-          }
-        } else {
+              // 목표 도달 확인 (알림만 표시하고 계속 진행)
+              if (data.targetReached) {
+                appendLog(`🎯 목표 달성! 총 ${updatedTotalNewKeywords}개의 새로운 키워드가 추가되었습니다. (목표: ${targetKeywords}개) - 계속 진행 중...`)
+                // 자동 중단하지 않고 계속 진행
+              }
+              
+              if (!data.targetReached) {
           // 상세 통계 정보 포함한 로그
           let logMessage = `✅ 포그라운드 배치 완료: +${processedCount}개 시드 처리, +${newKeywordsInBatch}개 새로운 키워드 (누적: ${updatedTotalNewKeywords}개${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''})`
           if (data.stats) {
