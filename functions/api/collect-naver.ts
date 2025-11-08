@@ -647,8 +647,8 @@ export async function onRequest(context: any) {
           }
         }
 
-        // 문서수 수집 (최대 10개까지, API 제한 고려)
-        if (docCountsCollected < maxDocCountsToCollect && hasOpenApiKeys && keywordId) {
+        // 문서수 수집 (최대 5개까지로 감소 - 자동수집 속도 향상)
+        if (docCountsCollected < Math.min(maxDocCountsToCollect, 5) && hasOpenApiKeys && keywordId) {
           try {
             console.log(`📄 문서수 수집 시작: ${keyword.keyword} (${docCountsCollected + 1}/${maxDocCountsToCollect})`);
             const docCounts = await collectDocCountsFromNaver(keyword.keyword, env);
