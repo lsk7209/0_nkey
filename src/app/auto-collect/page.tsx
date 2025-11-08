@@ -39,14 +39,14 @@ class BackgroundCollector {
         // Service Worker가 완전히 활성화될 때까지 대기
         await navigator.serviceWorker.ready
         
-        // 활성화된 worker 가져오기
-        this.worker = registration.active
+        // 활성화된 worker 가져오기 (active, waiting, installing 순서로 확인)
+        this.worker = registration.active || registration.waiting || registration.installing
         
         if (!this.worker) {
           console.warn('[BackgroundCollector] Service Worker가 활성화되지 않았습니다.')
           // 활성화를 기다림
           registration.addEventListener('updatefound', () => {
-            const newWorker = registration.installing
+            const newWorker = registration.installing || registration.waiting
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'activated') {
@@ -56,6 +56,12 @@ class BackgroundCollector {
               })
             }
           })
+        } else if (this.worker.state === 'redundant') {
+          // redundant 상태면 waiting이나 installing 확인
+          this.worker = registration.waiting || registration.installing
+          if (this.worker) {
+            console.log('[BackgroundCollector] Service Worker redundant 상태 감지, 새로운 worker 사용:', this.worker.state)
+          }
         }
 
         this.isRegistered = true
