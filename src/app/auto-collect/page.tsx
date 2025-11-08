@@ -96,9 +96,14 @@ class BackgroundCollector {
         }
         
         // redundant 상태이거나 installing 상태면 activated 될 때까지 대기
-        if (this.worker.state === 'redundant' || this.worker.state === 'installing') {
+        if (this.worker && (this.worker.state === 'redundant' || this.worker.state === 'installing')) {
           console.log(`[BackgroundCollector] Service Worker 상태: ${this.worker.state}, 활성화 대기...`)
           await new Promise<void>((resolve) => {
+            if (!this.worker) {
+              resolve()
+              return
+            }
+            
             const stateChangeHandler = () => {
               if (this.worker && (this.worker.state === 'activated' || this.worker.state === 'activating')) {
                 this.worker.removeEventListener('statechange', stateChangeHandler)
@@ -117,7 +122,9 @@ class BackgroundCollector {
             
             // 타임아웃 (10초)
             setTimeout(() => {
-              this.worker?.removeEventListener('statechange', stateChangeHandler)
+              if (this.worker) {
+                this.worker.removeEventListener('statechange', stateChangeHandler)
+              }
               resolve()
             }, 10000)
           })
