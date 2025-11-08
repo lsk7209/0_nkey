@@ -108,7 +108,7 @@ class BackgroundCollector {
                 this.worker.removeEventListener('statechange', stateChangeHandler)
                 const newRegistration = navigator.serviceWorker.getRegistration()
                 newRegistration.then(reg => {
-                  this.worker = reg?.active || reg?.waiting || reg?.installing
+                  this.worker = (reg?.active || reg?.waiting || reg?.installing) ?? null
                   resolve()
                 }).catch(() => resolve())
               }
