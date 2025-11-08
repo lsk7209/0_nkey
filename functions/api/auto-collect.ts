@@ -91,11 +91,11 @@ export async function onRequest(context: any) {
       const chunkPromises = chunk.map(async (row: any) => {
         const seed: string = row.keyword;
         try {
-            // 타임아웃 설정 (60초로 증가 - 네이버 API 응답 시간 고려)
+            // 타임아웃 설정 (3분 - 네이버 API 응답 시간 및 문서수 수집 시간 고려)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
               controller.abort();
-            }, 60000); // 60초 타임아웃 (30초 → 60초로 증가)
+            }, 180000); // 3분 타임아웃 (60초 → 3분으로 증가 - 문서수 수집 시간 고려)
 
             const res = await fetch(collectUrl, {
               method: 'POST',
@@ -144,8 +144,8 @@ export async function onRequest(context: any) {
           const error = e as Error;
           // 타임아웃 에러는 로그만 남기고 계속 진행
           if (error.name === 'AbortError') {
-            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 60초 초과`);
-            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (60초 초과)' };
+            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 3분 초과`);
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (3분 초과)' };
           } else {
             console.error(`❌ 시드 처리 실패 (${seed}):`, error.message || error);
             return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown error' };
