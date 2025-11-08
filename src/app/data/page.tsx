@@ -123,8 +123,12 @@ export default function DataPage() {
       params.append('page', String(page))
       params.append('pageSize', String(itemsPerPage))
       
-      // 문서수 0 제외 (기본값: true)
-      params.append('excludeZeroDocs', 'true')
+      // 필터가 없을 때는 문서수 0인 키워드도 포함 (전체 키워드 수 표시)
+      // 필터가 있을 때만 문서수 0 제외
+      const hasFilters = Object.values(filters).some(v => v !== '')
+      if (hasFilters) {
+        params.append('excludeZeroDocs', 'true')
+      }
 
       const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
 
@@ -450,7 +454,8 @@ export default function DataPage() {
   }
 
   // 통계 계산 (현재 로드된 데이터 기반) - useMemo로 최적화
-  const totalKeywords = totalCount
+  // 필터가 없을 때는 전체 키워드 수 표시, 필터가 있을 때는 필터링된 수 표시
+  const totalKeywords = totalAllCount !== null && totalAllCount !== totalCount ? totalAllCount : totalCount
   const loadedKeywords = keywords
   
   const totalSearchVolume = useMemo(() => {
