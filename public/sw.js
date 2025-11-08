@@ -49,6 +49,7 @@ function startAutoCollect(config) {
   processedCount = 0
   totalNewKeywordsAccumulated = 0 // 초기화
   consecutiveTimeouts = 0 // 연속 타임아웃 횟수 초기화
+  isBatchRunning = false // 배치 실행 플래그 초기화 (중요!)
 
   // 즉시 첫 배치 실행
   runBatch()
@@ -376,6 +377,11 @@ async function runBatch() {
     } else {
       console.log('[SW] 다른 종류의 에러, 계속 진행 (다음 인터벌에서 재시도)')
     }
+  } finally {
+    // 항상 플래그 초기화 (성공/실패/에러 모든 경우)
+    isBatchRunning = false
+    console.log('[SW] 배치 실행 완료, 플래그 초기화')
+    sendStatus() // 모든 클라이언트에 상태 업데이트
   }
 }
 
