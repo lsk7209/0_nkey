@@ -321,6 +321,7 @@ export default function AutoCollectPage() {
               
               // 목표 도달 확인 (알림만 표시하고 계속 진행)
               if (batchResult.targetReached) {
+                const currentTarget = targetKeywordsRef.current
                 appendLog(`🎯 목표 달성! 총 ${totalNew}개의 새로운 키워드가 추가되었습니다. (목표: ${currentTarget}개) - 계속 진행 중...`)
                 // 자동 중단하지 않고 계속 진행
               }
