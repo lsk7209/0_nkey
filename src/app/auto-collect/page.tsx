@@ -289,7 +289,18 @@ export default function AutoCollectPage() {
 
           // 백그라운드 수집 이벤트 리스너
           const handleBackgroundUpdate = (event: CustomEvent) => {
-            const { status, processedCount, batchResult, remaining, error, newKeywordsInBatch, totalNewKeywords } = event.detail
+            const { status, processedCount, batchResult, remaining, error, newKeywordsInBatch, totalNewKeywords, message } = event.detail
+
+            // 목표 달성 알림 처리
+            if (status === 'target_reached') {
+              const targetMsg = message || `🎯 목표 달성! 총 ${totalNewKeywords || 0}개의 새로운 키워드가 추가되었습니다. - 계속 진행 중...`
+              appendLog(targetMsg)
+              if (typeof totalNewKeywords === 'number') {
+                setTotalNewKeywords(totalNewKeywords)
+              }
+              // 자동 중단하지 않고 계속 진행
+              return
+            }
 
             if (status === 'running' && batchResult) {
               setProcessed(processedCount || 0)
