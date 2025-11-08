@@ -76,14 +76,45 @@ class BackgroundCollector {
     console.log('[BackgroundCollector] 백그라운드 수집 시작:', config)
     
     // Service Worker가 활성화되지 않았으면 대기
-    if (!this.worker) {
+    if (!this.worker || this.worker.state === 'redundant') {
       console.log('[BackgroundCollector] Service Worker 활성화 대기 중...')
       try {
         const registration = await navigator.serviceWorker.ready
-        this.worker = registration.active
+        
+        // active, waiting, installing 순서로 확인
+        this.worker = registration.active || registration.waiting || registration.installing
+        
         if (!this.worker) {
           console.error('[BackgroundCollector] Service Worker를 활성화할 수 없습니다.')
           return
+        }
+        
+        // redundant 상태이거나 installing 상태면 activated 될 때까지 대기
+        if (this.worker.state === 'redundant' || this.worker.state === 'installing') {
+          console.log(`[BackgroundCollector] Service Worker 상태: ${this.worker.state}, 활성화 대기...`)
+          await new Promise<void>((resolve) => {
+            const stateChangeHandler = () => {
+              if (this.worker && (this.worker.state === 'activated' || this.worker.state === 'activating')) {
+                this.worker.removeEventListener('statechange', stateChangeHandler)
+                resolve()
+              } else if (this.worker && this.worker.state === 'redundant') {
+                // redundant 상태면 새로운 worker 찾기
+                this.worker.removeEventListener('statechange', stateChangeHandler)
+                const newRegistration = navigator.serviceWorker.getRegistration()
+                newRegistration.then(reg => {
+                  this.worker = reg?.active || reg?.waiting || reg?.installing
+                  resolve()
+                }).catch(() => resolve())
+              }
+            }
+            this.worker.addEventListener('statechange', stateChangeHandler)
+            
+            // 타임아웃 (10초)
+            setTimeout(() => {
+              this.worker?.removeEventListener('statechange', stateChangeHandler)
+              resolve()
+            }, 10000)
+          })
         }
       } catch (error) {
         console.error('[BackgroundCollector] Service Worker 준비 실패:', error)
@@ -91,9 +122,15 @@ class BackgroundCollector {
       }
     }
 
-    if (!this.worker) {
-      console.error('[BackgroundCollector] Service Worker가 없습니다.')
-      return
+    if (!this.worker || this.worker.state === 'redundant') {
+      console.error('[BackgroundCollector] Service Worker가 없거나 redundant 상태입니다.')
+      // 재등록 시도
+      this.isRegistered = false
+      const reRegistered = await this.register()
+      if (!reRegistered || !this.worker) {
+        console.error('[BackgroundCollector] Service Worker 재등록 실패')
+        return
+      }
     }
 
     console.log('[BackgroundCollector] Service Worker에 메시지 전송:', {
