@@ -95,16 +95,26 @@ export async function onRequest(context: any) {
       sample: keywords?.[0] || null
     });
 
+    // 키워드 정규화 함수 (중복 방지 강화)
+    const normalizeKeyword = (keyword: string): string => {
+      if (!keyword) return '';
+      // 공백 제거, 앞뒤 공백 제거
+      return keyword.trim().replace(/\s+/g, ' ');
+    };
+
     const seen = new Set<string>();
     const uniqueKeywords = (keywords || []).filter((k: { keyword?: string }) => {
-      const key = (k.keyword || '').trim();
-      console.log(`🔍 키워드 필터링: "${key}" (원본: "${k.keyword}", trim: "${key}", seen: ${seen.has(key)})`);
-      if (!key || seen.has(key)) {
-        console.log(`❌ 키워드 필터링됨: "${key}" (빈값 또는 중복)`);
+      const originalKey = k.keyword || '';
+      const normalizedKey = normalizeKeyword(originalKey);
+      console.log(`🔍 키워드 필터링: "${normalizedKey}" (원본: "${originalKey}", 정규화: "${normalizedKey}", seen: ${seen.has(normalizedKey)})`);
+      if (!normalizedKey || seen.has(normalizedKey)) {
+        console.log(`❌ 키워드 필터링됨: "${normalizedKey}" (빈값 또는 중복)`);
         return false;
       }
-      seen.add(key);
-      console.log(`✅ 키워드 유지: "${key}"`);
+      seen.add(normalizedKey);
+      // 정규화된 키워드로 업데이트
+      k.keyword = normalizedKey;
+      console.log(`✅ 키워드 유지: "${normalizedKey}"`);
       return true;
     });
     console.log(`🧹 중복 제거 후 uniqueKeywords: ${uniqueKeywords.length}개`);
@@ -222,9 +232,20 @@ export async function onRequest(context: any) {
       });
 
       try {
-        // 기존 키워드 확인 (keyword와 seed_keyword_text로 검색)
+        // 키워드 정규화 (중복 방지 강화)
+        const normalizedKeyword = normalizeKeyword(keyword.keyword || '');
+        if (!normalizedKeyword) {
+          console.warn(`⚠️ 키워드가 비어있음: "${keyword.keyword}"`);
+          failedCount++;
+          continue;
+        }
+        
+        // 정규화된 키워드로 업데이트
+        keyword.keyword = normalizedKeyword;
+
+        // 기존 키워드 확인 (정규화된 키워드로 검색)
         const existing = await runWithRetry(
-          () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+          () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first(),
           'select keywords'
         ) as { id: number; updated_at: string } | null;
 
@@ -427,9 +448,10 @@ export async function onRequest(context: any) {
             // ⚠️ 헌법 제16조 준수: INSERT 전 중복 확인 필수 (절대 변경 금지)
             // - 중복 발견 시 업데이트로 처리 (INSERT 스킵)
             // - 시간 기반 정책 없음 (모든 중복 무조건 업데이트)
+            // - 정규화된 키워드로 검색 (중복 방지 강화)
             // - WORKING_ENVIRONMENT.md 참조
             const existingCheck = await runWithRetry(
-              () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+              () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first(),
               'check existing before insert'
             ) as { id: number } | null;
 
@@ -442,9 +464,9 @@ export async function onRequest(context: any) {
               continue; // 다음 키워드로 (INSERT 스킵)
             }
 
-            // INSERT 값 검증
+            // INSERT 값 검증 (정규화된 키워드 사용)
             const insertValues = {
-              keyword: keyword.keyword,
+              keyword: normalizedKeyword, // 정규화된 키워드 사용
               seed_keyword_text: seed.trim(),
               monthly_search_pc: keyword.pc_search || 0,
               monthly_search_mob: keyword.mobile_search || 0,
@@ -479,15 +501,23 @@ export async function onRequest(context: any) {
 
             let insertResult;
             try {
-              // ⚠️ 헌법 제16조 준수: INSERT 쿼리 구조 절대 변경 금지
-              // - monthly_search_pc, monthly_search_mob만 사용 (필수)
-              // - pc_search, mobile_search는 INSERT에서 제외 (컬럼이 없을 수 있음)
-              // - WORKING_ENVIRONMENT.md 참조
+            // ⚠️ 헌법 제16조 준수: INSERT 쿼리 구조 절대 변경 금지
+            // - monthly_search_pc, monthly_search_mob만 사용 (필수)
+            // - pc_search, mobile_search는 INSERT에서 제외 (컬럼이 없을 수 있음)
+            // - ON CONFLICT 추가: 중복 키워드 방지 강화
+            // - WORKING_ENVIRONMENT.md 참조
               insertResult = await db.prepare(`
                 INSERT INTO keywords (
                   keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
                   avg_monthly_search, comp_index, created_at, updated_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(keyword) DO UPDATE SET
+                  monthly_search_pc = excluded.monthly_search_pc,
+                  monthly_search_mob = excluded.monthly_search_mob,
+                  avg_monthly_search = excluded.avg_monthly_search,
+                  seed_keyword_text = excluded.seed_keyword_text,
+                  comp_index = excluded.comp_index,
+                  updated_at = excluded.updated_at
               `).bind(
                 insertValues.keyword,
                 insertValues.seed_keyword_text,
@@ -559,7 +589,7 @@ export async function onRequest(context: any) {
               
               try {
                 verifyInsert = await db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?')
-                  .bind(keyword.keyword)
+                  .bind(normalizedKeyword)
                   .first() as { id: number; keyword: string } | null;
 
                 if (verifyInsert) {
