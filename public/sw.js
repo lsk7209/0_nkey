@@ -101,14 +101,17 @@ function startAutoCollect(config) {
   self.clients.matchAll().then(clients => {
     console.log(`[SW] 시작 알림 전송: ${clients.length}개 클라이언트`)
     clients.forEach(client => {
-      client.postMessage({
-        type: 'AUTO_COLLECT_UPDATE',
-        status: 'started',
-        config,
-        processedCount: 0
-      }).catch(error => {
+      try {
+        client.postMessage({
+          type: 'AUTO_COLLECT_UPDATE',
+          status: 'started',
+          config,
+          processedCount: 0
+        })
+        console.log('[SW] 시작 알림 전송 완료:', client.url)
+      } catch (error) {
         console.error('[SW] 시작 알림 전송 실패:', error)
-      })
+      }
     })
   }).catch(error => {
     console.error('[SW] 클라이언트 조회 실패:', error)
@@ -130,12 +133,18 @@ function stopAutoCollect() {
   // 중단 상태 알림
   self.clients.matchAll().then(clients => {
     clients.forEach(client => {
-      client.postMessage({
-        type: 'AUTO_COLLECT_UPDATE',
-        status: 'stopped',
-        processedCount
-      })
+      try {
+        client.postMessage({
+          type: 'AUTO_COLLECT_UPDATE',
+          status: 'stopped',
+          processedCount
+        })
+      } catch (error) {
+        console.error('[SW] 중단 상태 알림 전송 실패:', error)
+      }
     })
+  }).catch(error => {
+    console.error('[SW] 클라이언트 조회 실패:', error)
   })
 }
 
@@ -158,12 +167,15 @@ function sendStatus() {
     }
     clients.forEach(client => {
       console.log('[SW] 클라이언트에 상태 전송:', client.url)
-      client.postMessage({
-        type: 'AUTO_COLLECT_STATUS',
-        status
-      }).catch(error => {
+      try {
+        client.postMessage({
+          type: 'AUTO_COLLECT_STATUS',
+          status
+        })
+        console.log('[SW] 상태 전송 완료:', client.url)
+      } catch (error) {
         console.error('[SW] 상태 전송 실패:', error)
-      })
+      }
     })
   }).catch(error => {
     console.error('[SW] 클라이언트 조회 실패:', error)
@@ -223,13 +235,19 @@ async function runBatch() {
           stopAutoCollect()
           self.clients.matchAll().then(clients => {
             clients.forEach(client => {
-              client.postMessage({
-                type: 'AUTO_COLLECT_UPDATE',
-                status: 'error',
-                error: '연속 타임아웃으로 인한 자동 중단. API 응답이 너무 느립니다.',
-                processedCount
-              })
+              try {
+                client.postMessage({
+                  type: 'AUTO_COLLECT_UPDATE',
+                  status: 'error',
+                  error: '연속 타임아웃으로 인한 자동 중단. API 응답이 너무 느립니다.',
+                  processedCount
+                })
+              } catch (error) {
+                console.error('[SW] 타임아웃 에러 알림 전송 실패:', error)
+              }
             })
+          }).catch(error => {
+            console.error('[SW] 클라이언트 조회 실패:', error)
           })
           return
         }
@@ -339,16 +357,22 @@ async function runBatch() {
       // 진행 상태 알림
       self.clients.matchAll().then(clients => {
         clients.forEach(client => {
-          client.postMessage({
-            type: 'AUTO_COLLECT_UPDATE',
-            status: 'running',
-            processedCount,
-            newKeywordsInBatch,
-            totalNewKeywords: totalNewKeywordsAccumulated, // 누적값 사용
-            batchResult: data,
-            remaining: data.remaining
-          })
+          try {
+            client.postMessage({
+              type: 'AUTO_COLLECT_UPDATE',
+              status: 'running',
+              processedCount,
+              newKeywordsInBatch,
+              totalNewKeywords: totalNewKeywordsAccumulated, // 누적값 사용
+              batchResult: data,
+              remaining: data.remaining
+            })
+          } catch (error) {
+            console.error('[SW] 진행 상태 알림 전송 실패:', error)
+          }
         })
+      }).catch(error => {
+        console.error('[SW] 클라이언트 조회 실패:', error)
       })
 
       // 제한 도달 시 중단 (null 체크 추가)
@@ -368,14 +392,20 @@ async function runBatch() {
           // 목표 달성 알림만 전송하고 계속 진행 (자동 중단하지 않음)
           self.clients.matchAll().then(clients => {
             clients.forEach(client => {
-              client.postMessage({
-                type: 'AUTO_COLLECT_UPDATE',
-                status: 'target_reached',
-                message: `🎯 목표 달성! 총 ${totalNewKeywordsAccumulated}개의 새로운 키워드가 추가되었습니다. (목표: ${autoCollectConfig.targetKeywords}개)`,
-                totalNewKeywords: totalNewKeywordsAccumulated,
-                targetKeywords: autoCollectConfig.targetKeywords
-              })
+              try {
+                client.postMessage({
+                  type: 'AUTO_COLLECT_UPDATE',
+                  status: 'target_reached',
+                  message: `🎯 목표 달성! 총 ${totalNewKeywordsAccumulated}개의 새로운 키워드가 추가되었습니다. (목표: ${autoCollectConfig.targetKeywords}개)`,
+                  totalNewKeywords: totalNewKeywordsAccumulated,
+                  targetKeywords: autoCollectConfig.targetKeywords
+                })
+              } catch (error) {
+                console.error('[SW] 목표 달성 알림 전송 실패:', error)
+              }
             })
+          }).catch(error => {
+            console.error('[SW] 클라이언트 조회 실패:', error)
           })
           // 자동 중단하지 않고 계속 진행
         }
@@ -390,14 +420,20 @@ async function runBatch() {
           // 중단하지 않고 5분 후 재시도 (새로운 키워드가 추가될 수 있음)
           self.clients.matchAll().then(clients => {
             clients.forEach(client => {
-              client.postMessage({
-                type: 'AUTO_COLLECT_UPDATE',
-                status: 'waiting',
-                message: '남은 시드가 없습니다. 5분 후 재시도합니다...',
-                processedCount,
-                remaining: 0
-              })
+              try {
+                client.postMessage({
+                  type: 'AUTO_COLLECT_UPDATE',
+                  status: 'waiting',
+                  message: '남은 시드가 없습니다. 30초 후 재시도합니다...',
+                  processedCount,
+                  remaining: 0
+                })
+              } catch (error) {
+                console.error('[SW] 대기 상태 알림 전송 실패:', error)
+              }
             })
+          }).catch(error => {
+            console.error('[SW] 클라이언트 조회 실패:', error)
           })
           // 5분 후 재시도 (다음 인터벌에서 자동으로 재시도됨)
           // 인터벌은 계속 실행되므로 자동으로 재시도됨
