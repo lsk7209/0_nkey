@@ -326,10 +326,16 @@ export default function AutoCollectPage() {
                 // 자동 중단하지 않고 계속 진행
               }
             } else if (status === 'stopped') {
-              setEnabled(false)
-              appendLog('⏹️ 백그라운드 수집 중단됨')
+              // 백그라운드 수집이 중단되었지만, 사용자가 직접 끈 것이 아닐 수 있으므로
+              // enabled 상태는 유지하고 로그만 남김 (사용자가 토글을 직접 조작할 수 있도록)
+              appendLog('⏹️ 백그라운드 수집 중단됨 (남은 시드 없음 또는 오류로 인한 중단)')
+              // 남은 시드가 0이면 명확히 알림
+              if (remaining === 0) {
+                appendLog('⚠️ 남은 시드가 없어 자동수집이 중단되었습니다. 새로운 키워드를 추가하거나 시드를 재활성화하세요.')
+              }
             } else if (status === 'error') {
               appendLog(`❌ 백그라운드 에러: ${error}`)
+              // 에러 발생 시에도 enabled 상태는 유지 (사용자가 재시작할 수 있도록)
             }
           }
 
@@ -457,7 +463,13 @@ export default function AutoCollectPage() {
           return newTotal
         })
         
-        if (typeof data.remaining === 'number') setRemaining(data.remaining)
+        if (typeof data.remaining === 'number') {
+          setRemaining(data.remaining)
+          // 남은 시드가 0이면 명확히 알림
+          if (data.remaining === 0) {
+            appendLog('⚠️ 남은 시드가 없습니다. 자동수집이 멈출 수 있습니다.')
+          }
+        }
         if (typeof data.totalKeywords === 'number') setTotalKeywords(data.totalKeywords)
         if (typeof data.usedSeeds === 'number') setUsedSeeds(data.usedSeeds)
         
@@ -864,6 +876,28 @@ export default function AutoCollectPage() {
       <div className="card">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">자동 수집</h2>
         <div className="space-y-4">
+          {/* 상태 알림 */}
+          {!isInitialized && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">⏳ 초기화 중...</p>
+            </div>
+          )}
+          {isInitialized && !enabled && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+              <p className="text-sm text-gray-700">⏹️ 자동수집이 꺼져 있습니다. 토글을 켜서 시작하세요.</p>
+            </div>
+          )}
+          {isInitialized && enabled && remaining === 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
+              <p className="text-sm text-orange-800">⚠️ 남은 시드가 없습니다. 새로운 키워드를 추가하거나 시드를 재활성화하세요.</p>
+            </div>
+          )}
+          {isInitialized && enabled && remaining !== null && remaining > 0 && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+              <p className="text-sm text-green-800">✅ 자동수집 실행 중 - 남은 시드: {remaining.toLocaleString()}개</p>
+            </div>
+          )}
+          
           <div className="flex items-center gap-4">
             <label className="font-medium text-gray-800">자동수집</label>
             <button
@@ -872,6 +906,11 @@ export default function AutoCollectPage() {
             >
               {enabled ? `${backgroundMode ? '백그라운드' : '포그라운드'} ON` : 'OFF'}
             </button>
+            {isInitialized && (
+              <span className="text-xs text-gray-500">
+                {enabled ? (processing ? '처리 중...' : '대기 중') : '중지됨'}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-4">
