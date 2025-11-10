@@ -43,6 +43,7 @@ export async function onRequest(context: any) {
     const db = env.DB;
 
     // 아직 활용되지 않은 시드 가져오기: auto_seed_usage에 없는 키워드 우선, 다음으로 오래된 순
+    // 정확한 시드 조회를 위해 LEFT JOIN 사용 (keywords에 있지만 auto_seed_usage에 없는 것)
     const seedsQuery = `
       SELECT k.id, k.keyword
       FROM keywords k
@@ -51,6 +52,17 @@ export async function onRequest(context: any) {
       ORDER BY k.avg_monthly_search DESC, k.created_at ASC
       LIMIT ?
     `;
+    
+    // 디버깅: 시드 조회 전 남은 시드 수 확인
+    const debugRemainingQuery = `
+      SELECT COUNT(1) as count
+      FROM keywords k
+      LEFT JOIN auto_seed_usage a ON a.seed = k.keyword
+      WHERE a.seed IS NULL
+    `;
+    const debugRemaining = await db.prepare(debugRemainingQuery).all();
+    const debugRemainingCount = debugRemaining.results?.[0]?.count ?? 0;
+    console.log(`🔍 시드 조회 전 남은 시드 수: ${debugRemainingCount.toLocaleString()}개`);
 
     const take = unlimited ? 50 : Math.max(1, Math.min(batchSize, 200)); // 최대 200개까지 처리 가능 (5개 API 키 활용)
     const seeds = await db.prepare(seedsQuery).bind(take).all();
@@ -233,7 +245,7 @@ export async function onRequest(context: any) {
       }
     }
 
-    // 남은 수 추정: 정확한 계산 (keywords 테이블 기준)
+    // 남은 시드 수 계산: 정확한 계산 (keywords 테이블 기준)
     // 1. 전체 키워드 수 조회 (keywords 테이블의 실제 수집된 키워드 수)
     const totalKeywordsQuery = `SELECT COUNT(*) as total FROM keywords`;
     const totalKeywordsResult = await db.prepare(totalKeywordsQuery).all();
@@ -249,12 +261,8 @@ export async function onRequest(context: any) {
     const usedSeedsResult = await db.prepare(usedSeedsQuery).all();
     const usedSeeds = usedSeedsResult.results?.[0]?.used ?? 0;
     
-    // 3. 남은 시드 수 계산 (전체 키워드 수 - 사용된 시드 수)
-    // keywords 테이블의 모든 키워드가 시드로 활용 가능하므로
-    // 남은 시드 = 전체 키워드 수 - 사용된 시드 수
-    const actualRemaining = Math.max(0, totalKeywords - usedSeeds);
-    
-    // 4. 정확한 남은 시드 수 조회 (keywords 테이블 기준)
+    // 3. 정확한 남은 시드 수 조회 (keywords 테이블 기준, LEFT JOIN 방식)
+    // 이 방식이 가장 정확함: keywords에 있지만 auto_seed_usage에 없는 키워드
     const remainingQuery = `
       SELECT COUNT(1) as remaining
       FROM keywords k
@@ -264,14 +272,28 @@ export async function onRequest(context: any) {
     const remainingRow = await db.prepare(remainingQuery).all();
     const exactRemaining = remainingRow.results?.[0]?.remaining ?? 0;
     
-           // 디버깅 로그
-           console.log(`📊 시드 키워드 통계:`, {
-             totalKeywords: `${totalKeywords.toLocaleString()}개 (수집된 총 키워드 수)`,
-             usedSeeds: `${usedSeeds.toLocaleString()}개 (시드로 사용된 키워드 수)`,
-             actualRemaining: `${actualRemaining.toLocaleString()}개 (계산된 남은 시드)`,
-             exactRemaining: `${exactRemaining.toLocaleString()}개 (실제 남은 시드)`,
-             note: actualRemaining === exactRemaining ? '✅ 계산 일치' : '⚠️ 계산 방식 차이 감지됨'
-           });
+    // 4. 계산 방식 검증 (전체 - 사용된 = 남은)
+    const calculatedRemaining = Math.max(0, totalKeywords - usedSeeds);
+    
+    // 5. auto_seed_usage에 있지만 keywords에 없는 고아 레코드 수 확인 (데이터 정합성 체크)
+    const orphanedSeedsQuery = `
+      SELECT COUNT(1) as orphaned
+      FROM auto_seed_usage a
+      LEFT JOIN keywords k ON k.keyword = a.seed
+      WHERE k.keyword IS NULL
+    `;
+    const orphanedSeedsResult = await db.prepare(orphanedSeedsQuery).all();
+    const orphanedSeeds = orphanedSeedsResult.results?.[0]?.orphaned ?? 0;
+    
+    // 디버깅 로그 (상세 정보)
+    console.log(`📊 시드 키워드 통계:`, {
+      totalKeywords: `${totalKeywords.toLocaleString()}개 (수집된 총 키워드 수)`,
+      usedSeeds: `${usedSeeds.toLocaleString()}개 (시드로 사용된 키워드 수)`,
+      exactRemaining: `${exactRemaining.toLocaleString()}개 (실제 남은 시드 - LEFT JOIN 방식)`,
+      calculatedRemaining: `${calculatedRemaining.toLocaleString()}개 (계산된 남은 시드 - 전체 - 사용된)`,
+      orphanedSeeds: `${orphanedSeeds.toLocaleString()}개 (auto_seed_usage에 있지만 keywords에 없는 고아 레코드)`,
+      match: exactRemaining === calculatedRemaining ? '✅ 계산 일치' : '⚠️ 계산 차이 (정확한 값: exactRemaining 사용)'
+    });
            
            // 처리 통계 로그
            console.log(`📊 배치 처리 통계:`, {
