@@ -54,7 +54,8 @@ function startAutoCollect(config) {
   // 즉시 첫 배치 실행
   runBatch()
 
-  // 30초마다 반복 실행 (API 응답 시간 고려하여 간격 증가)
+  // 30초마다 반복 실행 (24시간 무한 수집을 위해 계속 실행)
+  // 남은 시드가 0이어도 계속 재시도하여 새로운 키워드가 추가되면 즉시 수집
   autoCollectInterval = setInterval(() => {
     // 이전 배치가 실행 중이면 건너뛰기
     if (!isBatchRunning) {
@@ -62,7 +63,7 @@ function startAutoCollect(config) {
     } else {
       console.log('[SW] 이전 배치 실행 중, 건너뜀')
     }
-  }, 30000) // 30초 간격 (API 응답 시간 고려)
+  }, 30000) // 30초 간격 (24시간 무한 수집 모드)
 
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
@@ -329,14 +330,27 @@ async function runBatch() {
           // 자동 중단하지 않고 계속 진행
         }
         
-        // 남은 시드가 없으면 중단
+        // 남은 시드가 없으면 잠시 대기 후 재시도 (24시간 무한 수집을 위해 중단하지 않음)
         if (data.remaining === 0 || data.remaining === null) {
-          console.log('[SW] 남은 시드가 없음, 자동 중단:', {
+          console.log('[SW] 남은 시드가 없음, 5분 후 재시도:', {
             remaining: data.remaining,
             processedCount,
             totalNewKeywordsAccumulated
           })
-          stopAutoCollect()
+          // 중단하지 않고 5분 후 재시도 (새로운 키워드가 추가될 수 있음)
+          self.clients.matchAll().then(clients => {
+            clients.forEach(client => {
+              client.postMessage({
+                type: 'AUTO_COLLECT_UPDATE',
+                status: 'waiting',
+                message: '남은 시드가 없습니다. 5분 후 재시도합니다...',
+                processedCount,
+                remaining: 0
+              })
+            })
+          })
+          // 5분 후 재시도 (다음 인터벌에서 자동으로 재시도됨)
+          // 인터벌은 계속 실행되므로 자동으로 재시도됨
           return
         }
       }

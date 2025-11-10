@@ -325,14 +325,14 @@ export default function AutoCollectPage() {
                 appendLog(`🎯 목표 달성! 총 ${totalNew}개의 새로운 키워드가 추가되었습니다. (목표: ${currentTarget}개) - 계속 진행 중...`)
                 // 자동 중단하지 않고 계속 진행
               }
+            } else if (status === 'waiting') {
+              // 남은 시드가 없어 대기 중 (24시간 무한 수집을 위해 계속 재시도)
+              appendLog(message || '⏳ 남은 시드가 없습니다. 5분 후 자동으로 재시도합니다...')
+              if (typeof remaining === 'number') setRemaining(remaining)
             } else if (status === 'stopped') {
               // 백그라운드 수집이 중단되었지만, 사용자가 직접 끈 것이 아닐 수 있으므로
               // enabled 상태는 유지하고 로그만 남김 (사용자가 토글을 직접 조작할 수 있도록)
-              appendLog('⏹️ 백그라운드 수집 중단됨 (남은 시드 없음 또는 오류로 인한 중단)')
-              // 남은 시드가 0이면 명확히 알림
-              if (remaining === 0) {
-                appendLog('⚠️ 남은 시드가 없어 자동수집이 중단되었습니다. 새로운 키워드를 추가하거나 시드를 재활성화하세요.')
-              }
+              appendLog('⏹️ 백그라운드 수집 중단됨 (사용자에 의한 중단)')
             } else if (status === 'error') {
               appendLog(`❌ 백그라운드 에러: ${error}`)
               // 에러 발생 시에도 enabled 상태는 유지 (사용자가 재시작할 수 있도록)
@@ -465,9 +465,9 @@ export default function AutoCollectPage() {
         
         if (typeof data.remaining === 'number') {
           setRemaining(data.remaining)
-          // 남은 시드가 0이면 명확히 알림
+          // 남은 시드가 0이면 재시도 알림 (24시간 무한 수집을 위해 멈추지 않음)
           if (data.remaining === 0) {
-            appendLog('⚠️ 남은 시드가 없습니다. 자동수집이 멈출 수 있습니다.')
+            appendLog('⏳ 남은 시드가 없습니다. 5분 후 자동으로 재시도합니다... (24시간 무한 수집 모드)')
           }
         }
         if (typeof data.totalKeywords === 'number') setTotalKeywords(data.totalKeywords)
@@ -888,8 +888,8 @@ export default function AutoCollectPage() {
             </div>
           )}
           {isInitialized && enabled && remaining === 0 && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3">
-              <p className="text-sm text-orange-800">⚠️ 남은 시드가 없습니다. 새로운 키워드를 추가하거나 시드를 재활성화하세요.</p>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">⏳ 남은 시드가 없습니다. 5분 후 자동으로 재시도합니다... (24시간 무한 수집 모드)</p>
             </div>
           )}
           {isInitialized && enabled && remaining !== null && remaining > 0 && (
