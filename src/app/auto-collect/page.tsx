@@ -562,22 +562,37 @@ export default function AutoCollectPage() {
   useEffect(() => {
     // 초기화가 완료되지 않았으면 대기
     if (!isInitialized) {
+      console.log('[AutoCollect] 초기화 대기 중...', { isInitialized })
       return
     }
 
+    console.log('[AutoCollect] 자동수집 실행 로직 시작:', {
+      enabled,
+      backgroundMode,
+      hasBackgroundCollector: !!backgroundCollectorRef.current,
+      limit: limitRef.current,
+      concurrent: concurrentRef.current,
+      targetKeywords: targetKeywordsRef.current
+    })
+
     // 백그라운드 모드 처리
     if (enabled && backgroundMode && backgroundCollectorRef.current) {
+      console.log('[AutoCollect] 백그라운드 모드 시작')
       appendLog('🚀 백그라운드 자동수집 시작')
       backgroundCollectorRef.current.startBackgroundCollect({
         limit: limitRef.current,
         concurrent: concurrentRef.current,
         targetKeywords: targetKeywordsRef.current
+      }).catch((error: any) => {
+        console.error('[AutoCollect] 백그라운드 수집 시작 실패:', error)
+        appendLog(`❌ 백그라운드 수집 시작 실패: ${error.message || '알 수 없는 오류'}`)
       })
       return
     }
 
     // 백그라운드 모드 중단
     if ((!enabled || !backgroundMode) && backgroundCollectorRef.current) {
+      console.log('[AutoCollect] 백그라운드 모드 중단')
       backgroundCollectorRef.current.stopBackgroundCollect()
       if (!enabled) {
         appendLog('⏹️ 백그라운드 자동수집 OFF')
@@ -587,10 +602,12 @@ export default function AutoCollectPage() {
     // 포그라운드 모드 처리
     if (!backgroundMode) {
       if (!enabled) {
+        console.log('[AutoCollect] 포그라운드 모드 비활성화')
         appendLog('⏹️ 포그라운드 자동수집 OFF')
         return
       }
 
+      console.log('[AutoCollect] 포그라운드 모드 시작 - 즉시 배치 실행')
       appendLog('▶️ 포그라운드 자동수집 ON - 배치 시작')
 
       // 즉시 1회 실행
@@ -599,14 +616,26 @@ export default function AutoCollectPage() {
       // 이후 3초마다 반복 실행 (속도 최적화)
       timerRef.current = setInterval(() => {
         // 최신 상태 체크를 위해 ref 사용
-        console.log('[AutoCollect] 타이머 실행:', { enabled: enabledRef.current, processing: processingRef.current })
-        if (enabledRef.current && !processingRef.current) {
+        console.log('[AutoCollect] 타이머 실행:', { 
+          enabled: enabledRef.current, 
+          processing: processingRef.current,
+          backgroundMode: backgroundModeRef.current
+        })
+        if (enabledRef.current && !processingRef.current && !backgroundModeRef.current) {
+          console.log('[AutoCollect] 타이머에서 배치 실행')
           runBatchRef.current()
+        } else {
+          console.log('[AutoCollect] 타이머에서 배치 건너뜀:', {
+            enabled: enabledRef.current,
+            processing: processingRef.current,
+            backgroundMode: backgroundModeRef.current
+          })
         }
       }, 3000) // 3초 간격 (속도 최적화)
 
       // cleanup: 타이머 정리
       return () => {
+        console.log('[AutoCollect] 포그라운드 모드 cleanup - 타이머 정리')
         if (timerRef.current) {
           clearInterval(timerRef.current)
           timerRef.current = null
@@ -642,15 +671,27 @@ export default function AutoCollectPage() {
   // 초기 마운트 시 localStorage에서 상태 불러오기
   useEffect(() => {
     if (typeof window !== 'undefined' && !isInitialized) {
+      console.log('[AutoCollect] 초기화 시작 - localStorage에서 상태 불러오기')
       const savedEnabled = localStorage.getItem('auto-collect-enabled')
       const savedBackgroundMode = localStorage.getItem('auto-collect-background-mode')
       const savedLimit = localStorage.getItem('auto-collect-limit')
       const savedConcurrent = localStorage.getItem('auto-collect-concurrent')
 
+      console.log('[AutoCollect] 저장된 상태:', {
+        enabled: savedEnabled,
+        backgroundMode: savedBackgroundMode,
+        limit: savedLimit,
+        concurrent: savedConcurrent
+      })
+
       if (savedEnabled === 'true') {
+        console.log('[AutoCollect] 자동수집 활성화 상태 복원')
         setEnabled(true)
+      } else {
+        console.log('[AutoCollect] 자동수집 비활성화 상태 (또는 저장된 값 없음)')
       }
       if (savedBackgroundMode === 'true') {
+        console.log('[AutoCollect] 백그라운드 모드 활성화 상태 복원')
         setBackgroundMode(true)
       }
       if (savedLimit) {
@@ -680,9 +721,11 @@ export default function AutoCollectPage() {
         setConcurrentInput('20')
       }
       
+      console.log('[AutoCollect] 초기화 완료 - isInitialized를 true로 설정')
       setIsInitialized(true)
+      appendLog('✅ 초기화 완료 - 자동수집 준비됨')
     }
-  }, [isInitialized])
+  }, [isInitialized, appendLog])
 
   // limitInput 변경 시 localStorage에 저장
   useEffect(() => {
@@ -708,6 +751,8 @@ export default function AutoCollectPage() {
   }
 
   const handleCheckServiceWorkerStatus = async () => {
+    appendLog('🔍 Service Worker 상태 확인 중...')
+    
     if (!backgroundCollectorRef.current) {
       appendLog('❌ Service Worker가 등록되지 않았습니다.')
       return
@@ -716,9 +761,14 @@ export default function AutoCollectPage() {
     try {
       const status = await backgroundCollectorRef.current.getStatus()
       if (status) {
-        appendLog(`📊 Service Worker 상태: ${status.enabled ? '실행 중' : '중지됨'}`)
+        appendLog(`📊 Service Worker 상태: ${status.enabled ? '✅ 실행 중' : '⏹️ 중지됨'}`)
         appendLog(`📊 처리된 시드: ${status.processedCount || 0}개`)
         appendLog(`📊 설정: ${JSON.stringify(status.config || {})}`)
+        
+        // 현재 프론트엔드 상태도 함께 표시
+        appendLog(`📊 프론트엔드 상태: enabled=${enabled}, backgroundMode=${backgroundMode}, isInitialized=${isInitialized}`)
+        appendLog(`📊 프론트엔드 처리된 시드: ${processed}개`)
+        appendLog(`📊 남은 시드: ${remaining !== null ? remaining.toLocaleString() : '-'}개`)
         
         if (status.enabled) {
           appendLog('✅ 백그라운드 수집이 실행 중입니다.')
@@ -764,6 +814,49 @@ export default function AutoCollectPage() {
       logError(error as Error, { action: 'restartServiceWorker' })
       appendLog(`❌ Service Worker 재시작 실패: ${errorMessage}`)
     }
+  }
+
+  // 자동수집 강제 재시작 함수 추가
+  const handleForceRestart = () => {
+    appendLog('🔄 자동수집 강제 재시작...')
+    
+    // 포그라운드 모드 타이머 정리
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    
+    // 백그라운드 모드 중지
+    if (backgroundCollectorRef.current) {
+      backgroundCollectorRef.current.stopBackgroundCollect()
+    }
+    
+    // 상태 초기화
+    setProcessing(false)
+    
+    // 잠시 대기 후 재시작
+    setTimeout(() => {
+      if (enabled) {
+        if (backgroundMode && backgroundCollectorRef.current) {
+          appendLog('🚀 백그라운드 모드 재시작')
+          backgroundCollectorRef.current.startBackgroundCollect({
+            limit: limitRef.current,
+            concurrent: concurrentRef.current,
+            targetKeywords: targetKeywordsRef.current
+          }).catch((error: any) => {
+            appendLog(`❌ 재시작 실패: ${error.message || '알 수 없는 오류'}`)
+          })
+        } else if (!backgroundMode) {
+          appendLog('🚀 포그라운드 모드 재시작')
+          runBatchRef.current()
+          timerRef.current = setInterval(() => {
+            if (enabledRef.current && !processingRef.current && !backgroundModeRef.current) {
+              runBatchRef.current()
+            }
+          }, 3000)
+        }
+      }
+    }, 500)
   }
 
   return (
@@ -848,6 +941,9 @@ export default function AutoCollectPage() {
 
           <div className="flex justify-center gap-2 flex-wrap">
             <button onClick={handleReset} className="btn-secondary">카운터 초기화</button>
+            <button onClick={handleForceRestart} className="btn-secondary" disabled={!enabled}>
+              자동수집 강제 재시작
+            </button>
             {backgroundMode && swRegistered && (
               <>
                 <button onClick={handleCheckServiceWorkerStatus} className="btn-secondary">
