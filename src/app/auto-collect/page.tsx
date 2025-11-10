@@ -198,7 +198,7 @@ export default function AutoCollectPage() {
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
   const [concurrentInput, setConcurrentInput] = useState('20') // 동시 처리 수 (기본값 20 - 5개 API 키 활용)
-  const [targetKeywordsInput, setTargetKeywordsInput] = useState('1000') // 목표 키워드 수 (새로 추가된 키워드)
+  const [targetKeywordsInput, setTargetKeywordsInput] = useState('0') // 목표 키워드 수 (0: 무제한)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
   const [processed, setProcessed] = useState(0)
@@ -962,7 +962,7 @@ export default function AutoCollectPage() {
                 value={targetKeywordsInput}
                 onChange={(e) => setTargetKeywordsInput(e.target.value)}
                 className="input-field w-24"
-                placeholder="1000"
+                placeholder="0"
               />
             </div>
           </div>
