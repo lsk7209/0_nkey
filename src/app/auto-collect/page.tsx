@@ -715,11 +715,16 @@ export default function AutoCollectPage() {
         concurrent: savedConcurrent
       })
 
-      if (savedEnabled === 'true') {
-        console.log('[AutoCollect] 자동수집 활성화 상태 복원')
+      // 기본값: 자동수집 활성화 (24시간 무한 수집 모드)
+      if (savedEnabled === 'true' || savedEnabled === null) {
+        console.log('[AutoCollect] 자동수집 활성화 상태 복원 (또는 기본값)')
         setEnabled(true)
+        // localStorage에도 저장 (기본값 설정)
+        if (savedEnabled === null) {
+          localStorage.setItem('auto-collect-enabled', 'true')
+        }
       } else {
-        console.log('[AutoCollect] 자동수집 비활성화 상태 (또는 저장된 값 없음)')
+        console.log('[AutoCollect] 자동수집 비활성화 상태')
       }
       if (savedBackgroundMode === 'true') {
         console.log('[AutoCollect] 백그라운드 모드 활성화 상태 복원')
