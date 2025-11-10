@@ -354,8 +354,9 @@ export async function onRequest(context: any) {
         } else {
           // ⚠️ 중요: INSERT 전에 다시 한 번 확인 (race condition 방지)
           // existing이 null이었지만, 다른 요청에서 이미 삽입했을 수 있음
+          // 정규화된 키워드로 검색 (중복 방지 강화)
           const doubleCheck = await runWithRetry(
-            () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(keyword.keyword).first(),
+            () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first(),
             'double check keywords'
           ) as { id: number; updated_at: string } | null;
 
