@@ -303,8 +303,19 @@ export default function AutoCollectPage() {
             }
 
             if (status === 'running' && batchResult) {
-              setProcessed(processedCount || 0)
-              if (typeof remaining === 'number') setRemaining(remaining)
+              // 처리된 시드 수 업데이트 (Service Worker에서 누적값을 보내므로 그대로 사용)
+              if (typeof processedCount === 'number') {
+                setProcessed(processedCount)
+                console.log('[AutoCollect] 백그라운드 processed 업데이트:', processedCount)
+              }
+              
+              // 남은 시드 수 업데이트 (batchResult에서 가져오거나 remaining 파라미터 사용)
+              const remainingValue = batchResult?.remaining ?? remaining
+              if (typeof remainingValue === 'number') {
+                setRemaining(remainingValue)
+                console.log('[AutoCollect] 백그라운드 remaining 업데이트:', remainingValue)
+              }
+              
               if (typeof batchResult.totalKeywords === 'number') setTotalKeywords(batchResult.totalKeywords)
               if (typeof batchResult.usedSeeds === 'number') setUsedSeeds(batchResult.usedSeeds)
               
@@ -314,9 +325,9 @@ export default function AutoCollectPage() {
               if (newKeywords > 0 || totalNew > 0) {
                 setTotalNewKeywords(totalNew)
                 const currentTarget = targetKeywordsRef.current
-                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드, +${newKeywords}개 새로운 키워드 (누적: ${totalNew}개${currentTarget > 0 ? ` / 목표: ${currentTarget}개` : ''})`)
+                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 처리, +${newKeywords}개 새로운 키워드 (누적: ${totalNew}개${currentTarget > 0 ? ` / 목표: ${currentTarget}개` : ''}), 남은 시드: ${remainingValue !== undefined ? remainingValue.toLocaleString() : '-'}개`)
               } else {
-                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 (남은: ${remaining ?? '-'}개)`)
+                appendLog(`✅ 백그라운드 배치 완료: +${batchResult.processed}개 시드 처리, 남은 시드: ${remainingValue !== undefined ? remainingValue.toLocaleString() : '-'}개`)
               }
               
               // 목표 도달 확인 (알림만 표시하고 계속 진행)
@@ -463,15 +474,23 @@ export default function AutoCollectPage() {
           return newTotal
         })
         
+        // 남은 시드 수 업데이트 (항상 최신 값으로 업데이트)
         if (typeof data.remaining === 'number') {
           setRemaining(data.remaining)
+          console.log('[AutoCollect] 포그라운드 remaining 업데이트:', data.remaining)
           // 남은 시드가 0이면 재시도 알림 (24시간 무한 수집을 위해 멈추지 않음)
           if (data.remaining === 0) {
-            appendLog('⏳ 남은 시드가 없습니다. 5분 후 자동으로 재시도합니다... (24시간 무한 수집 모드)')
+            appendLog('⏳ 남은 시드가 없습니다. 30초 후 자동으로 재시도합니다... (24시간 무한 수집 모드)')
           }
         }
-        if (typeof data.totalKeywords === 'number') setTotalKeywords(data.totalKeywords)
-        if (typeof data.usedSeeds === 'number') setUsedSeeds(data.usedSeeds)
+        if (typeof data.totalKeywords === 'number') {
+          setTotalKeywords(data.totalKeywords)
+          console.log('[AutoCollect] 포그라운드 totalKeywords 업데이트:', data.totalKeywords)
+        }
+        if (typeof data.usedSeeds === 'number') {
+          setUsedSeeds(data.usedSeeds)
+          console.log('[AutoCollect] 포그라운드 usedSeeds 업데이트:', data.usedSeeds)
+        }
         
               // 목표 도달 확인 (알림만 표시하고 계속 진행)
               if (data.targetReached) {
@@ -1039,5 +1058,6 @@ export default function AutoCollectPage() {
     </div>
   )
 }
+
 
 
