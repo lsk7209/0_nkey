@@ -27,11 +27,20 @@ class BackgroundCollector {
         })
 
         // Service Worker 메시지 리스너 (등록 후 즉시 설정)
+        // AUTO_COLLECT_UPDATE와 AUTO_COLLECT_STATUS 모두 처리
         navigator.serviceWorker.addEventListener('message', (event) => {
+          console.log('[BackgroundCollector] Service Worker 메시지 수신:', event.data.type)
           if (event.data.type === 'AUTO_COLLECT_UPDATE') {
             // 백그라운드 수집 상태 업데이트 이벤트 발생
             window.dispatchEvent(new CustomEvent('backgroundCollectUpdate', {
               detail: event.data
+            }))
+          } else if (event.data.type === 'AUTO_COLLECT_STATUS') {
+            // 상태 응답은 getStatus()에서 처리하므로 여기서는 로그만
+            console.log('[BackgroundCollector] 상태 응답 수신:', event.data.status)
+            // 상태 응답도 이벤트로 전달 (getStatus에서도 처리 가능하도록)
+            window.dispatchEvent(new CustomEvent('backgroundCollectStatus', {
+              detail: event.data.status
             }))
           }
         })
@@ -168,26 +177,74 @@ class BackgroundCollector {
 
   async getStatus(): Promise<any> {
     return new Promise((resolve) => {
+      // Service Worker가 준비될 때까지 대기
       if (!this.worker) {
-        resolve(null)
+        console.log('[BackgroundCollector] Service Worker가 없음, ready 대기...')
+        navigator.serviceWorker.ready.then(() => {
+          const registration = navigator.serviceWorker.getRegistration()
+          registration.then(reg => {
+            if (reg) {
+              this.worker = reg.active || reg.waiting || reg.installing
+              if (this.worker) {
+                this.getStatus().then(resolve)
+              } else {
+                resolve(null)
+              }
+            } else {
+              resolve(null)
+            }
+          }).catch(() => resolve(null))
+        }).catch(() => resolve(null))
         return
       }
 
+      // Service Worker가 활성화될 때까지 대기
+      if (this.worker.state !== 'activated' && this.worker.state !== 'activating') {
+        console.log(`[BackgroundCollector] Service Worker 상태: ${this.worker.state}, 활성화 대기...`)
+        const stateChangeHandler = () => {
+          if (this.worker && (this.worker.state === 'activated' || this.worker.state === 'activating')) {
+            this.worker.removeEventListener('statechange', stateChangeHandler)
+            this.getStatus().then(resolve)
+          }
+        }
+        this.worker.addEventListener('statechange', stateChangeHandler)
+        setTimeout(() => {
+          if (this.worker) {
+            this.worker.removeEventListener('statechange', stateChangeHandler)
+          }
+          this.getStatus().then(resolve)
+        }, 2000)
+        return
+      }
+
+      let resolved = false
       const handleMessage = (event: MessageEvent) => {
         if (event.data.type === 'AUTO_COLLECT_STATUS') {
-          navigator.serviceWorker.removeEventListener('message', handleMessage)
-          resolve(event.data.status)
+          if (!resolved) {
+            resolved = true
+            navigator.serviceWorker.removeEventListener('message', handleMessage)
+            console.log('[BackgroundCollector] Service Worker 상태 수신:', event.data.status)
+            resolve(event.data.status)
+          }
         }
       }
 
+      // 메시지 리스너를 먼저 등록
       navigator.serviceWorker.addEventListener('message', handleMessage)
+      
+      // Service Worker에 상태 요청 메시지 전송
+      console.log('[BackgroundCollector] Service Worker 상태 요청 전송')
       this.worker.postMessage({ type: 'GET_AUTO_COLLECT_STATUS' })
 
-      // 타임아웃
+      // 타임아웃 (10초로 증가)
       setTimeout(() => {
-        navigator.serviceWorker.removeEventListener('message', handleMessage)
-        resolve(null)
-      }, 5000)
+        if (!resolved) {
+          resolved = true
+          navigator.serviceWorker.removeEventListener('message', handleMessage)
+          console.warn('[BackgroundCollector] Service Worker 상태 확인 타임아웃')
+          resolve(null)
+        }
+      }, 10000) // 5초 → 10초로 증가
     })
   }
 }

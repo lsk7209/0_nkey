@@ -11,14 +11,29 @@ let isBatchRunning = false // 배치 실행 중 플래그 (중복 실행 방지)
 
 // Service Worker 메시지 핸들러
 self.addEventListener('message', (event) => {
-  const { type, config } = event.data
+  const { type, config } = event.data || {}
   
-  console.log('[SW] 메시지 수신:', { type, config, source: event.source?.constructor?.name || 'unknown' })
+  console.log('[SW] 메시지 수신:', { 
+    type, 
+    config, 
+    hasData: !!event.data,
+    source: event.source?.constructor?.name || 'unknown',
+    ports: event.ports?.length || 0
+  })
+
+  if (!type) {
+    console.warn('[SW] 메시지에 type이 없습니다:', event.data)
+    return
+  }
 
   switch (type) {
     case 'START_AUTO_COLLECT':
-      console.log('[SW] START_AUTO_COLLECT 메시지 처리 시작')
-      startAutoCollect(config)
+      console.log('[SW] START_AUTO_COLLECT 메시지 처리 시작', config)
+      if (config) {
+        startAutoCollect(config)
+      } else {
+        console.error('[SW] START_AUTO_COLLECT에 config가 없습니다')
+      }
       break
 
     case 'STOP_AUTO_COLLECT':
@@ -32,7 +47,7 @@ self.addEventListener('message', (event) => {
       break
       
     default:
-      console.warn('[SW] 알 수 없는 메시지 타입:', type)
+      console.warn('[SW] 알 수 없는 메시지 타입:', type, event.data)
   }
 })
 
@@ -40,9 +55,16 @@ self.addEventListener('message', (event) => {
 function startAutoCollect(config) {
   console.log('[SW] 자동 수집 시작:', config)
 
+  if (!config) {
+    console.error('[SW] startAutoCollect: config가 없습니다')
+    return
+  }
+
   // 기존 인터벌 정리
   if (autoCollectInterval) {
+    console.log('[SW] 기존 인터벌 정리')
     clearInterval(autoCollectInterval)
+    autoCollectInterval = null
   }
 
   autoCollectConfig = config
@@ -51,7 +73,14 @@ function startAutoCollect(config) {
   consecutiveTimeouts = 0 // 연속 타임아웃 횟수 초기화
   isBatchRunning = false // 배치 실행 플래그 초기화 (중요!)
 
+  console.log('[SW] 자동수집 설정 완료:', {
+    limit: config.limit,
+    concurrent: config.concurrent,
+    targetKeywords: config.targetKeywords
+  })
+
   // 즉시 첫 배치 실행
+  console.log('[SW] 즉시 첫 배치 실행')
   runBatch()
 
   // 30초마다 반복 실행 (24시간 무한 수집을 위해 계속 실행)
@@ -59,22 +88,30 @@ function startAutoCollect(config) {
   autoCollectInterval = setInterval(() => {
     // 이전 배치가 실행 중이면 건너뛰기
     if (!isBatchRunning) {
+      console.log('[SW] 인터벌에서 배치 실행')
       runBatch()
     } else {
       console.log('[SW] 이전 배치 실행 중, 건너뜀')
     }
   }, 30000) // 30초 간격 (24시간 무한 수집 모드)
 
+  console.log('[SW] 인터벌 설정 완료 (30초 간격)')
+
   // 시작 상태 알림
   self.clients.matchAll().then(clients => {
+    console.log(`[SW] 시작 알림 전송: ${clients.length}개 클라이언트`)
     clients.forEach(client => {
       client.postMessage({
         type: 'AUTO_COLLECT_UPDATE',
         status: 'started',
         config,
         processedCount: 0
+      }).catch(error => {
+        console.error('[SW] 시작 알림 전송 실패:', error)
       })
     })
+  }).catch(error => {
+    console.error('[SW] 클라이언트 조회 실패:', error)
   })
 }
 
@@ -107,16 +144,29 @@ function sendStatus() {
   const status = {
     enabled: autoCollectInterval !== null,
     config: autoCollectConfig,
-    processedCount
+    processedCount,
+    totalNewKeywords: totalNewKeywordsAccumulated
   }
 
+  console.log('[SW] 상태 전송:', status)
+
   self.clients.matchAll().then(clients => {
+    console.log(`[SW] 클라이언트 수: ${clients.length}개`)
+    if (clients.length === 0) {
+      console.warn('[SW] 연결된 클라이언트가 없습니다. 상태를 전송할 수 없습니다.')
+      return
+    }
     clients.forEach(client => {
+      console.log('[SW] 클라이언트에 상태 전송:', client.url)
       client.postMessage({
         type: 'AUTO_COLLECT_STATUS',
         status
+      }).catch(error => {
+        console.error('[SW] 상태 전송 실패:', error)
       })
     })
+  }).catch(error => {
+    console.error('[SW] 클라이언트 조회 실패:', error)
   })
 }
 
