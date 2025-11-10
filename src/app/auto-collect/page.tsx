@@ -158,13 +158,25 @@ class BackgroundCollector {
     console.log('[BackgroundCollector] Service Worker에 메시지 전송:', {
       type: 'START_AUTO_COLLECT',
       config,
-      workerState: this.worker.state
+      workerState: this.worker.state,
+      workerExists: !!this.worker
     })
 
-    this.worker.postMessage({
-      type: 'START_AUTO_COLLECT',
-      config
-    })
+    try {
+      const message = {
+        type: 'START_AUTO_COLLECT',
+        config
+      }
+      console.log('[BackgroundCollector] 전송할 메시지:', message)
+      this.worker.postMessage(message)
+      console.log('[BackgroundCollector] 메시지 전송 완료')
+      
+      // 메시지 전송 후 잠시 대기하여 Service Worker가 메시지를 받을 시간 제공
+      await new Promise(resolve => setTimeout(resolve, 100))
+    } catch (error) {
+      console.error('[BackgroundCollector] 메시지 전송 실패:', error)
+      throw error
+    }
   }
 
   async stopBackgroundCollect(): Promise<void> {
