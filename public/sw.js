@@ -454,16 +454,20 @@ async function runBatch() {
     // 에러 상태 알림
     self.clients.matchAll().then(clients => {
       clients.forEach(client => {
-        client.postMessage({
-          type: 'AUTO_COLLECT_UPDATE',
-          status: 'error',
-          error: error.message || '알 수 없는 에러',
-          processedCount,
-          errorDetails: {
-            name: error.name,
-            message: error.message
-          }
-        })
+        try {
+          client.postMessage({
+            type: 'AUTO_COLLECT_UPDATE',
+            status: 'error',
+            error: error.message || '알 수 없는 에러',
+            processedCount,
+            errorDetails: {
+              name: error.name,
+              message: error.message
+            }
+          })
+        } catch (postError) {
+          console.error('[SW] 에러 상태 알림 전송 실패:', postError)
+        }
       })
     }).catch(notifyError => {
       console.error('[SW] 에러 알림 전송 실패:', notifyError)
