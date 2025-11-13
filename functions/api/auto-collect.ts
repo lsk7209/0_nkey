@@ -53,16 +53,18 @@ export async function onRequest(context: any) {
       LIMIT ?
     `;
     
-    // 디버깅: 시드 조회 전 남은 시드 수 확인
-    const debugRemainingQuery = `
-      SELECT COUNT(1) as count
-      FROM keywords k
-      LEFT JOIN auto_seed_usage a ON a.seed = k.keyword
-      WHERE a.seed IS NULL
-    `;
-    const debugRemaining = await db.prepare(debugRemainingQuery).all();
-    const debugRemainingCount = debugRemaining.results?.[0]?.count ?? 0;
-    console.log(`🔍 시드 조회 전 남은 시드 수: ${debugRemainingCount.toLocaleString()}개`);
+    // 디버깅: 시드 조회 전 남은 시드 수 확인 (프로덕션에서는 최소화)
+    if (process.env.NODE_ENV === 'development') {
+      const debugRemainingQuery = `
+        SELECT COUNT(1) as count
+        FROM keywords k
+        LEFT JOIN auto_seed_usage a ON a.seed = k.keyword
+        WHERE a.seed IS NULL
+      `;
+      const debugRemaining = await db.prepare(debugRemainingQuery).all();
+      const debugRemainingCount = debugRemaining.results?.[0]?.count ?? 0;
+      console.log(`🔍 시드 조회 전 남은 시드 수: ${debugRemainingCount.toLocaleString()}개`);
+    }
 
     const take = unlimited ? 50 : Math.max(1, Math.min(batchSize, 200)); // 최대 200개까지 처리 가능 (5개 API 키 활용)
     const seeds = await db.prepare(seedsQuery).bind(take).all();
@@ -96,7 +98,6 @@ export async function onRequest(context: any) {
     }
 
       for (const chunk of chunks) {
-        console.log(`🔄 청크 처리 시작: ${chunk.length}개 시드 동시 처리 (시드 목록: ${chunk.map((r: any) => r.keyword).join(', ')})`);
         totalAttempted += chunk.length;
 
       // 청크 내 시드들을 병렬로 처리
@@ -126,12 +127,6 @@ export async function onRequest(context: any) {
                 const totalCollected = collectResult.totalCollected || 0;
                 const totalSavedOrUpdated = collectResult.totalSavedOrUpdated || 0;
                 
-                // 상세 로깅 (디버깅용)
-                if (savedCount === 0 && totalCollected === 0) {
-                  console.log(`⚠️ 시드 "${seed}" 처리 완료했지만 키워드 수집 없음 (이미 수집되었거나 키워드 없음)`);
-                } else {
-                  console.log(`✅ 시드 "${seed}" 처리 성공: 수집 ${totalCollected}개, 저장 ${savedCount}개 (신규), 업데이트 ${totalSavedOrUpdated - savedCount}개`);
-                }
                 
                 return {
                   seed,
@@ -141,26 +136,18 @@ export async function onRequest(context: any) {
                   savedCount // 새로 추가된 키워드 수
                 };
               } else {
-                // collect-naver API가 실패한 경우
-                const errorMessage = collectResult.error || collectResult.message || '알 수 없는 오류';
-                console.warn(`⚠️ 시드 "${seed}" collect-naver API 실패: ${errorMessage}`);
+                const errorMessage = collectResult.error || collectResult.message || 'Unknown error';
                 return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: errorMessage };
               }
             } else {
-              // HTTP 응답이 실패한 경우
-              const errorText = await res.text().catch(() => '');
-              console.error(`❌ 시드 "${seed}" HTTP ${res.status} 에러: ${errorText.substring(0, 200)}`);
               return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: `HTTP ${res.status}` };
             }
         } catch (e: any) {
           const error = e as Error;
-          // 타임아웃 에러는 로그만 남기고 계속 진행
           if (error.name === 'AbortError') {
-            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 3분 초과`);
-            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (3분 초과)' };
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout' };
           } else {
-            console.error(`❌ 시드 처리 실패 (${seed}):`, error.message || error);
-            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown error' };
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message || 'Unknown' };
           }
         }
       });
@@ -222,15 +209,8 @@ export async function onRequest(context: any) {
           } else if (result.error) {
             apiFailureCount++;
           }
-          // 실패한 시드의 에러 정보 로깅 (최대 3개만)
-          if (chunkFailureCount <= 3 && result.error) {
-            console.warn(`⚠️ 시드 "${result.seed}" 처리 실패: ${result.error}`);
-          }
         }
       }
-      
-      // 청크 처리 결과 요약 로깅
-      console.log(`📊 청크 처리 완료: 성공 ${chunkSuccessCount}개, 실패 ${chunkFailureCount}개 (총 ${chunk.length}개)`);
 
       // 목표 키워드 수 도달 확인 (청크 간에도 확인)
       if (targetKeywords > 0 && totalNewKeywords >= targetKeywords) {
@@ -238,10 +218,9 @@ export async function onRequest(context: any) {
         break; // 청크 루프 종료
       }
 
-      // 청크 간 Rate Limit 방지 간격 (5개 API 키 사용 시 200ms로 최적화)
+      // 청크 간 Rate Limit 방지 간격
       if (chunks.indexOf(chunk) < chunks.length - 1) {
-        console.log(`⏳ 청크 간 대기: 200ms (5개 API 키 최적화)`);
-        await new Promise(r => setTimeout(r, 200)); // 500ms → 200ms로 감소 (다중 키 활용)
+        await new Promise(r => setTimeout(r, 200));
       }
     }
 
@@ -285,25 +264,6 @@ export async function onRequest(context: any) {
     const orphanedSeedsResult = await db.prepare(orphanedSeedsQuery).all();
     const orphanedSeeds = orphanedSeedsResult.results?.[0]?.orphaned ?? 0;
     
-    // 디버깅 로그 (상세 정보)
-    console.log(`📊 시드 키워드 통계:`, {
-      totalKeywords: `${totalKeywords.toLocaleString()}개 (수집된 총 키워드 수)`,
-      usedSeeds: `${usedSeeds.toLocaleString()}개 (시드로 사용된 키워드 수)`,
-      exactRemaining: `${exactRemaining.toLocaleString()}개 (실제 남은 시드 - LEFT JOIN 방식)`,
-      calculatedRemaining: `${calculatedRemaining.toLocaleString()}개 (계산된 남은 시드 - 전체 - 사용된)`,
-      orphanedSeeds: `${orphanedSeeds.toLocaleString()}개 (auto_seed_usage에 있지만 keywords에 없는 고아 레코드)`,
-      match: exactRemaining === calculatedRemaining ? '✅ 계산 일치' : '⚠️ 계산 차이 (정확한 값: exactRemaining 사용)'
-    });
-           
-           // 처리 통계 로그
-           console.log(`📊 배치 처리 통계:`, {
-             totalAttempted: `${totalAttempted}개 (시도한 시드 수)`,
-             processed: `${processed}개 (성공한 시드 수)`,
-             successRate: totalAttempted > 0 ? `${((processed / totalAttempted) * 100).toFixed(1)}%` : '0%',
-             timeoutCount: `${timeoutCount}개 (타임아웃 발생)`,
-             apiFailureCount: `${apiFailureCount}개 (API 실패)`,
-             totalNewKeywords: `${totalNewKeywords}개 (새로 추가된 키워드)`
-           });
 
            return new Response(
              JSON.stringify({

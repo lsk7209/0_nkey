@@ -44,37 +44,22 @@ export async function onRequest(context: any) {
     const url = new URL(request.url);
     const action = url.searchParams.get('action') || 'status';
 
-    console.log('🔍 action 파라미터:', action);
-
     switch (action) {
       case 'status':
-        console.log('✅ getSystemStatus 호출');
         return await getSystemStatus(db, corsHeaders);
-
       case 'metrics':
-        console.log('✅ getSystemMetrics 호출');
         return await getSystemMetrics(db, corsHeaders);
-
       case 'api_stats':
-        console.log('✅ getApiStats 호출');
         return await getApiStats(db, corsHeaders, request);
-
       case 'api-status':
-        console.log('✅ getApiStatus 호출');
         return await getApiStatus(env, corsHeaders);
-
       case 'optimize':
-        console.log('✅ runOptimization 호출');
         return await runOptimization(db, corsHeaders);
-
       case 'cleanup-duplicates':
-        console.log('✅ cleanupDuplicates 호출');
         return await cleanupDuplicates(db, corsHeaders);
-
       default:
-        console.log('❌ 알 수 없는 action:', action);
         return new Response(
-          JSON.stringify({ success: false, error: 'Invalid action', receivedAction: action }),
+          JSON.stringify({ success: false, error: 'Invalid action' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
     }

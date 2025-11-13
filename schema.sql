@@ -96,7 +96,8 @@ CREATE INDEX IF NOT EXISTS idx_keywords_created_search ON keywords(created_at, a
 CREATE INDEX IF NOT EXISTS idx_keywords_pc_mobile ON keywords(pc_search, mobile_search);
 
 -- 문서 수 인덱스 (JOIN 성능 향상)
-CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_keyword ON naver_doc_counts(keyword);
+-- keyword_id로 JOIN하므로 keyword_id에 인덱스 생성 (수정)
+CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_keyword_id ON naver_doc_counts(keyword_id);
 CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_cafe ON naver_doc_counts(cafe_total);
 CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_blog ON naver_doc_counts(blog_total);
 CREATE INDEX IF NOT EXISTS idx_naver_doc_counts_web ON naver_doc_counts(web_total);
@@ -116,9 +117,13 @@ CREATE INDEX IF NOT EXISTS idx_api_call_logs_created_at ON api_call_logs(created
 CREATE INDEX IF NOT EXISTS idx_api_call_logs_success ON api_call_logs(success);
 
 -- 커버링 인덱스 (쿼리 최적화)
+-- ORDER BY 최적화를 위한 인덱스 추가
 CREATE INDEX IF NOT EXISTS idx_keywords_covering ON keywords(
   keyword, avg_monthly_search, pc_search, mobile_search, ad_count, created_at
 );
+
+-- keyword_metrics JOIN 최적화
+CREATE INDEX IF NOT EXISTS idx_keyword_metrics_keyword_id ON keyword_metrics(keyword_id);
 
 -- 데이터 마이그레이션: 기존 monthly_search_pc/mob 데이터를 pc_search/mobile_search로 복사
 UPDATE keywords SET pc_search = monthly_search_pc WHERE pc_search = 0 OR pc_search IS NULL;

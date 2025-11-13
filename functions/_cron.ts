@@ -35,12 +35,16 @@ export async function onScheduled(event: any, env: any, ctx: any) {
  * - 미사용 시드 키워드를 자동으로 수집
  * - 한 번에 50개의 시드 처리 (24시간 무한 수집을 위해 증가)
  * - 남은 시드가 0이어도 계속 재시도
+ * - 오래된 로그 정리 (데이터베이스 용량 최적화)
  */
 async function handleAutoCollect(env: any, ctx: any) {
   console.log('[Cron] Starting auto collect (24-hour mode)...');
 
   try {
     const db = env.DB;
+
+    // 데이터베이스 용량 최적화: 오래된 로그 정리 (크론 실행 시마다)
+    await cleanupOldLogs(db);
 
     // 현재 사이트의 오리진 가져오기
     const origin = 'https://0-nkey.pages.dev';
@@ -133,6 +137,55 @@ async function handleAutoCollect(env: any, ctx: any) {
     } catch (logError) {
       console.error('[Cron] Failed to save error log:', logError);
     }
+  }
+}
+
+/**
+ * 오래된 로그 정리 (데이터베이스 용량 최적화)
+ * - collect_logs: 7일 이상 된 데이터 삭제
+ * - api_call_logs: 7일 이상 된 데이터 삭제
+ * - system_metrics: 30일 이상 된 데이터 삭제
+ */
+async function cleanupOldLogs(db: any) {
+  try {
+    console.log('[Cron] Starting old logs cleanup...');
+    
+    // 1. collect_logs 정리 (7일 이상)
+    const collectLogsCleanup = await db.prepare(`
+      DELETE FROM collect_logs
+      WHERE created_at < datetime('now', '-7 days')
+    `).run();
+    const collectLogsDeleted = (collectLogsCleanup as any).meta?.changes || 0;
+    
+    // 2. api_call_logs 정리 (7일 이상)
+    const apiLogsCleanup = await db.prepare(`
+      DELETE FROM api_call_logs
+      WHERE created_at < datetime('now', '-7 days')
+    `).run();
+    const apiLogsDeleted = (apiLogsCleanup as any).meta?.changes || 0;
+    
+    // 3. system_metrics 정리 (30일 이상)
+    const metricsCleanup = await db.prepare(`
+      DELETE FROM system_metrics
+      WHERE created_at < datetime('now', '-30 days')
+    `).run();
+    const metricsDeleted = (metricsCleanup as any).meta?.changes || 0;
+    
+    console.log(`[Cron] Cleanup completed: collect_logs=${collectLogsDeleted}, api_call_logs=${apiLogsDeleted}, system_metrics=${metricsDeleted}`);
+    
+    // 정리 후 VACUUM 실행 (데이터베이스 용량 최적화)
+    if (collectLogsDeleted > 0 || apiLogsDeleted > 0 || metricsDeleted > 0) {
+      try {
+        await db.prepare('VACUUM').run();
+        console.log('[Cron] VACUUM completed successfully');
+      } catch (vacuumError: any) {
+        // VACUUM 실패는 치명적이지 않으므로 경고만
+        console.warn('[Cron] VACUUM failed (non-critical):', vacuumError?.message);
+      }
+    }
+  } catch (error: any) {
+    // 정리 실패는 치명적이지 않으므로 경고만
+    console.warn('[Cron] Cleanup failed (non-critical):', error?.message);
   }
 }
 

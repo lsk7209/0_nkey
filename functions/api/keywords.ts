@@ -121,48 +121,80 @@ export async function onRequest(context: any) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    // 필터 디버깅 로그
-    console.log(`🔍 필터 적용:`, {
-      conditions: conditions.length,
-      whereClause,
-      bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
-      filters: {
-        minAvgSearch, maxAvgSearch,
-        minCafeTotal, maxCafeTotal,
-        minBlogTotal, maxBlogTotal,
-        minWebTotal, maxWebTotal,
-        minNewsTotal, maxNewsTotal
-      }
-    });
+    // 필터 디버깅 로그 (프로덕션에서는 최소화)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔍 필터 적용:`, {
+        conditions: conditions.length,
+        whereClause,
+        bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
+        filters: {
+          minAvgSearch, maxAvgSearch,
+          minCafeTotal, maxCafeTotal,
+          minBlogTotal, maxBlogTotal,
+          minWebTotal, maxWebTotal,
+          minNewsTotal, maxNewsTotal
+        }
+      });
+    }
 
     // D1 데이터베이스에서 키워드 조회 (최적화된 쿼리)
     const db = env.DB;
 
-    // 최적화된 쿼리: 필요한 필드만 선택, 효율적인 JOIN
-    const query = `
-      SELECT
-        k.keyword,
-        k.avg_monthly_search,
-        k.monthly_search_pc as pc_search,
-        k.monthly_search_mob as mobile_search,
-        COALESCE(km.monthly_click_pc, 0) as monthly_click_pc,
-        COALESCE(km.monthly_click_mobile, 0) as monthly_click_mo,
-        COALESCE(km.ctr_pc, 0) as ctr_pc,
-        COALESCE(km.ctr_mobile, 0) as ctr_mo,
-        COALESCE(km.ad_count, 0) as ad_count,
-        k.created_at,
-        k.updated_at,
-        COALESCE(ndc.blog_total, 0) as blog_total,
-        COALESCE(ndc.cafe_total, 0) as cafe_total,
-        COALESCE(ndc.web_total, 0) as web_total,
-        COALESCE(ndc.news_total, 0) as news_total
-      FROM keywords k
-      LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
-      LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-      ${whereClause}
-      ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
-      LIMIT ? OFFSET ?
-    `;
+    // 최적화된 쿼리: 필요한 필드만 선택, 효율적인 JOIN, 인덱스 활용
+    // 인덱스 활용을 위해 WHERE 절이 있을 때와 없을 때 쿼리 분리
+    let query: string;
+    if (whereClause) {
+      // 필터가 있을 때: 인덱스 활용 최적화
+      query = `
+        SELECT
+          k.keyword,
+          k.avg_monthly_search,
+          k.monthly_search_pc as pc_search,
+          k.monthly_search_mob as mobile_search,
+          COALESCE(km.monthly_click_pc, 0) as monthly_click_pc,
+          COALESCE(km.monthly_click_mobile, 0) as monthly_click_mo,
+          COALESCE(km.ctr_pc, 0) as ctr_pc,
+          COALESCE(km.ctr_mobile, 0) as ctr_mo,
+          COALESCE(km.ad_count, 0) as ad_count,
+          k.created_at,
+          k.updated_at,
+          COALESCE(ndc.blog_total, 0) as blog_total,
+          COALESCE(ndc.cafe_total, 0) as cafe_total,
+          COALESCE(ndc.web_total, 0) as web_total,
+          COALESCE(ndc.news_total, 0) as news_total
+        FROM keywords k
+        LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
+        LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+        ${whereClause}
+        ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
+        LIMIT ? OFFSET ?
+      `;
+    } else {
+      // 필터가 없을 때: 커버링 인덱스 활용 (더 빠른 쿼리)
+      query = `
+        SELECT
+          k.keyword,
+          k.avg_monthly_search,
+          k.monthly_search_pc as pc_search,
+          k.monthly_search_mob as mobile_search,
+          COALESCE(km.monthly_click_pc, 0) as monthly_click_pc,
+          COALESCE(km.monthly_click_mobile, 0) as monthly_click_mo,
+          COALESCE(km.ctr_pc, 0) as ctr_pc,
+          COALESCE(km.ctr_mobile, 0) as ctr_mo,
+          COALESCE(km.ad_count, 0) as ad_count,
+          k.created_at,
+          k.updated_at,
+          COALESCE(ndc.blog_total, 0) as blog_total,
+          COALESCE(ndc.cafe_total, 0) as cafe_total,
+          COALESCE(ndc.web_total, 0) as web_total,
+          COALESCE(ndc.news_total, 0) as news_total
+        FROM keywords k
+        LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
+        LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+        ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
+        LIMIT ? OFFSET ?
+      `;
+    }
 
     // 최적화된 COUNT 쿼리 (WHERE 절 조건 반영)
     // WHERE 절이 없으면 단순 COUNT, 있으면 조건 반영
@@ -193,23 +225,20 @@ export async function onRequest(context: any) {
       result = dataResult;
       total = countResult.results?.[0]?.total || 0;
 
-      // COUNT 쿼리 결과 디버깅
-      console.log(`📊 COUNT 쿼리 결과:`, {
-        countQuery,
-        whereClause: whereClause || '(없음)',
-        countResultRaw: countResult.results?.[0],
-        total,
-        bindingsCount: bindings.length,
-        actualKeywordsReturned: result.results?.length || 0
-      });
-
-      // 필터가 적용되었는데 결과가 없으면 경고
-      if (conditions.length > 0 && total === 0) {
-        console.warn(`⚠️ 필터 적용되었지만 결과가 0개:`, {
-          conditions,
-          bindings,
-          whereClause
+      // COUNT 쿼리 결과 디버깅 (프로덕션에서는 최소화)
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`📊 COUNT 쿼리 결과:`, {
+          countQuery,
+          whereClause: whereClause || '(없음)',
+          total,
+          bindingsCount: bindings.length,
+          actualKeywordsReturned: result.results?.length || 0
         });
+      }
+
+      // 필터가 적용되었는데 결과가 없으면 경고 (프로덕션에서는 최소화)
+      if (conditions.length > 0 && total === 0 && process.env.NODE_ENV === 'development') {
+        console.warn(`⚠️ 필터 적용되었지만 결과가 0개`);
       }
 
     } catch (queryError: any) {
@@ -222,7 +251,10 @@ export async function onRequest(context: any) {
     const totalAllKeywordsResult = await db.prepare(totalAllKeywordsQuery).all();
     const totalAllKeywords = totalAllKeywordsResult.results?.[0]?.total || 0;
 
-    console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개 (필터링: ${total}개 / 전체: ${totalAllKeywords}개)`);
+    // 프로덕션에서는 간단한 로그만
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`✅ 키워드 조회 완료: ${result.results?.length || 0}개 (필터링: ${total}개 / 전체: ${totalAllKeywords}개)`);
+    }
 
     // 응답 데이터 준비
     const responseData = {
@@ -245,10 +277,8 @@ export async function onRequest(context: any) {
     response.headers.set('Pragma', 'no-cache');
     response.headers.set('Expires', '0');
 
-    // 대용량 응답의 경우 압축 활성화 (Cloudflare에서 자동 처리)
-    if (result.results && result.results.length > 100) {
-      response.headers.set('Content-Encoding', 'gzip');
-    }
+    // Cloudflare가 자동으로 압축 처리하므로 Content-Encoding 헤더 제거
+    // 응답 크기 최적화: 불필요한 필드 제거는 이미 쿼리에서 처리됨
 
     return response;
 

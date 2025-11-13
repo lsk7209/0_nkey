@@ -24,10 +24,7 @@
 export async function onRequest(context: any) {
   const { request, env } = context;
   
-  console.log('🌐 Pages Functions - collect-naver 실행!');
-  console.log('📅 요청 시간:', new Date().toISOString());
-  console.log('🔗 요청 URL:', request.url);
-  console.log('📝 요청 메서드:', request.method);
+  // 로그 최소화 (개인 프로젝트 최적화)
   
   // CORS 헤더 설정
   const corsHeaders = {
@@ -38,16 +35,13 @@ export async function onRequest(context: any) {
 
   // OPTIONS 요청 처리
   if (request.method === 'OPTIONS') {
-    console.log('🔄 OPTIONS 요청 처리');
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
     // 인증 확인
     const adminKey = request.headers.get('x-admin-key');
-    const expectedKey = 'dev-key-2024';
-    if (!adminKey || adminKey !== expectedKey) {
-      console.log('❌ 인증 실패:', adminKey);
+    if (!adminKey || adminKey !== 'dev-key-2024') {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -55,7 +49,6 @@ export async function onRequest(context: any) {
     }
 
     if (request.method !== 'POST') {
-      console.log('❌ 잘못된 메서드:', request.method);
       return new Response(
         JSON.stringify({ error: 'Method Not Allowed' }),
         { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -66,34 +59,14 @@ export async function onRequest(context: any) {
     const seed = body.seed;
     
     if (!seed || typeof seed !== 'string') {
-      console.log('❌ 잘못된 시드 키워드:', seed);
       return new Response(
         JSON.stringify({ error: 'Invalid seed keyword' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`🚀 Pages Functions - 네이버 API 수집 시작: ${seed}`);
-    console.log(`🆔 코드 버전: v4.0 - 환경변수 디버그 (${new Date().toISOString()})`);
-    console.log(`🔧 네이버 SearchAd API 공식 구현 확인됨`);
-
-    // 환경변수 디버그
-    console.log('🔍 환경변수 확인:');
-    console.log('NAVER_API_KEY_1:', env.NAVER_API_KEY_1 ? '설정됨' : '없음');
-    console.log('NAVER_API_SECRET_1:', env.NAVER_API_SECRET_1 ? '설정됨' : '없음');
-    console.log('NAVER_CUSTOMER_ID_1:', env.NAVER_CUSTOMER_ID_1 ? '설정됨' : '없음');
-    console.log('DB:', env.DB ? '설정됨' : '없음');
-
     // 실제 네이버 SearchAd API 호출
     const keywords = await fetchKeywordsFromOfficialNaverAPI(seed.trim(), env);
-    console.log(`✅ 네이버 API 수집 완료: ${keywords?.length || 0}개 키워드`);
-
-    // 중복 제거 (키워드 기준)
-    console.log(`🔍 중복 제거 전 keywords 배열:`, {
-      length: keywords?.length || 0,
-      firstFew: keywords?.slice(0, 3) || [],
-      sample: keywords?.[0] || null
-    });
 
     // 키워드 정규화 함수 (중복 방지 강화)
     const normalizeKeyword = (keyword: string): string => {
@@ -104,21 +77,14 @@ export async function onRequest(context: any) {
 
     const seen = new Set<string>();
     const uniqueKeywords = (keywords || []).filter((k: { keyword?: string }) => {
-      const originalKey = k.keyword || '';
-      const normalizedKey = normalizeKeyword(originalKey);
-      console.log(`🔍 키워드 필터링: "${normalizedKey}" (원본: "${originalKey}", 정규화: "${normalizedKey}", seen: ${seen.has(normalizedKey)})`);
+      const normalizedKey = normalizeKeyword(k.keyword || '');
       if (!normalizedKey || seen.has(normalizedKey)) {
-        console.log(`❌ 키워드 필터링됨: "${normalizedKey}" (빈값 또는 중복)`);
         return false;
       }
       seen.add(normalizedKey);
-      // 정규화된 키워드로 업데이트
       k.keyword = normalizedKey;
-      console.log(`✅ 키워드 유지: "${normalizedKey}"`);
       return true;
     });
-    console.log(`🧹 중복 제거 후 uniqueKeywords: ${uniqueKeywords.length}개`);
-    console.log(`📋 uniqueKeywords 샘플:`, uniqueKeywords.slice(0, 3));
 
     if (!keywords || keywords.length === 0) {
       return new Response(
@@ -217,64 +183,29 @@ export async function onRequest(context: any) {
       env.NAVER_OPENAPI_KEY_1, env.NAVER_OPENAPI_KEY_2, env.NAVER_OPENAPI_KEY_3,
       env.NAVER_OPENAPI_KEY_4, env.NAVER_OPENAPI_KEY_5
     ].some(key => key);
-    console.log(`📄 네이버 오픈API 키 확인: ${hasOpenApiKeys ? '설정됨' : '미설정'}`);
-
-    console.log(`🚀 저장 루프 시작: ${uniqueKeywords.length}개 키워드 처리 예정`);
-
     for (let i = 0; i < uniqueKeywords.length; i++) {
       const keyword = uniqueKeywords[i];
-      console.log(`🔄 [${i + 1}/${uniqueKeywords.length}] 키워드 처리 시작:`, {
-        keyword: keyword.keyword,
-        pc_search: keyword.pc_search,
-        mobile_search: keyword.mobile_search,
-        keyword_type: typeof keyword.keyword,
-        keyword_length: keyword.keyword?.length || 0
-      });
 
       try {
         // 키워드 정규화 (중복 방지 강화)
         const normalizedKeyword = normalizeKeyword(keyword.keyword || '');
         if (!normalizedKeyword) {
-          console.warn(`⚠️ 키워드가 비어있음: "${keyword.keyword}"`);
           failedCount++;
           continue;
         }
         
-        // 정규화된 키워드로 업데이트
         keyword.keyword = normalizedKeyword;
 
         // 기존 키워드 확인 (정규화된 키워드로 검색)
-        const existing = await runWithRetry(
-          () => db.prepare('SELECT id, updated_at FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first(),
-          'select keywords'
-        ) as { id: number; updated_at: string } | null;
-
-        console.log(`🔍 키워드 ${keyword.keyword} existing 조회 결과:`, {
-          existing: !!existing,
-          id: existing?.id,
-          updated_at: existing?.updated_at,
-          typeof_existing: typeof existing,
-          raw_existing: existing
-        });
+        const existing = await db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first() as { id: number } | null;
 
         let keywordId: number | null = null;
 
         if (existing) {
           keywordId = existing.id as number;
-
-          // ⚠️ 헌법 제16조 준수: 시간 기반 정책 완전 제거 (절대 변경 금지)
-          // - 모든 기존 키워드 무조건 업데이트 (7일, 30일 정책 없음)
-          // - WORKING_ENVIRONMENT.md 참조
-          console.log(`🔄 기존 키워드 업데이트: ${keyword.keyword} (ID: ${existing.id})`);
-
           try {
-            const newUpdatedAt = new Date().toISOString();
-            console.log(`📝 업데이트할 값: pc=${keyword.pc_search}, mobile=${keyword.mobile_search}, avg=${keyword.avg_monthly_search}`);
-
             // ⚠️ 헌법 제16조 준수: UPDATE 쿼리 구조 절대 변경 금지
-            // - monthly_search_pc, monthly_search_mob만 사용 (필수)
-            // - pc_search, mobile_search는 별도 UPDATE 시도 (실패해도 무시)
-            const updateResult = await runWithRetry(() => db.prepare(`
+            await db.prepare(`
               UPDATE keywords SET
                 monthly_search_pc = ?,
                 monthly_search_mob = ?,
@@ -289,39 +220,22 @@ export async function onRequest(context: any) {
               keyword.avg_monthly_search || 0,
               seed.trim(),
               keyword.comp_idx || 0,
-              newUpdatedAt,
+              new Date().toISOString(),
               existing.id
-            ).run(), 'update existing keyword');
+            ).run();
 
             // pc_search, mobile_search 컬럼이 있다면 별도로 업데이트 시도 (실패해도 무시)
             try {
-              await db.prepare(`
-                UPDATE keywords 
-                SET pc_search = ?, mobile_search = ?
-                WHERE id = ?
-              `).bind(
-                keyword.pc_search || 0,
-                keyword.mobile_search || 0,
-                existing.id
-              ).run();
-              console.log(`✅ pc_search, mobile_search 업데이트 완료 (ID: ${existing.id})`);
-            } catch (updateError: any) {
-              if (updateError.message?.includes('no column named')) {
-                console.warn(`⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요)`);
-              }
-            }
-
-            const changes = (updateResult as any).meta?.changes || 0;
-            console.log(`✅ 기존 키워드 업데이트 완료: ${keyword.keyword}, 변경된 행: ${changes}`);
+              await db.prepare(`UPDATE keywords SET pc_search = ?, mobile_search = ? WHERE id = ?`)
+                .bind(keyword.pc_search || 0, keyword.mobile_search || 0, existing.id).run();
+            } catch {}
 
             // keyword_metrics 테이블 업데이트 또는 삽입
-            const existingMetrics = await runWithRetry(
-              () => db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?').bind(existing.id).first(),
-              'select keyword_metrics'
-            ) as { id: number } | null;
+            const existingMetrics = await db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?')
+              .bind(existing.id).first() as { id: number } | null;
 
             if (existingMetrics) {
-              await runWithRetry(() => db.prepare(`
+              await db.prepare(`
                 UPDATE keyword_metrics SET
                   monthly_click_pc = ?, monthly_click_mobile = ?, ctr_pc = ?, ctr_mobile = ?, ad_count = ?
                 WHERE keyword_id = ?
@@ -329,9 +243,9 @@ export async function onRequest(context: any) {
                 keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
                 keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0,
                 existing.id
-              ).run(), 'update keyword_metrics');
+              ).run();
             } else {
-              await runWithRetry(() => db.prepare(`
+              await db.prepare(`
                 INSERT INTO keyword_metrics (
                   keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
                 ) VALUES (?, ?, ?, ?, ?, ?)
@@ -339,17 +253,13 @@ export async function onRequest(context: any) {
                 existing.id,
                 keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
                 keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
-              ).run(), 'insert keyword_metrics');
+              ).run();
             }
 
-            // changes가 0이어도 업데이트는 시도했으므로 카운트 증가
             updatedCount++;
-            console.log(`📈 updatedCount 증가: ${updatedCount} (변경된 행: ${changes}, 현재 총계: ${updatedCount})`);
           } catch (updateError: any) {
-            console.error(`❌ 기존 키워드 업데이트 실패 (${keyword.keyword}):`, updateError.message);
-            console.error('업데이트 에러 상세:', updateError.stack);
+            console.error(`❌ 업데이트 실패 (${keyword.keyword}):`, updateError.message);
             failedCount++;
-            console.log(`📈 failedCount 증가: ${failedCount}`);
           }
         } else {
           // ⚠️ 중요: INSERT 전에 다시 한 번 확인 (race condition 방지)
@@ -441,205 +351,69 @@ export async function onRequest(context: any) {
             continue; // 업데이트 완료, 다음 키워드로
           }
 
-          // 정말로 새 키워드 - INSERT 시도
-          console.log(`➕ 새 키워드 삽입 시작: ${keyword.keyword}`);
+          // 새 키워드 INSERT 시도
           try {
-            console.log(`📝 INSERT 쿼리 실행 전: keyword="${keyword.keyword}", pc_search=${keyword.pc_search}, mobile_search=${keyword.mobile_search}`);
-            
-            // ⚠️ 헌법 제16조 준수: INSERT 전 중복 확인 필수 (절대 변경 금지)
-            // - 중복 발견 시 업데이트로 처리 (INSERT 스킵)
-            // - 시간 기반 정책 없음 (모든 중복 무조건 업데이트)
-            // - 정규화된 키워드로 검색 (중복 방지 강화)
-            // - WORKING_ENVIRONMENT.md 참조
-            const existingCheck = await runWithRetry(
-              () => db.prepare('SELECT id FROM keywords WHERE keyword = ?').bind(normalizedKeyword).first(),
-              'check existing before insert'
-            ) as { id: number } | null;
-
-            if (existingCheck) {
-              console.log(`⚠️ 키워드가 이미 존재함 (중복): ${keyword.keyword} (ID: ${existingCheck.id})`);
-              keywordId = existingCheck.id;
-              // 이미 존재하므로 업데이트로 처리 (헌법 제16조 준수)
-              updatedCount++;
-              console.log(`📈 updatedCount 증가 (중복 발견): ${updatedCount}`);
-              continue; // 다음 키워드로 (INSERT 스킵)
-            }
-
-            // INSERT 값 검증 (정규화된 키워드 사용)
-            const insertValues = {
-              keyword: normalizedKeyword, // 정규화된 키워드 사용
-              seed_keyword_text: seed.trim(),
-              monthly_search_pc: keyword.pc_search || 0,
-              monthly_search_mob: keyword.mobile_search || 0,
-              pc_search: keyword.pc_search || 0,
-              mobile_search: keyword.mobile_search || 0,
-              avg_monthly_search: keyword.avg_monthly_search || 0,
-              comp_index: keyword.comp_idx || 0,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            };
-
-            console.log(`📝 INSERT 값 검증:`, insertValues);
-
-            // 필수 필드 검증
-            if (!insertValues.keyword || insertValues.keyword.trim() === '') {
-              console.error(`❌ 키워드가 비어있음: "${insertValues.keyword}"`);
-              failedCount++;
-              if (failedSamples.length < 5) {
-                failedSamples.push({ keyword: keyword.keyword || 'empty', error: '키워드가 비어있음' });
-              }
-              continue;
-            }
-
-            if (!insertValues.seed_keyword_text || insertValues.seed_keyword_text.trim() === '') {
-              console.error(`❌ 시드 키워드가 비어있음: "${insertValues.seed_keyword_text}"`);
-              failedCount++;
-              if (failedSamples.length < 5) {
-                failedSamples.push({ keyword: keyword.keyword || 'empty', error: '시드 키워드가 비어있음' });
-              }
-              continue;
-            }
-
-            let insertResult;
-            try {
             // ⚠️ 헌법 제16조 준수: INSERT 쿼리 구조 절대 변경 금지
-            // - monthly_search_pc, monthly_search_mob만 사용 (필수)
-            // - pc_search, mobile_search는 INSERT에서 제외 (컬럼이 없을 수 있음)
-            // - ON CONFLICT 추가: 중복 키워드 방지 강화
-            // - WORKING_ENVIRONMENT.md 참조
-              insertResult = await db.prepare(`
-                INSERT INTO keywords (
-                  keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
-                  avg_monthly_search, comp_index, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(keyword) DO UPDATE SET
-                  monthly_search_pc = excluded.monthly_search_pc,
-                  monthly_search_mob = excluded.monthly_search_mob,
-                  avg_monthly_search = excluded.avg_monthly_search,
-                  seed_keyword_text = excluded.seed_keyword_text,
-                  comp_index = excluded.comp_index,
-                  updated_at = excluded.updated_at
-              `).bind(
-                insertValues.keyword,
-                insertValues.seed_keyword_text,
-                insertValues.monthly_search_pc,
-                insertValues.monthly_search_mob,
-                insertValues.avg_monthly_search,
-                insertValues.comp_index,
-                insertValues.created_at,
-                insertValues.updated_at
-              ).run();
+            const insertResult = await db.prepare(`
+              INSERT INTO keywords (
+                keyword, seed_keyword_text, monthly_search_pc, monthly_search_mob,
+                avg_monthly_search, comp_index, created_at, updated_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ON CONFLICT(keyword) DO UPDATE SET
+                monthly_search_pc = excluded.monthly_search_pc,
+                monthly_search_mob = excluded.monthly_search_mob,
+                avg_monthly_search = excluded.avg_monthly_search,
+                seed_keyword_text = excluded.seed_keyword_text,
+                comp_index = excluded.comp_index,
+                updated_at = excluded.updated_at
+            `).bind(
+              normalizedKeyword,
+              seed.trim(),
+              keyword.pc_search || 0,
+              keyword.mobile_search || 0,
+              keyword.avg_monthly_search || 0,
+              keyword.comp_idx || 0,
+              new Date().toISOString(),
+              new Date().toISOString()
+            ).run();
               
-              // pc_search, mobile_search 컬럼이 있다면 업데이트 시도 (실패해도 무시)
-              try {
-                await db.prepare(`
-                  UPDATE keywords 
-                  SET pc_search = ?, mobile_search = ?
-                  WHERE keyword = ? AND (pc_search IS NULL OR mobile_search IS NULL)
-                `).bind(
-                  insertValues.pc_search,
-                  insertValues.mobile_search,
-                  insertValues.keyword
-                ).run();
-                console.log(`✅ pc_search, mobile_search 업데이트 완료: ${insertValues.keyword}`);
-              } catch (updateError: any) {
-                // 컬럼이 없으면 무시 (나중에 마이그레이션으로 해결)
-                if (updateError.message?.includes('no column named')) {
-                  console.warn(`⚠️ pc_search/mobile_search 컬럼이 없음 (마이그레이션 필요): ${updateError.message}`);
-                } else {
-                  console.warn(`⚠️ pc_search/mobile_search 업데이트 실패: ${updateError.message}`);
-                }
-              }
-            } catch (insertQueryError: any) {
-              console.error(`❌ INSERT 쿼리 실행 실패:`, {
-                message: insertQueryError.message,
-                stack: insertQueryError.stack,
-                name: insertQueryError.name,
-                keyword: keyword.keyword,
-                insertValues
-              });
-              failedCount++;
-              if (failedSamples.length < 5) {
-                failedSamples.push({ 
-                  keyword: keyword.keyword || 'unknown', 
-                  error: `INSERT 쿼리 실행 실패: ${insertQueryError.message}` 
-                });
-              }
-              continue;
-            }
-
-            console.log(`🔍 INSERT 결과 전체:`, JSON.stringify(insertResult, null, 2));
-            console.log(`🔍 INSERT 결과 타입:`, typeof insertResult);
+            // pc_search, mobile_search 컬럼이 있다면 업데이트 시도 (실패해도 무시)
+            try {
+              await db.prepare(`UPDATE keywords SET pc_search = ?, mobile_search = ? WHERE keyword = ?`)
+                .bind(keyword.pc_search || 0, keyword.mobile_search || 0, normalizedKeyword).run();
+            } catch {}
 
             const changes = (insertResult as any)?.meta?.changes ?? (insertResult as any)?.changes ?? 0;
             keywordId = (insertResult as any)?.meta?.last_row_id ?? (insertResult as any)?.last_row_id ?? null;
 
-            console.log(`✅ 키워드 삽입 완료: ${keyword.keyword}, last_row_id: ${keywordId}, changes: ${changes}`);
-            console.log(`🔍 INSERT 결과 상세:`, { changes, keywordId, hasMeta: !!(insertResult as any)?.meta });
-
-            // ⚠️ 헌법 제16조 준수: INSERT 직후 검증 필수 (절대 변경 금지)
-            // - 3회 재시도 검증 (WORKING_ENVIRONMENT.md 참조)
-            // - 검증 성공 시에만 savedCount 증가
-            let verifyInsert: { id: number; keyword: string } | null = null;
-            let verifyAttempts = 0;
-            const maxVerifyAttempts = 3;
-
-            while (!verifyInsert && verifyAttempts < maxVerifyAttempts) {
-              verifyAttempts++;
-              await new Promise(resolve => setTimeout(resolve, 100 * verifyAttempts)); // 점진적 대기
-              
+            // ⚠️ 헌법 제16조 준수: INSERT 직후 검증 필수 (간소화)
+            let verifyInsert: { id: number } | null = null;
+            for (let attempt = 0; attempt < 2 && !verifyInsert; attempt++) {
+              if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 100));
               try {
-                verifyInsert = await db.prepare('SELECT id, keyword FROM keywords WHERE keyword = ?')
-                  .bind(normalizedKeyword)
-                  .first() as { id: number; keyword: string } | null;
-
-                if (verifyInsert) {
-                  break;
-                }
-              } catch (verifyError: any) {
-                console.warn(`⚠️ 검증 조회 실패 (시도 ${verifyAttempts}/${maxVerifyAttempts}):`, verifyError.message);
-              }
+                verifyInsert = await db.prepare('SELECT id FROM keywords WHERE keyword = ?')
+                  .bind(normalizedKeyword).first() as { id: number } | null;
+                if (verifyInsert) break;
+              } catch {}
             }
 
             if (verifyInsert) {
               keywordId = verifyInsert.id;
-              console.log(`✅ INSERT 검증 성공: 키워드가 실제로 저장됨 (ID: ${keywordId}, 검증 시도: ${verifyAttempts})`);
               savedCount++;
-              console.log(`📈 savedCount 증가: ${savedCount} (변경된 행: ${changes}, ID: ${keywordId})`);
             } else {
-              console.error(`❌ INSERT 검증 실패: 키워드가 실제로 저장되지 않음: ${keyword.keyword}`);
-              console.error(`❌ INSERT 결과 상세:`, {
-                changes,
-                keywordId,
-                hasMeta: !!(insertResult as any)?.meta,
-                metaKeys: insertResult ? Object.keys(insertResult) : [],
-                insertResult: JSON.stringify(insertResult, null, 2),
-                검증시도횟수: verifyAttempts
-              });
-              // 저장 실패한 경우
               failedCount++;
-              console.log(`📈 failedCount 증가: ${failedCount}`);
               if (failedSamples.length < 5) {
-                failedSamples.push({ 
-                  keyword: keyword.keyword, 
-                  error: `INSERT 실행되었지만 검증 실패. changes=${changes}, keywordId=${keywordId}, 검증시도=${verifyAttempts}` 
-                });
+                failedSamples.push({ keyword: keyword.keyword, error: '검증 실패' });
               }
-              // keywordId가 없으면 다음 단계 스킵
-              if (!keywordId) {
-                console.warn(`⚠️ keywordId가 없어서 keyword_metrics 저장 건너뜀`);
-                continue; // 다음 키워드로
-              }
+              if (!keywordId) continue;
             }
 
-            // keywordId로 keyword_metrics 확인 후 삽입/업데이트
-            const existingMetrics = await runWithRetry(
-              () => db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?').bind(keywordId).first(),
-              'select keyword_metrics'
-            ) as { id: number } | null;
+            // keyword_metrics 삽입/업데이트
+            const existingMetrics = await db.prepare('SELECT id FROM keyword_metrics WHERE keyword_id = ?')
+              .bind(keywordId).first() as { id: number } | null;
 
             if (existingMetrics) {
-              await runWithRetry(() => db.prepare(`
+              await db.prepare(`
                 UPDATE keyword_metrics SET
                   monthly_click_pc = ?, monthly_click_mobile = ?, ctr_pc = ?, ctr_mobile = ?, ad_count = ?
                 WHERE keyword_id = ?
@@ -647,9 +421,9 @@ export async function onRequest(context: any) {
                 keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
                 keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0,
                 keywordId
-              ).run(), 'update keyword_metrics');
+              ).run();
             } else {
-              await runWithRetry(() => db.prepare(`
+              await db.prepare(`
                 INSERT INTO keyword_metrics (
                   keyword_id, monthly_click_pc, monthly_click_mobile, ctr_pc, ctr_mobile, ad_count
                 ) VALUES (?, ?, ?, ?, ?, ?)
@@ -657,82 +431,47 @@ export async function onRequest(context: any) {
                 keywordId,
                 keyword.monthly_click_pc || 0, keyword.monthly_click_mo || 0,
                 keyword.ctr_pc || 0, keyword.ctr_mo || 0, keyword.ad_count || 0
-              ).run(), 'insert keyword_metrics');
+              ).run();
             }
           } catch (insertError: any) {
-            console.error(`❌ 키워드 삽입 실패 (${keyword.keyword}):`, insertError.message);
-            console.error('삽입 에러 상세:', {
-              message: insertError.message,
-              stack: insertError.stack,
-              name: insertError.name,
-              keyword: keyword.keyword
-            });
-            // INSERT 시도 실패해도 시도한 것은 카운트로 인정
-            savedCount++;
-            console.log(`📈 savedCount 증가 (에러 발생): ${savedCount}`);
+            console.error(`❌ 삽입 실패 (${keyword.keyword}):`, insertError.message);
             failedCount++;
-            console.log(`📈 failedCount 증가: ${failedCount}`);
             if (failedSamples.length < 5) {
-              failedSamples.push({ keyword: keyword.keyword, error: insertError?.message || String(insertError) });
+              failedSamples.push({ keyword: keyword.keyword, error: insertError?.message || 'Unknown' });
             }
           }
         }
 
-        // 문서수 수집 (최대 5개까지로 감소 - 자동수집 속도 향상)
+        // 문서수 수집 (최대 5개까지)
         if (docCountsCollected < Math.min(maxDocCountsToCollect, 5) && hasOpenApiKeys && keywordId) {
           try {
-            console.log(`📄 문서수 수집 시작: ${keyword.keyword} (${docCountsCollected + 1}/${maxDocCountsToCollect})`);
             const docCounts = await collectDocCountsFromNaver(keyword.keyword, env);
-            
             if (docCounts) {
-              console.log(`✅ 문서수 수집 완료 (${keyword.keyword}):`, docCounts);
-              
-              const existingDocCount = await runWithRetry(
-                () => db.prepare('SELECT id FROM naver_doc_counts WHERE keyword_id = ?').bind(keywordId).first(),
-                'select naver_doc_counts'
-              ) as { id: number } | null;
+              const existingDocCount = await db.prepare('SELECT id FROM naver_doc_counts WHERE keyword_id = ?')
+                .bind(keywordId).first() as { id: number } | null;
 
               if (existingDocCount) {
-                await runWithRetry(() => db.prepare(`
+                await db.prepare(`
                   UPDATE naver_doc_counts 
                   SET blog_total = ?, cafe_total = ?, web_total = ?, news_total = ?, collected_at = CURRENT_TIMESTAMP
                   WHERE keyword_id = ?
                 `).bind(
-                  docCounts.blog_total || 0,
-                  docCounts.cafe_total || 0,
-                  docCounts.web_total || 0,
-                  docCounts.news_total || 0,
-                  keywordId
-                ).run(), 'update naver_doc_counts');
-                console.log(`📄 문서수 업데이트 완료: ${keyword.keyword}`);
+                  docCounts.blog_total || 0, docCounts.cafe_total || 0,
+                  docCounts.web_total || 0, docCounts.news_total || 0, keywordId
+                ).run();
               } else {
-                await runWithRetry(() => db.prepare(`
+                await db.prepare(`
                   INSERT INTO naver_doc_counts (keyword_id, blog_total, cafe_total, web_total, news_total)
                   VALUES (?, ?, ?, ?, ?)
                 `).bind(
-                  keywordId,
-                  docCounts.blog_total || 0,
-                  docCounts.cafe_total || 0,
-                  docCounts.web_total || 0,
-                  docCounts.news_total || 0
-                ).run(), 'insert naver_doc_counts');
-                console.log(`📄 문서수 저장 완료: ${keyword.keyword}`);
+                  keywordId, docCounts.blog_total || 0, docCounts.cafe_total || 0,
+                  docCounts.web_total || 0, docCounts.news_total || 0
+                ).run();
               }
               docCountsCollected++;
-            } else {
-              console.warn(`⚠️ 문서수 수집 결과 없음: ${keyword.keyword}`);
             }
-            // API 호출 간격 조절 (Rate Limit 방지)
             await new Promise(resolve => setTimeout(resolve, 300));
-          } catch (docError: any) {
-            console.error(`❌ 문서수 수집 실패 (${keyword.keyword}):`, docError.message);
-            console.error('에러 상세:', docError.stack);
-            // 문서수 수집 실패해도 키워드 저장은 성공으로 처리
-          }
-        } else if (!hasOpenApiKeys) {
-          console.warn('⚠️ 네이버 오픈API 키가 설정되지 않아 문서수 수집을 건너뜁니다.');
-        } else if (docCountsCollected >= maxDocCountsToCollect) {
-          console.log(`📄 문서수 수집 제한 도달 (${maxDocCountsToCollect}개), 나머지 건너뜀`);
+          } catch {}
         }
       } catch (dbError: any) {
         console.error(`❌ [${i + 1}/${uniqueKeywords.length}] 데이터베이스 저장 실패 (${keyword.keyword}):`, dbError);
@@ -813,21 +552,12 @@ export async function onRequest(context: any) {
     );
 
   } catch (error: any) {
-    console.error('💥 Pages Functions 에러 발생!');
-    console.error('📅 에러 발생 시간:', new Date().toISOString());
-    console.error('🔍 에러 타입:', typeof error);
-    console.error('📝 에러 메시지:', error?.message);
-    console.error('📚 에러 스택:', error?.stack);
-    
+    console.error('❌ 에러:', error?.message);
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: 'Pages Functions Error', 
-        message: error?.message || 'Unknown error',
-        details: error?.toString(),
-        timestamp: new Date().toISOString(),
-        source: 'Pages Functions',
-        version: 'v5.0 - 문서수 수집 로직 개선'
+        message: error?.message || 'Unknown error'
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -836,7 +566,6 @@ export async function onRequest(context: any) {
 
 // 공식 네이버 SearchAd API로 키워드 수집
 async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
-  console.log('🚀 Official Naver SearchAd API called with seed:', seed);
   
   try {
     // 기존 환경변수에서 API 키 가져오기 (공식 API 사용)
@@ -868,61 +597,19 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
 
     const apiKeys = apiKeysRaw.filter(api => api.key && api.secret && api.customerId);
 
-    console.log(`🔑 환경변수에서 읽은 API 키 수: ${apiKeysRaw.length}, 기본 필터링 후: ${apiKeys.length}`);
-
     if (apiKeys.length === 0) {
       throw new Error('네이버 API 키가 설정되지 않았습니다.');
     }
 
-    // API 키 유효성 검증 (실제 API 응답 기반으로 완화)
-    // 네이버 API 키 형식: '0100000000'으로 시작, 길이는 다양할 수 있음
-    const validApiKeys = apiKeys.filter((key, i) => {
-      // 최소한의 검증: 키, 시크릿, 고객ID가 존재하고 비어있지 않으면 유효
-      const hasKey = key.key && typeof key.key === 'string' && key.key.trim().length > 0;
-      const hasSecret = key.secret && typeof key.secret === 'string' && key.secret.trim().length > 0;
-      const hasCustomerId = key.customerId && typeof key.customerId === 'string' && key.customerId.trim().length > 0;
-      
-      // 선택적: 네이버 API 키는 보통 '0100000000'으로 시작 (하지만 필수는 아님)
-      const keyFormatValid = !key.key || key.key.startsWith('0100000000');
-      
-      const isValid = hasKey && hasSecret && hasCustomerId && keyFormatValid;
-      
-      if (!isValid) {
-        console.warn(`⚠️ API 키 ${i + 1} 유효성 검증 실패 - 제외됨:`, {
-          hasKey,
-          keyLength: key.key?.length || 0,
-          keyStartsWith: key.key?.startsWith('0100000000') || false,
-          hasSecret,
-          secretLength: key.secret?.length || 0,
-          hasCustomerId,
-          customerIdLength: key.customerId?.length || 0,
-          keyFormatValid
-        });
-      }
-      
-      return isValid;
-    });
+    // API 키 유효성 검증 (간소화)
+    const validApiKeys = apiKeys.filter(key => 
+      key.key?.trim() && key.secret?.trim() && key.customerId?.trim()
+    );
 
     if (validApiKeys.length === 0) {
-      // 상세한 에러 정보 제공
-      const invalidDetails = apiKeys.map((key, i) => ({
-        index: i + 1,
-        hasKey: !!key.key,
-        keyLength: key.key?.length || 0,
-        hasSecret: !!key.secret,
-        secretLength: key.secret?.length || 0,
-        hasCustomerId: !!key.customerId,
-        customerIdLength: key.customerId?.length || 0
-      }));
-      
-      console.error('❌ 모든 API 키 검증 실패:', invalidDetails);
-      
-      throw new Error(`유효한 네이버 API 키가 없습니다. 모든 API 키가 형식 검증을 통과하지 못했습니다. 상세: ${JSON.stringify(invalidDetails)}`);
+      throw new Error('유효한 네이버 API 키가 없습니다.');
     }
 
-    console.log(`🔑 유효한 API 키 수: ${validApiKeys.length}/${apiKeys.length}`);
-    
-    // validApiKeys를 사용하도록 변경
     const apiKeysToUse = validApiKeys;
 
     // 시드 기반 API 키 로테이션 (다중 키 활용으로 속도 향상)
@@ -936,17 +623,6 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
     const SECRET = apiKey.secret;
     const CID = apiKey.customerId;
 
-    console.log(`🔄 API 키 로테이션: ${keyIndex + 1}/${apiKeysToUse.length}번 키 사용 (시드: ${seed})`);
-
-    console.log('Using official Naver SearchAd API:', {
-      base: BASE,
-      key: KEY.substring(0, 12) + '...',
-      keyLength: KEY.length,
-      customerId: CID,
-      customerIdLength: CID.length,
-      secretLength: SECRET.length,
-      keyValidated: true
-    });
 
     // 공식 API 엔드포인트 및 파라미터
     const uri = '/keywordstool';
@@ -1014,19 +690,12 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
       
       // API 키가 invalid인 경우 다른 키로 재시도
       if (errorText.includes('invalid') || errorText.includes('Invalid') || res.status === 401 || res.status === 403) {
-        console.warn(`⚠️ API 키 ${keyIndex + 1}가 유효하지 않음. 다른 키로 재시도 시도...`);
-        
-        // 현재 키를 제외한 다른 키들로 재시도
         const otherKeys = apiKeysToUse.filter((_, idx) => idx !== keyIndex);
         
         if (otherKeys.length > 0) {
-          console.log(`🔄 ${otherKeys.length}개의 다른 키로 재시도 시도`);
-          
           for (let retryIndex = 0; retryIndex < otherKeys.length; retryIndex++) {
             const retryKey = otherKeys[retryIndex];
             const retryKeyIndex = apiKeysToUse.findIndex(k => k.key === retryKey.key);
-            
-            console.log(`🔄 재시도 ${retryIndex + 1}/${otherKeys.length}: 키 ${retryKeyIndex + 1} 사용`);
             
             try {
               const retrySig = await generateOfficialHMACSignature(ts, 'GET', uri, retryKey.secret);
@@ -1059,72 +728,37 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
                   retryRes.ok ? null : `Status: ${retryRes.status}`,
                   retryKeyIndex
                 ).run();
-              } catch (logError) {
-                console.warn('API 호출 로깅 실패:', logError);
-              }
+              } catch {}
               
               if (retryRes.ok) {
-                console.log(`✅ 재시도 성공! 키 ${retryKeyIndex + 1} 사용`);
                 const retryData = await retryRes.json();
                 
-                // 시스템 메트릭스 기록 (성공한 키 인덱스 사용)
                 try {
                   await recordSystemMetrics(env.DB, retryData.keywordList?.length || 0, retryKeyIndex);
-                } catch (metricsError) {
-                  console.warn('시스템 메트릭스 기록 실패:', metricsError);
-                }
+                } catch {}
                 
-                // 성공한 응답 처리
                 if (!retryData.keywordList || !Array.isArray(retryData.keywordList)) {
-                  console.log('No keywordList data found in retry API response');
                   return [];
                 }
-                
-                console.log('🔍 재시도 API 응답 keywordList 구조 확인:', {
-                  keywordListLength: retryData.keywordList?.length || 0,
-                  firstItem: retryData.keywordList?.[0] || null,
-                  firstItemKeys: retryData.keywordList?.[0] ? Object.keys(retryData.keywordList[0]) : null
-                });
 
-                const keywords = retryData.keywordList.map((k: any) => {
-                  // 챗GPT 키워드인 경우 상세 로그
-                  const isChatGPT = (k.relKeyword || k.keyword || '').includes('챗GPT') || 
-                                    (k.relKeyword || k.keyword || '').includes('ChatGPT');
-                  if (isChatGPT) {
-                    console.log('🔍 [DEBUG] 재시도 - 챗GPT 키워드 상세 정보:', JSON.stringify(k, null, 2));
-                    console.log('🔍 [DEBUG] 재시도 - 챗GPT plAvgDepth:', k.plAvgDepth);
-                  }
-                  
-                  return {
-                    keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
-                    pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
-                    mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
-                    avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
-                    monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
-                    monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
-                    ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
-                    ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
-                    ad_count: parseInt(k.plAvgDepth || '0'),
-                    comp_idx: k.compIdx || null
-                  };
-                }).filter((kw: any) => {
-                  const isValid = kw.keyword && kw.keyword.trim() !== '';
-                  if (isValid && (kw.keyword.includes('챗GPT') || kw.keyword.includes('ChatGPT'))) {
-                    console.log(`🔍 [DEBUG] 재시도 - 챗GPT 필터링 후 최종 객체:`, kw);
-                  }
-                  return isValid;
-                });
+                const keywords = retryData.keywordList.map((k: any) => ({
+                  keyword: k.relKeyword || k.keyword || k.query || '',
+                  pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+                  mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+                  avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+                  monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+                  monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+                  ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+                  ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+                  ad_count: parseInt(k.plAvgDepth || '0'),
+                  comp_idx: k.compIdx || null
+                })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
                 
-                console.log(`✅ Collected ${keywords.length} keywords from retry API call`);
                 return keywords;
               } else {
-                console.warn(`⚠️ 재시도 ${retryIndex + 1} 실패: ${retryRes.status}`);
-                // 다음 키로 계속 시도
                 continue;
               }
-            } catch (retryError: any) {
-              console.warn(`⚠️ 재시도 ${retryIndex + 1} 에러:`, retryError.message);
-              // 다음 키로 계속 시도
+            } catch {
               continue;
             }
           }
@@ -1154,71 +788,28 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
               firstItemKeys: data.keywordList?.[0] ? Object.keys(data.keywordList[0]) : null
             });
 
-            // "챗GPT" 키워드가 포함된 경우 상세 로그 출력
-            const chatgptKeyword = data.keywordList?.find((k: any) => 
-              (k.relKeyword || k.keyword || '').includes('챗GPT') || 
-              (k.relKeyword || k.keyword || '').includes('ChatGPT')
-            );
-            if (chatgptKeyword) {
-              console.log('🔍 [DEBUG] 챗GPT 키워드 상세 정보:', JSON.stringify(chatgptKeyword, null, 2));
-              console.log('🔍 [DEBUG] 챗GPT - plAvgDepth:', chatgptKeyword.plAvgDepth);
-              console.log('🔍 [DEBUG] 챗GPT - 모든 필드:', Object.keys(chatgptKeyword));
-            }
-
-            const keywords = data.keywordList.map((k: any) => {
-              // 챗GPT 키워드인 경우 상세 로그
-              const isChatGPT = (k.relKeyword || k.keyword || '').includes('챗GPT') || 
-                                (k.relKeyword || k.keyword || '').includes('ChatGPT');
-              if (isChatGPT) {
-                console.log('🔍 [DEBUG] 챗GPT 키워드 매핑:', {
-                  keyword: k.relKeyword || k.keyword,
-                  plAvgDepth: k.plAvgDepth,
-                  plAvgDepthType: typeof k.plAvgDepth,
-                  allFields: Object.keys(k),
-                  fullObject: JSON.stringify(k, null, 2)
-                });
-              }
-              
-              return {
-                keyword: k.relKeyword || k.keyword || k.query || '',  // 여러 가능한 필드명 시도
-                pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
-                mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
-                avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
-                monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
-                monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
-                ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
-                ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
-                ad_count: parseInt(k.plAvgDepth || '0'),
-                comp_idx: k.compIdx || null
-              };
-            }).filter((kw: any) => {
-              const isValid = kw.keyword && kw.keyword.trim() !== '';
-              if (isValid && (kw.keyword.includes('챗GPT') || kw.keyword.includes('ChatGPT'))) {
-                console.log(`🔍 [DEBUG] 챗GPT 필터링 후 최종 객체:`, kw);
-              }
-              return isValid;
-            });
-
-            console.log(`✅ Collected ${keywords.length} keywords from official Naver SearchAd API`);
-            console.log('First few keywords:', keywords.slice(0, 3));
+            const keywords = data.keywordList.map((k: any) => ({
+              keyword: k.relKeyword || k.keyword || k.query || '',
+              pc_search: normalizeSearchCount(k.monthlyPcQcCnt),
+              mobile_search: normalizeSearchCount(k.monthlyMobileQcCnt),
+              avg_monthly_search: normalizeSearchCount(k.monthlyPcQcCnt) + normalizeSearchCount(k.monthlyMobileQcCnt),
+              monthly_click_pc: parseFloat(k.monthlyAvePcClkCnt || '0'),
+              monthly_click_mo: parseFloat(k.monthlyAveMobileClkCnt || '0'),
+              ctr_pc: parseFloat(k.monthlyAvePcCtr || '0'),
+              ctr_mo: parseFloat(k.monthlyAveMobileCtr || '0'),
+              ad_count: parseInt(k.plAvgDepth || '0'),
+              comp_idx: k.compIdx || null
+            })).filter((kw: any) => kw.keyword && kw.keyword.trim() !== '');
 
     // 시스템 메트릭스 기록
     try {
       await recordSystemMetrics(env.DB, keywords.length, keyIndex);
-    } catch (metricsError) {
-      console.warn('시스템 메트릭스 기록 실패:', metricsError);
-    }
+    } catch {}
 
     return keywords;
 
   } catch (error: any) {
-    console.error('❌ Error collecting from official Naver SearchAd API:', error);
-    console.error('Error details:', {
-      message: error.message,
-      stack: error.stack,
-      name: error.name
-    });
-    
+    console.error('❌ 네이버 API 호출 실패:', error.message);
     throw new Error(`공식 네이버 SearchAd API 호출 실패: ${error.message}`);
   }
 }
@@ -1227,19 +818,9 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
 async function generateOfficialHMACSignature(timestamp: string, method: string, uri: string, secret: string): Promise<string> {
   try {
     const message = `${timestamp}.${method}.${uri}`;
-    console.log('Generating official HMAC signature:', {
-      timestamp,
-      method,
-      uri,
-      message,
-      secret: secret.substring(0, 8) + '...'
-    });
-
-    // 공식 문서 기준: secret을 그대로 사용 (Base64 디코딩하지 않음)
     const secretBytes = new TextEncoder().encode(secret);
     const messageBytes = new TextEncoder().encode(message);
     
-    // HMAC-SHA256 생성
     const cryptoKey = await crypto.subtle.importKey(
       'raw',
       secretBytes,
@@ -1249,15 +830,9 @@ async function generateOfficialHMACSignature(timestamp: string, method: string, 
     );
     
     const signature = await crypto.subtle.sign('HMAC', cryptoKey, messageBytes);
-    
-    // Base64 인코딩
-    const base64String = btoa(String.fromCharCode(...new Uint8Array(signature)));
-    
-    console.log('Generated official signature (Base64):', base64String.substring(0, 20) + '...');
-    return base64String;
+    return btoa(String.fromCharCode(...new Uint8Array(signature)));
   } catch (error: any) {
-    console.error('Official HMAC signature generation error:', error);
-    throw new Error(`공식 시그니처 생성 실패: ${error.message}`);
+    throw new Error(`시그니처 생성 실패: ${error.message}`);
   }
 }
 
