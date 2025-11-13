@@ -11,7 +11,7 @@
 
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, memo } from 'react'
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react'
 import type { KeywordData, KeywordsResponse } from '@/types/api'
 import { handleApiError, logError, getUserFriendlyErrorMessage } from '@/utils/error-handler'
 
@@ -100,10 +100,14 @@ export default function DataPage() {
     maxNewsTotal: ''
   })
   const [showFilters, setShowFilters] = useState(false)
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true) // 자동 새로고침 활성화 여부
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce를 위한 timeout ref
 
   // 메모이제이션된 키워드 로드 함수 (페이지 이동 방식)
-  const loadKeywords = useCallback(async (page: number = 1) => {
-    setLoading(true)
+  const loadKeywords = useCallback(async (page: number = 1, showLoading: boolean = true) => {
+    if (showLoading) {
+      setLoading(true)
+    }
 
     try {
       // 필터 파라미터 구성
@@ -161,8 +165,8 @@ export default function DataPage() {
           setTotalPages(calculatedTotalPages)
           setCurrentPage(page)
 
-          // 문서수가 없는 키워드 자동 수집 (첫 페이지에서만)
-          if (page === 1) {
+          // 문서수가 없는 키워드 자동 수집 (첫 페이지에서만, 백그라운드에서 조용히 처리)
+          if (page === 1 && !showLoading) {
             const keywordsWithoutDocCounts = data.keywords.filter((kw: KeywordData) =>
               (!kw.blog_total || kw.blog_total === 0) && 
               (!kw.cafe_total || kw.cafe_total === 0) && 
@@ -171,18 +175,20 @@ export default function DataPage() {
             )
 
             if (keywordsWithoutDocCounts.length > 0) {
-              console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 자동 수집 시작`)
-              setMessage(`✅ ${data.keywords.length}개의 키워드를 불러왔습니다. 문서수 자동 수집 중... (${keywordsWithoutDocCounts.length}개)`)
+              console.log(`📄 문서수가 없는 키워드 ${keywordsWithoutDocCounts.length}개 발견, 백그라운드 자동 수집 시작`)
               
-              // 문서수 수집 (최대 20개, API 제한 고려)
+              // 백그라운드에서 조용히 수집 (로딩 표시 없음, 알림만 표시)
               collectDocCountsForKeywords(keywordsWithoutDocCounts.slice(0, 20))
                 .then((result) => {
                   if (result.success) {
                     console.log(`✅ 문서수 수집 완료: ${result.successCount}개 성공`)
-                    // 수집 완료 후 자동 새로고침 (1초 대기)
+                    // 수집 완료 후 조용히 업데이트 (로딩 표시 없이)
                     setTimeout(() => {
-                      loadKeywords(1)
-                      setMessage(`✅ 문서수 수집 완료! ${result.successCount}개 키워드의 문서수를 수집했습니다.`)
+                      loadKeywords(1, false) // showLoading = false로 조용히 업데이트
+                      setMessage(prev => {
+                        const baseMsg = prev.includes('불러왔습니다') ? prev.split('불러왔습니다')[0] + '불러왔습니다' : prev
+                        return `${baseMsg} (문서수 자동 수집 완료: ${result.successCount}개)`
+                      })
                     }, 1000)
                   } else {
                     console.error('문서수 수집 실패:', result.message)
@@ -191,7 +197,8 @@ export default function DataPage() {
                 .catch(err => {
                   const errorMessage = getUserFriendlyErrorMessage(err as Error)
                   logError(err as Error, { action: 'autoCollectDocCounts', keywordCount: keywordsWithoutDocCounts.length })
-                  setMessage(`⚠️ 문서수 자동 수집 중 오류가 발생했습니다: ${errorMessage}`)
+                  // 에러는 조용히 로그만 남기고 사용자에게는 알리지 않음
+                  console.warn(`⚠️ 문서수 자동 수집 중 오류: ${errorMessage}`)
                 })
             }
           }
@@ -215,7 +222,9 @@ export default function DataPage() {
       setMessage(`❌ 저장된 키워드를 불러오는데 실패했습니다: ${errorMessage}`)
       setKeywords([])
     } finally {
-      setLoading(false)
+      if (showLoading) {
+        setLoading(false)
+      }
     }
   }, [filters, itemsPerPage])
 
@@ -296,9 +305,10 @@ export default function DataPage() {
     loadKeywords(1)
   }, [])
 
-  // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침
+  // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침 (Debounce 적용)
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
+    if (!autoRefreshEnabled) return // 자동 새로고침이 비활성화된 경우 무시
 
     const channel = new BroadcastChannel('keyword-saved')
     
@@ -308,31 +318,60 @@ export default function DataPage() {
         const updatedCount = event.data.updatedCount || 0;
         const totalCount = event.data.count || 0;
         
-        console.log('💾 키워드 저장 완료 감지, 자동 새로고침:', { savedCount, updatedCount, totalCount })
+        console.log('💾 키워드 저장 완료 감지:', { savedCount, updatedCount, totalCount, currentPage })
         
-        // 1초 후 새로고침 (저장 완료 대기)
-        setTimeout(() => {
-          loadKeywords(1)
-          let message = '';
-          if (savedCount > 0) {
-            message = `✅ ${savedCount}개의 새 키워드가 추가되어 총 키워드 수가 증가했습니다.`;
-            if (updatedCount > 0) {
-              message += ` (기존 키워드 ${updatedCount}개 업데이트)`;
+        // Debounce: 이전 timeout 취소
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current)
+        }
+        
+        // 현재 페이지가 1페이지이고 필터가 없을 때만 자동 새로고침
+        const hasFilters = Object.values(filters).some(v => v !== '')
+        const shouldAutoRefresh = currentPage === 1 && !hasFilters
+        
+        if (shouldAutoRefresh) {
+          // 2초 후 조용히 업데이트 (로딩 표시 없이)
+          refreshTimeoutRef.current = setTimeout(() => {
+            loadKeywords(1, false) // showLoading = false로 조용히 업데이트
+            let message = '';
+            if (savedCount > 0) {
+              message = `✅ ${savedCount}개의 새 키워드가 추가되었습니다.`;
+              if (updatedCount > 0) {
+                message += ` (기존 키워드 ${updatedCount}개 업데이트)`;
+              }
+            } else if (updatedCount > 0) {
+              message = `✅ 기존 키워드 ${updatedCount}개가 업데이트되었습니다.`;
+            } else {
+              message = `✅ ${totalCount}개의 키워드가 처리되었습니다.`;
             }
+            setMessage(message)
+          }, 2000) // 2초로 증가하여 너무 자주 새로고침되는 것 방지
+        } else {
+          // 다른 페이지이거나 필터가 있을 때는 알림만 표시
+          let notification = '';
+          if (savedCount > 0) {
+            notification = `💡 ${savedCount}개의 새 키워드가 추가되었습니다. 새로고침 버튼을 클릭하여 확인하세요.`;
           } else if (updatedCount > 0) {
-            message = `✅ 기존 키워드 ${updatedCount}개가 업데이트되었습니다. (총 키워드 수는 변하지 않음)`;
-          } else {
-            message = `✅ ${totalCount}개의 키워드가 처리되었습니다.`;
+            notification = `💡 기존 키워드 ${updatedCount}개가 업데이트되었습니다. 새로고침 버튼을 클릭하여 확인하세요.`;
           }
-          setMessage(message)
-        }, 1000)
+          if (notification) {
+            setMessage(notification)
+            // 5초 후 알림 자동 제거
+            setTimeout(() => {
+              setMessage(prev => prev === notification ? '' : prev)
+            }, 5000)
+          }
+        }
       }
     })
 
     return () => {
       channel.close()
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current)
+      }
     }
-  }, [loadKeywords])
+  }, [loadKeywords, autoRefreshEnabled, currentPage, filters])
 
 
   const handleClearAll = async () => {
@@ -513,23 +552,34 @@ export default function DataPage() {
           </div>
         </div>
 
-        <div className="flex space-x-4 mb-6">
+        <div className="flex space-x-4 mb-6 flex-wrap gap-2">
           <button
             onClick={() => loadKeywords(currentPage)}
             className="btn-secondary"
+            aria-label="데이터 새로고침"
           >
             새로고침
           </button>
           <button
             onClick={() => setShowFilters(!showFilters)}
             className="btn-secondary"
+            aria-label={showFilters ? '필터 숨기기' : '필터 보기'}
           >
             {showFilters ? '필터 숨기기' : '필터 보기'}
+          </button>
+          <button
+            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)}
+            className={`btn-secondary ${!autoRefreshEnabled ? 'bg-yellow-100 hover:bg-yellow-200' : ''}`}
+            aria-label={autoRefreshEnabled ? '자동 새로고침 끄기' : '자동 새로고침 켜기'}
+            title={autoRefreshEnabled ? '자동 새로고침이 켜져 있습니다. 클릭하여 끌 수 있습니다.' : '자동 새로고침이 꺼져 있습니다. 클릭하여 켤 수 있습니다.'}
+          >
+            {autoRefreshEnabled ? '🔄 자동 새로고침 ON' : '⏸️ 자동 새로고침 OFF'}
           </button>
           <button
             onClick={handleExport}
             disabled={keywords.length === 0}
             className="btn-primary disabled:opacity-50"
+            aria-label="CSV 파일로 내보내기"
           >
             CSV 내보내기
           </button>
@@ -537,6 +587,7 @@ export default function DataPage() {
             onClick={handleClearAll}
             disabled={keywords.length === 0}
             className="btn-danger disabled:opacity-50"
+            aria-label="모든 키워드 삭제"
           >
             전체 삭제
           </button>
