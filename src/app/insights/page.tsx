@@ -226,14 +226,15 @@ export default function InsightsPage() {
     }
     adCountInsights.count = adCountInsights.keywords.length
 
-    // 6. 총문서 인사이트: 상위 20개 중 총 문서수 0개 제외 → 총 문서수 적은 순 → 최대 20개
+    // 6. 총문서 인사이트: 총 문서수 0개 제외 → 총 문서수 적은 순 → 검색량 높은 순 → 최대 20개
     const totalDocsInsights = {
       title: "📊 총문서 인사이트",
-      description: `검색량 상위권 + 총 문서수 낮음 (0개 제외)`,
-      keywords: top20Keywords
+      description: `총 문서수 낮음 + 검색량 높음 (0개 제외)`,
+      keywords: keywords
         .filter(k => {
           const totalDocs = (k.cafe_total || 0) + (k.blog_total || 0) + (k.web_total || 0) + (k.news_total || 0)
-          return totalDocs > 0 // 총 문서수 0개 제외
+          const searchVol = k.avg_monthly_search || 0
+          return totalDocs > 0 && searchVol >= MIN_SEARCH_VOLUME // 총 문서수 0개 제외, 검색량 1만 이상
         })
         .sort((a, b) => {
           // 1차 정렬: 총문서수 적은 순
