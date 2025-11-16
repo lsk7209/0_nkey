@@ -266,7 +266,7 @@ export default function AutoCollectPage() {
   const [enabled, setEnabled] = useState(false)
   const [backgroundMode, setBackgroundMode] = useState(false) // 백그라운드 모드
   const [limitInput, setLimitInput] = useState('0') // 0: 무제한
-  const [concurrentInput, setConcurrentInput] = useState('20') // 동시 처리 수 (기본값 20 - 5개 API 키 활용)
+  const [concurrentInput, setConcurrentInput] = useState('15') // 동시 처리 수 (기본값 15 - 타임아웃 감소를 위해 감소, 20 → 15)
   const [targetKeywordsInput, setTargetKeywordsInput] = useState('0') // 목표 키워드 수 (0: 무제한)
   const [isInitialized, setIsInitialized] = useState(false)
   const [processing, setProcessing] = useState(false)
@@ -465,7 +465,7 @@ export default function AutoCollectPage() {
     }
 
     // 변수 선언을 try 블록 밖으로 이동 (catch 블록에서도 접근 가능하도록)
-    const batchLimit = currentLimit === 0 ? 50 : Math.max(1, Math.min(currentLimit - currentProcessed, 50)) // 배치 크기 50 (5개 API 키 활용)
+    const batchLimit = currentLimit === 0 ? 30 : Math.max(1, Math.min(currentLimit - currentProcessed, 30)) // 배치 크기 30 (타임아웃 감소를 위해 감소, 50 → 30)
     const concurrentLimit = concurrentRef.current
 
     try {
