@@ -33,7 +33,8 @@ export async function onScheduled(event: any, env: any, ctx: any) {
 /**
  * 자동 수집 크론 작업
  * - 미사용 시드 키워드를 자동으로 수집
- * - 한 번에 50개의 시드 처리 (24시간 무한 수집을 위해 증가)
+ * - 한 번에 30개의 시드 처리 (타임아웃 감소를 위해 최적화, 50 → 30)
+ * - 동시 처리 수: 15개 (타임아웃 감소를 위해 최적화)
  * - 남은 시드가 0이어도 계속 재시도
  * - 오래된 로그 정리 (데이터베이스 용량 최적화)
  */
@@ -57,7 +58,8 @@ async function handleAutoCollect(env: any, ctx: any) {
 
     // 내부 API를 통해 자동 수집 실행 (24시간 무한 수집 모드)
     try {
-      // 한 번에 50개 시드 처리 (5개 API 키 활용, 동시 처리 20개)
+      // 한 번에 30개 시드 처리 (타임아웃 감소를 위해 최적화, 50 → 30)
+      // 동시 처리 15개 (타임아웃 감소를 위해 최적화, 20 → 15)
       const response = await fetch(autoCollectUrl, {
         method: 'POST',
         headers: {
@@ -65,8 +67,8 @@ async function handleAutoCollect(env: any, ctx: any) {
           'x-admin-key': 'dev-key-2024'
         },
         body: JSON.stringify({ 
-          limit: 50, // 한 번에 50개 시드 처리 (증가)
-          concurrent: 20, // 동시 처리 20개
+          limit: 30, // 한 번에 30개 시드 처리 (타임아웃 감소를 위해 최적화, 50 → 30)
+          concurrent: 15, // 동시 처리 15개 (타임아웃 감소를 위해 최적화, 20 → 15)
           targetKeywords: 0 // 무제한 모드
         })
       });
