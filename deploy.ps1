@@ -47,13 +47,16 @@ git add .
 $staged = git diff --cached --name-only
 if ($staged) {
     Write-Host "변경사항 커밋 중..." -ForegroundColor Yellow
-    git commit -m "feat: 자동 수집 최적화 및 배포 설정 완료
+    $commitMessage = @"
+feat: 자동 수집 최적화 및 배포 설정 완료
 
 - API 키 로드 밸런싱 시스템
 - 동적 병렬 처리 최적화
 - Rate Limit 예측 및 회피
 - Circuit Breaker 패턴 적용
-- GitHub Actions 자동 배포 설정"
+- GitHub Actions 자동 배포 설정
+"@
+    git commit -m $commitMessage
     Write-Host "✅ 커밋 완료" -ForegroundColor Green
 }
 
