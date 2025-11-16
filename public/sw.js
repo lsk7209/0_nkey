@@ -222,16 +222,16 @@ async function runBatch() {
 
     let response
     try {
-      // 타임아웃 설정 (15분) - 대용량 처리 시간 및 문서수 수집 시간 고려
+      // 타임아웃 설정 (10분) - 타임아웃 감소를 위해 조정
       const controller = new AbortController()
       const timeoutId = setTimeout(() => {
         controller.abort()
         consecutiveTimeouts++
-        console.error(`[SW] API 호출 타임아웃 (15분) - 연속 타임아웃: ${consecutiveTimeouts}회`)
+        console.error(`[SW] API 호출 타임아웃 (10분) - 연속 타임아웃: ${consecutiveTimeouts}회`)
         
-        // 연속 타임아웃 3회 이상 시 일시 중단
-        if (consecutiveTimeouts >= 3) {
-          console.error('[SW] 연속 타임아웃 3회 이상, 자동수집 일시 중단')
+        // 연속 타임아웃 5회 이상 시 일시 중단 (3회 → 5회로 완화)
+        if (consecutiveTimeouts >= 5) {
+          console.error('[SW] 연속 타임아웃 5회 이상, 자동수집 일시 중단')
           stopAutoCollect()
           self.clients.matchAll().then(clients => {
             clients.forEach(client => {
@@ -251,7 +251,7 @@ async function runBatch() {
           })
           return
         }
-      }, 900000) // 15분으로 증가 (대용량 처리 및 문서수 수집 시간 고려)
+      }, 600000) // 10분 (타임아웃 감소를 위해 조정, 15분 → 10분)
 
       response = await fetch('https://0-nkey.pages.dev/api/auto-collect', {
         method: 'POST',

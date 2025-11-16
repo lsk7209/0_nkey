@@ -145,7 +145,7 @@ export async function onRequest(context: any) {
     let updatedCount = 0;
     let skippedCount = 0; // 30일 이내 중복 키워드 건너뜀 카운트
     let docCountsCollected = 0;
-    const maxDocCountsToCollect = 10;
+    const maxDocCountsToCollect = 5; // 타임아웃 감소를 위해 문서수 수집 최소화 (10 → 5)
     let failedCount = 0;
     const failedSamples: { keyword: string, error: string }[] = [];
 
@@ -442,8 +442,8 @@ export async function onRequest(context: any) {
           }
         }
 
-        // 문서수 수집 (최대 5개까지)
-        if (docCountsCollected < Math.min(maxDocCountsToCollect, 5) && hasOpenApiKeys && keywordId) {
+        // 문서수 수집 (타임아웃 감소를 위해 최소화 - 최대 5개까지, 새로 추가된 키워드만)
+        if (docCountsCollected < maxDocCountsToCollect && hasOpenApiKeys && keywordId && !existing) {
           try {
             const docCounts = await collectDocCountsFromNaver(keyword.keyword, env);
             if (docCounts) {
@@ -929,7 +929,7 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
 
     for (const searchType of searchTypes) {
       let retryCount = 0;
-      const maxRetries = 3;
+      const maxRetries = 2; // 타임아웃 감소를 위해 재시도 횟수 감소 (3 → 2)
       let success = false;
 
       while (retryCount < maxRetries && !success) {
@@ -942,13 +942,22 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
 
           const openApiStartTime = Date.now();
 
+          // 타임아웃 설정 (10초 - 문서수 수집은 빠르게 처리)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => {
+            controller.abort();
+          }, 10000); // 10초 타임아웃
+
           const response = await fetch(url, {
             method: 'GET',
             headers: {
               'X-Naver-Client-Id': apiKey.key,
               'X-Naver-Client-Secret': apiKey.secret
-            }
+            },
+            signal: controller.signal
           });
+
+          clearTimeout(timeoutId);
 
           const openApiResponseTime = Date.now() - openApiStartTime;
 
@@ -1008,10 +1017,18 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
 
         } catch (error: any) {
           retryCount++;
-          console.error(`❌ ${searchType.type} 에러 (시도 ${retryCount}/${maxRetries}):`, error.message);
+          const isTimeout = error.name === 'AbortError';
+          console.error(`❌ ${searchType.type} 에러 (시도 ${retryCount}/${maxRetries}):`, isTimeout ? '타임아웃' : error.message);
+          
+          // 타임아웃이면 재시도하지 않고 바로 건너뜀
+          if (isTimeout) {
+            docCounts[searchType.field] = 0;
+            success = true; // 다음 타입으로 진행
+            continue;
+          }
           
           if (retryCount < maxRetries) {
-            const backoffMs = Math.min(300 * Math.pow(2, retryCount - 1), 1200);
+            const backoffMs = Math.min(200 * Math.pow(2, retryCount - 1), 800); // 백오프 시간 감소 (300ms → 200ms)
             await new Promise(resolve => setTimeout(resolve, backoffMs));
           } else {
             docCounts[searchType.field] = 0;
@@ -1021,8 +1038,9 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
       }
 
       // API 호출 간격 조절 (Rate Limit 방지, 공식 문서: 쿼터 25,000회/일)
+      // 타임아웃 감소를 위해 대기 시간 감소 (100ms → 50ms)
       if (success) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, 50));
       }
     }
 

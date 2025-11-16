@@ -40,10 +40,10 @@ export async function onRequest(context: any) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const limitInput = Number(body.limit ?? 50); // 한 번 호출당 처리할 최대 시드 수 (기본 50개 - 5개 API 키 활용)
-    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 50;
+    const limitInput = Number(body.limit ?? 30); // 한 번 호출당 처리할 최대 시드 수 (기본 30개 - 타임아웃 감소를 위해 감소)
+    const batchSize = Number.isFinite(limitInput) && limitInput >= 0 ? limitInput : 30;
     const unlimited = batchSize === 0; // 0이면 무제한 모드(프론트에서 반복 호출)
-    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 20), 1), 25); // 동시에 처리할 시드 수 (1-25, 기본 20 - 5개 API 키 활용)
+    const concurrentLimit = Math.min(Math.max(Number(body.concurrent ?? 15), 1), 20); // 동시에 처리할 시드 수 (1-20, 기본 15 - 타임아웃 감소를 위해 감소)
     const targetKeywords = Number(body.targetKeywords ?? 0); // 목표 키워드 수 (0이면 무제한)
 
     const db = env.DB;
@@ -83,7 +83,7 @@ export async function onRequest(context: any) {
       console.log(`🔍 시드 조회 전 남은 시드 수: ${debugRemainingCount.toLocaleString()}개`);
     }
 
-    const take = unlimited ? 50 : Math.max(1, Math.min(batchSize, 200)); // 최대 200개까지 처리 가능 (5개 API 키 활용)
+    const take = unlimited ? 30 : Math.max(1, Math.min(batchSize, 100)); // 최대 100개까지 처리 가능 (타임아웃 감소를 위해 감소, 200 → 100)
     let seeds = await db.prepare(unusedSeedsQuery).bind(take).all();
     let seedRows = seeds.results || [];
 
@@ -197,11 +197,11 @@ export async function onRequest(context: any) {
               await new Promise(r => setTimeout(r, 1000));
             }
 
-            // 타임아웃 설정 (3분 - 네이버 API 응답 시간 및 문서수 수집 시간 고려)
+            // 타임아웃 설정 (5분 - 네이버 API 응답 시간 및 문서수 수집 시간 고려, 타임아웃 감소를 위해 증가)
             const controller = new AbortController();
             const timeoutId = setTimeout(() => {
               controller.abort();
-            }, 180000); // 3분 타임아웃
+            }, 300000); // 5분 타임아웃 (타임아웃 감소를 위해 증가)
 
             // Circuit Breaker로 요청 실행
             const res = await circuitBreaker.execute(async () => {
@@ -286,8 +286,8 @@ export async function onRequest(context: any) {
           
           // 타임아웃 에러는 로그만 남기고 계속 진행
           if (error.name === 'AbortError') {
-            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 3분 초과`);
-            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (3분 초과)' };
+            console.warn(`⏱️ 시드 처리 타임아웃 (${seed}): 5분 초과`);
+            return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: 'Timeout (5분 초과)' };
           } else if (error.message?.includes('Circuit Breaker')) {
             console.warn(`🚨 Circuit Breaker 차단: ${error.message}`);
             return { seed, success: false, totalCollected: 0, totalSavedOrUpdated: 0, savedCount: 0, error: error.message };
@@ -364,17 +364,17 @@ export async function onRequest(context: any) {
         break; // 청크 루프 종료
       }
 
-      // 청크 간 Rate Limit 방지 간격 (동적 조정)
+      // 청크 간 Rate Limit 방지 간격 (동적 조정 - 타임아웃 감소를 위해 증가)
       if (chunks.indexOf(chunk) < chunks.length - 1) {
         // 성공률과 응답 시간에 따라 대기 시간 조정
         const stats = adaptiveConcurrency.getStats();
-        const delay = stats.successRate > 0.95 && stats.avgResponseTime < 2000 
-          ? 100  // 성공률 높고 빠르면 짧은 대기
-          : stats.successRate < 0.8 || stats.avgResponseTime > 5000
-          ? 500  // 성공률 낮거나 느리면 긴 대기
-          : 200; // 기본 대기
+        const delay = stats.successRate > 0.90 && stats.avgResponseTime < 30000 
+          ? 200  // 성공률 높고 빠르면 짧은 대기 (100ms → 200ms)
+          : stats.successRate < 0.7 || stats.avgResponseTime > 120000
+          ? 1000  // 성공률 낮거나 매우 느리면 긴 대기 (500ms → 1000ms)
+          : 500; // 기본 대기 (200ms → 500ms)
         
-        console.log(`⏳ 청크 간 대기: ${delay}ms (성공률: ${(stats.successRate * 100).toFixed(1)}%, 응답: ${stats.avgResponseTime.toFixed(0)}ms)`);
+        console.log(`⏳ 청크 간 대기: ${delay}ms (성공률: ${(stats.successRate * 100).toFixed(1)}%, 응답: ${(stats.avgResponseTime / 1000).toFixed(1)}초)`);
         await new Promise(r => setTimeout(r, delay));
       }
     }

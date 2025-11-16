@@ -16,10 +16,10 @@ interface ConcurrencyStats {
 export class AdaptiveConcurrency {
   private stats: ConcurrencyStats;
   private readonly minConcurrency: number = 5;
-  private readonly maxConcurrency: number = 50;
-  private readonly adjustmentInterval: number = 30000; // 30초마다 조정
-  private readonly targetSuccessRate: number = 0.95; // 95% 목표 성공률
-  private readonly targetResponseTime: number = 2000; // 2초 목표 응답 시간
+  private readonly maxConcurrency: number = 30; // 타임아웃 감소를 위해 최대값 감소 (50 → 30)
+  private readonly adjustmentInterval: number = 20000; // 20초마다 조정 (더 빠른 반응)
+  private readonly targetSuccessRate: number = 0.90; // 90% 목표 성공률 (타임아웃 고려하여 완화)
+  private readonly targetResponseTime: number = 60000; // 60초 목표 응답 시간 (타임아웃 고려하여 증가)
 
   constructor(initialConcurrency: number = 20) {
     this.stats = {
@@ -78,36 +78,41 @@ export class AdaptiveConcurrency {
   private adjustConcurrency(): void {
     const { successRate, avgResponseTime, currentConcurrency } = this.stats;
     
-    // 성공률이 낮으면 병렬 처리 수 감소
-    if (successRate < this.targetSuccessRate) {
+    // 타임아웃 발생률 계산 (응답 시간이 4분 이상이면 타임아웃 위험)
+    const timeoutRisk = avgResponseTime > 240000; // 4분 이상이면 타임아웃 위험
+    
+    // 성공률이 낮거나 타임아웃 위험이 있으면 병렬 처리 수 감소
+    if (successRate < this.targetSuccessRate || timeoutRisk) {
+      const reductionFactor = timeoutRisk ? 0.7 : 0.8; // 타임아웃 위험이 있으면 더 많이 감소
       const newConcurrency = Math.max(
         this.minConcurrency,
-        Math.floor(currentConcurrency * 0.8)
+        Math.floor(currentConcurrency * reductionFactor)
       );
-      console.log(`📉 병렬 처리 수 감소: ${currentConcurrency} → ${newConcurrency} (성공률: ${(successRate * 100).toFixed(1)}%)`);
+      const reason = timeoutRisk ? `타임아웃 위험 (응답: ${(avgResponseTime / 1000).toFixed(1)}초)` : `성공률: ${(successRate * 100).toFixed(1)}%`;
+      console.log(`📉 병렬 처리 수 감소: ${currentConcurrency} → ${newConcurrency} (${reason})`);
       this.stats.currentConcurrency = newConcurrency;
       return;
     }
 
-    // 응답 시간이 길면 병렬 처리 수 감소
-    if (avgResponseTime > this.targetResponseTime * 1.5) {
+    // 응답 시간이 목표 시간보다 길면 병렬 처리 수 감소
+    if (avgResponseTime > this.targetResponseTime) {
       const newConcurrency = Math.max(
         this.minConcurrency,
         Math.floor(currentConcurrency * 0.9)
       );
-      console.log(`📉 병렬 처리 수 감소: ${currentConcurrency} → ${newConcurrency} (평균 응답 시간: ${avgResponseTime.toFixed(0)}ms)`);
+      console.log(`📉 병렬 처리 수 감소: ${currentConcurrency} → ${newConcurrency} (평균 응답 시간: ${(avgResponseTime / 1000).toFixed(1)}초)`);
       this.stats.currentConcurrency = newConcurrency;
       return;
     }
 
-    // 성공률이 높고 응답 시간이 짧으면 병렬 처리 수 증가
-    if (successRate >= this.targetSuccessRate && avgResponseTime < this.targetResponseTime) {
+    // 성공률이 높고 응답 시간이 짧으면 병렬 처리 수 증가 (보수적으로)
+    if (successRate >= this.targetSuccessRate && avgResponseTime < this.targetResponseTime * 0.8) {
       const newConcurrency = Math.min(
         this.maxConcurrency,
-        Math.floor(currentConcurrency * 1.1)
+        Math.floor(currentConcurrency * 1.05) // 증가율 감소 (1.1 → 1.05)
       );
       if (newConcurrency > currentConcurrency) {
-        console.log(`📈 병렬 처리 수 증가: ${currentConcurrency} → ${newConcurrency} (성공률: ${(successRate * 100).toFixed(1)}%, 응답 시간: ${avgResponseTime.toFixed(0)}ms)`);
+        console.log(`📈 병렬 처리 수 증가: ${currentConcurrency} → ${newConcurrency} (성공률: ${(successRate * 100).toFixed(1)}%, 응답 시간: ${(avgResponseTime / 1000).toFixed(1)}초)`);
         this.stats.currentConcurrency = newConcurrency;
       }
     }
