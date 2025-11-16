@@ -10,3 +10,19 @@ pages_build_output_dir = "out"
 binding = "DB"
 database_name = "0_nkey_db"
 database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
+
+# Observability 설정 (로그 및 추적)
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1
