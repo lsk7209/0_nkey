@@ -11,16 +11,6 @@ binding = "DB"
 database_name = "0_nkey_db"
 database_id = "c48f0714-2a98-4b65-8c11-6e8ed118efdc"
 
-# Observability 설정 (로그 및 추적)
-[observability]
-enabled = false
-head_sampling_rate = 1
-
-[observability.logs]
-enabled = true
-head_sampling_rate = 1
-invocation_logs = true
-
-[observability.traces]
-enabled = false
-head_sampling_rate = 1
+# 참고: Cloudflare Pages 프로젝트는 observability 설정을 지원하지 않습니다.
+# 로그는 Cloudflare Dashboard에서 자동으로 수집됩니다.
+# Observability 설정은 Workers 프로젝트(cron-worker)에서만 사용 가능합니다.
