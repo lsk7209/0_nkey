@@ -496,10 +496,7 @@ export async function onRequest(context: any) {
                      totalRequests: adaptiveConcurrency.getStats().totalRequests
                    }
                  },
-                 circuitBreaker: {
-                   state: circuitBreaker.getState(),
-                   ...circuitBreaker.getStats()
-                 }
+                 circuitBreaker: circuitBreaker.getStats()
                },
                message: `시드 ${processed}개 처리 (동적 병렬: ${effectiveConcurrency}개, 시도: ${totalAttempted}개, 성공률: ${totalAttempted > 0 ? ((processed / totalAttempted) * 100).toFixed(1) : 0}%), 키워드 ${totalKeywordsCollected}개 수집, ${totalKeywordsSaved}개 저장 (새로 추가: ${totalNewKeywords}개)${targetKeywords > 0 ? ` / 목표: ${targetKeywords}개` : ''}, 남은 시드 ${exactRemaining.toLocaleString()}개 (전체 키워드: ${totalKeywords.toLocaleString()}개, 시드로 사용됨: ${usedSeeds.toLocaleString()}개)${timeoutCount > 0 ? `, 타임아웃: ${timeoutCount}개` : ''}${apiFailureCount > 0 ? `, API 실패: ${apiFailureCount}개` : ''}`
              }),
