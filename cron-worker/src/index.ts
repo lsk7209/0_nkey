@@ -7,7 +7,7 @@
  */
 
 export default {
-  async scheduled(event: ScheduledEvent, env: any, ctx: ExecutionContext) {
+  async scheduled(event: any, env: any, ctx: any) {
     console.log(`[Cron Worker] Scheduled event triggered at ${new Date(event.scheduledTime).toISOString()}`);
     
     const origin = 'https://0-nkey.pages.dev';
