@@ -166,7 +166,7 @@ export async function onRequest(context: any) {
         LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
         ${whereClause}
-        ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
+        ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC
         LIMIT ? OFFSET ?
       `;
     } else {
@@ -191,7 +191,7 @@ export async function onRequest(context: any) {
         FROM keywords k
         LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC
+        ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC
         LIMIT ? OFFSET ?
       `;
     }

@@ -38,14 +38,8 @@ export default function RootLayout({
                     <a href="/insights" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
                       인사이트
                     </a>
-                    <a href="/api-status" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
-                      API 상태
-                    </a>
                     <a href="/auto-collect" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
                       자동수집
-                    </a>
-                    <a href="/system-monitor" className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium">
-                      시스템 모니터링
                     </a>
                   </div>
                 </div>
