@@ -318,17 +318,19 @@ export default function DataPage() {
     setTimeout(() => loadKeywords(1), 100)
   }, [loadKeywords])
 
+  // 초기 로드 및 정렬/옵션 변경 시 데이터 로드
+  const isInitialMount = useRef(true)
+  
   useEffect(() => {
-    loadKeywords(1)
-  }, [])
-
-  // 정렬 또는 문서수 제외 옵션 변경 시 자동으로 데이터 재로드
-  useEffect(() => {
-    // 초기 로드는 위의 useEffect에서 처리하므로, 여기서는 변경 시에만 실행
-    if (currentPage === 1) {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      loadKeywords(1)
+    } else {
+      // 정렬 또는 문서수 제외 옵션 변경 시 자동으로 데이터 재로드
+      setCurrentPage(1)
       loadKeywords(1)
     }
-  }, [sortBy, excludeZeroDocs, loadKeywords, currentPage])
+  }, [sortBy, excludeZeroDocs])
 
   // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침 (Debounce 적용)
   useEffect(() => {

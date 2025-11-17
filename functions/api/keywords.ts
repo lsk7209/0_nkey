@@ -227,14 +227,16 @@ export async function onRequest(context: any) {
     }
 
     // 최적화된 COUNT 쿼리 (WHERE 절 조건 반영)
-    // WHERE 절이 없으면 단순 COUNT, 있으면 조건 반영
+    // excludeZeroDocs가 있으면 항상 JOIN이 필요하므로 조건 반영
     let countQuery: string;
-    if (whereClause) {
+    if (whereClause || excludeZeroDocs) {
+      // excludeZeroDocs만 있고 다른 필터가 없을 때도 JOIN 필요
+      const countWhereClause = whereClause || '';
       countQuery = `
         SELECT COUNT(*) as total
         FROM keywords k
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        ${whereClause}
+        ${countWhereClause}
       `;
     } else {
       // WHERE 절이 없으면 가장 빠른 단순 COUNT
@@ -252,10 +254,12 @@ export async function onRequest(context: any) {
       }
       
       // 데이터와 카운트를 동시에 조회 (병렬 처리)
+      // excludeZeroDocs가 있으면 bindings에 조건이 있으므로 바인딩 필요
+      const countBindings = (whereClause || excludeZeroDocs) ? bindings : [];
       const [dataResult, countResult] = await Promise.all([
         db.prepare(query).bind(...bindings, pageSize, offset).all(),
-        whereClause && bindings.length > 0
-          ? db.prepare(countQuery).bind(...bindings).all()
+        countBindings.length > 0
+          ? db.prepare(countQuery).bind(...countBindings).all()
           : db.prepare(countQuery).all()
       ]);
 
