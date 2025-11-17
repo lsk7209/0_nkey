@@ -55,6 +55,10 @@ export async function onRequest(context: any) {
     const maxWebTotal = url.searchParams.get('maxWebTotal');
     const minNewsTotal = url.searchParams.get('minNewsTotal');
     const maxNewsTotal = url.searchParams.get('maxNewsTotal');
+    
+    // 정렬 파라미터 파싱
+    const sortBy = url.searchParams.get('sortBy') || 'default'; // 'cafe', 'blog', 'web', 'news', 'default'
+    const excludeZeroDocs = url.searchParams.get('excludeZeroDocs') === 'true';
 
     // 페이지네이션 파라미터
     const pageParam = parseInt(url.searchParams.get('page') || '1');
@@ -68,8 +72,7 @@ export async function onRequest(context: any) {
     const conditions: string[] = [];
     const bindings: any[] = [];
 
-    // 문서 수 0 제외 옵션 (선택적, 기본값: false - 모든 키워드 표시)
-    const excludeZeroDocs = url.searchParams.get('excludeZeroDocs') === 'true';
+    // 문서 수 0 제외 옵션 처리
     if (excludeZeroDocs) {
       conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
     }
@@ -121,11 +124,37 @@ export async function onRequest(context: any) {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
+    // 정렬 절 구성
+    let orderByClause = '';
+    switch (sortBy) {
+      case 'cafe':
+        // 카페문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.cafe_total, 0) DESC, k.avg_monthly_search ASC';
+        break;
+      case 'blog':
+        // 블로그문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.blog_total, 0) DESC, k.avg_monthly_search ASC';
+        break;
+      case 'web':
+        // 웹문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.web_total, 0) DESC, k.avg_monthly_search ASC';
+        break;
+      case 'news':
+        // 뉴스문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.news_total, 0) DESC, k.avg_monthly_search ASC';
+        break;
+      default:
+        // 기본 정렬: 총검색량 내림차순(1순위) + 카페문서수 오름차순(2순위)
+        orderByClause = 'ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC';
+    }
+
     // 필터 디버깅 로그 (프로덕션에서는 최소화)
     if (process.env.NODE_ENV === 'development') {
       console.log(`🔍 필터 적용:`, {
         conditions: conditions.length,
         whereClause,
+        sortBy,
+        orderByClause,
         bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
         filters: {
           minAvgSearch, maxAvgSearch,
@@ -166,7 +195,7 @@ export async function onRequest(context: any) {
         LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
         ${whereClause}
-        ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC
+        ${orderByClause}
         LIMIT ? OFFSET ?
       `;
     } else {
@@ -191,7 +220,7 @@ export async function onRequest(context: any) {
         FROM keywords k
         LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC
+        ${orderByClause}
         LIMIT ? OFFSET ?
       `;
     }

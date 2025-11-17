@@ -102,6 +102,8 @@ export default function DataPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true) // 자동 새로고침 활성화 여부
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce를 위한 timeout ref
+  const [sortBy, setSortBy] = useState<'default' | 'cafe' | 'blog' | 'web' | 'news'>('default') // 정렬 옵션
+  const [excludeZeroDocs, setExcludeZeroDocs] = useState(false) // 문서수 0 제외 옵션
 
   // 메모이제이션된 키워드 로드 함수 (페이지 이동 방식)
   const loadKeywords = useCallback(async (page: number = 1, showLoading: boolean = true) => {
@@ -127,10 +129,13 @@ export default function DataPage() {
       params.append('page', String(page))
       params.append('pageSize', String(itemsPerPage))
       
-      // 필터가 없을 때는 문서수 0인 키워드도 포함 (전체 키워드 수 표시)
-      // 필터가 있을 때만 문서수 0 제외
-      const hasFilters = Object.values(filters).some(v => v !== '')
-      if (hasFilters) {
+      // 정렬 파라미터
+      if (sortBy !== 'default') {
+        params.append('sortBy', sortBy)
+      }
+      
+      // 문서수 0 제외 옵션
+      if (excludeZeroDocs) {
         params.append('excludeZeroDocs', 'true')
       }
 
@@ -226,7 +231,7 @@ export default function DataPage() {
         setLoading(false)
       }
     }
-  }, [filters, itemsPerPage])
+  }, [filters, itemsPerPage, sortBy, excludeZeroDocs])
 
   // 문서수 수집 함수
   const collectDocCountsForKeywords = useCallback(async (keywordsToCollect: KeywordData[]) => {
@@ -280,6 +285,22 @@ export default function DataPage() {
     setCurrentPage(1)
     setKeywords([])
     loadKeywords(1)
+  }, [loadKeywords])
+
+  // 정렬 변경 핸들러
+  const handleSortChange = useCallback((newSortBy: 'default' | 'cafe' | 'blog' | 'web' | 'news') => {
+    setSortBy(newSortBy)
+    setCurrentPage(1)
+    setKeywords([])
+    setTimeout(() => loadKeywords(1), 100)
+  }, [loadKeywords])
+
+  // 문서수 0 제외 옵션 변경 핸들러
+  const handleExcludeZeroDocsChange = useCallback((checked: boolean) => {
+    setExcludeZeroDocs(checked)
+    setCurrentPage(1)
+    setKeywords([])
+    setTimeout(() => loadKeywords(1), 100)
   }, [loadKeywords])
 
   // 필터 초기화
@@ -591,6 +612,42 @@ export default function DataPage() {
           >
             전체 삭제
           </button>
+        </div>
+
+        {/* 정렬 및 옵션 섹션 */}
+        <div className="border-t pt-6 mt-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">정렬 및 옵션</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                정렬 기준
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => handleSortChange(e.target.value as 'default' | 'cafe' | 'blog' | 'web' | 'news')}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="default">기본 정렬 (총검색량 내림차순)</option>
+                <option value="cafe">카페문서수 내림차순 + 총검색량 오름차순</option>
+                <option value="blog">블로그문서수 내림차순 + 총검색량 오름차순</option>
+                <option value="web">웹문서수 내림차순 + 총검색량 오름차순</option>
+                <option value="news">뉴스문서수 내림차순 + 총검색량 오름차순</option>
+              </select>
+            </div>
+            <div className="flex items-center">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={excludeZeroDocs}
+                  onChange={(e) => handleExcludeZeroDocsChange(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">
+                  문서수 0인 키워드 제외
+                </span>
+              </label>
+            </div>
+          </div>
         </div>
 
         {/* 필터 섹션 */}
