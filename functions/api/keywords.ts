@@ -229,14 +229,21 @@ export async function onRequest(context: any) {
     // 최적화된 COUNT 쿼리 (WHERE 절 조건 반영)
     // excludeZeroDocs가 있으면 항상 JOIN이 필요하므로 조건 반영
     let countQuery: string;
-    if (whereClause || excludeZeroDocs) {
-      // excludeZeroDocs만 있고 다른 필터가 없을 때도 JOIN 필요
-      const countWhereClause = whereClause || '';
+    if (whereClause) {
+      // WHERE 절이 있으면 조건 반영
       countQuery = `
         SELECT COUNT(*) as total
         FROM keywords k
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        ${countWhereClause}
+        ${whereClause}
+      `;
+    } else if (excludeZeroDocs) {
+      // excludeZeroDocs만 있고 다른 필터가 없을 때도 JOIN과 WHERE 필요
+      countQuery = `
+        SELECT COUNT(*) as total
+        FROM keywords k
+        LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
+        WHERE (COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)
       `;
     } else {
       // WHERE 절이 없으면 가장 빠른 단순 COUNT
