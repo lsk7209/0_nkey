@@ -272,11 +272,15 @@ export async function onRequest(context: any) {
 
     try {
       // 디버깅: 실제 실행되는 쿼리 확인
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`🔍 실행 쿼리:`, query.replace(/\s+/g, ' '));
-        console.log(`🔍 정렬 절:`, orderByClause);
-        console.log(`🔍 바인딩:`, [...bindings, pageSize, offset]);
-      }
+      console.log(`🔍 실행 쿼리:`, query.replace(/\s+/g, ' '));
+      console.log(`🔍 정렬 절:`, orderByClause);
+      console.log(`🔍 바인딩:`, [...bindings, pageSize, offset]);
+      console.log(`🔍 excludeZeroDocs 최종 확인:`, {
+        excludeZeroDocs,
+        hasWhereConditions,
+        whereClause,
+        conditionsCount: conditions.length
+      });
       
       // 데이터와 카운트를 동시에 조회 (병렬 처리)
       // COUNT 쿼리는 WHERE 절이 있거나 excludeZeroDocs만 있을 때 바인딩 필요
