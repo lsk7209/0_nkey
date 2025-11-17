@@ -210,8 +210,28 @@ export async function onRequest(context: any) {
     if (hasWhereConditions || excludeZeroDocs) {
       // 필터가 있거나 excludeZeroDocs가 있을 때: 인덱스 활용 최적화
       // excludeZeroDocs만 있을 때도 WHERE 절 필요
-      const finalWhereClause = whereClause || 
-        (excludeZeroDocs ? 'WHERE (COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)' : '');
+      // 정렬 기준에 따라 해당 문서수만 확인
+      let finalWhereClause = whereClause;
+      if (!whereClause && excludeZeroDocs) {
+        let excludeCondition = '';
+        switch (sortBy) {
+          case 'cafe':
+            excludeCondition = 'COALESCE(ndc.cafe_total, 0) > 0';
+            break;
+          case 'blog':
+            excludeCondition = 'COALESCE(ndc.blog_total, 0) > 0';
+            break;
+          case 'web':
+            excludeCondition = 'COALESCE(ndc.web_total, 0) > 0';
+            break;
+          case 'news':
+            excludeCondition = 'COALESCE(ndc.news_total, 0) > 0';
+            break;
+          default:
+            excludeCondition = 'COALESCE(ndc.cafe_total, 0) > 0';
+        }
+        finalWhereClause = `WHERE ${excludeCondition}`;
+      }
       
       query = `
         SELECT
