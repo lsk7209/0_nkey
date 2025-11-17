@@ -322,6 +322,14 @@ export default function DataPage() {
     loadKeywords(1)
   }, [])
 
+  // 정렬 또는 문서수 제외 옵션 변경 시 자동으로 데이터 재로드
+  useEffect(() => {
+    // 초기 로드는 위의 useEffect에서 처리하므로, 여기서는 변경 시에만 실행
+    if (currentPage === 1) {
+      loadKeywords(1)
+    }
+  }, [sortBy, excludeZeroDocs, loadKeywords, currentPage])
+
   // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침 (Debounce 적용)
   useEffect(() => {
     if (typeof BroadcastChannel === 'undefined') return
