@@ -122,7 +122,9 @@ export async function onRequest(context: any) {
       bindings.push(parseInt(maxNewsTotal));
     }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // excludeZeroDocs가 있으면 항상 WHERE 절이 필요하므로 조건 확인
+    const hasWhereConditions = conditions.length > 0;
+    const whereClause = hasWhereConditions ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 정렬 절 구성
     // 주의: SQLite에서 ORDER BY는 1순위가 먼저, 2순위가 나중에 적용됨
@@ -171,10 +173,15 @@ export async function onRequest(context: any) {
     const db = env.DB;
 
     // 최적화된 쿼리: 필요한 필드만 선택, 효율적인 JOIN, 인덱스 활용
+    // excludeZeroDocs가 있으면 항상 WHERE 절이 필요하므로 JOIN 필요
     // 인덱스 활용을 위해 WHERE 절이 있을 때와 없을 때 쿼리 분리
     let query: string;
-    if (whereClause) {
-      // 필터가 있을 때: 인덱스 활용 최적화
+    if (hasWhereConditions || excludeZeroDocs) {
+      // 필터가 있거나 excludeZeroDocs가 있을 때: 인덱스 활용 최적화
+      // excludeZeroDocs만 있을 때도 WHERE 절 필요
+      const finalWhereClause = whereClause || 
+        (excludeZeroDocs ? 'WHERE (COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)' : '');
+      
       query = `
         SELECT
           k.keyword,
@@ -195,12 +202,12 @@ export async function onRequest(context: any) {
         FROM keywords k
         LEFT JOIN keyword_metrics km ON k.id = km.keyword_id
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        ${whereClause}
+        ${finalWhereClause}
         ${orderByClause}
         LIMIT ? OFFSET ?
       `;
     } else {
-      // 필터가 없을 때: 커버링 인덱스 활용 (더 빠른 쿼리)
+      // 필터가 없고 excludeZeroDocs도 없을 때: 커버링 인덱스 활용 (더 빠른 쿼리)
       query = `
         SELECT
           k.keyword,
