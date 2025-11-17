@@ -261,12 +261,12 @@ export async function onRequest(context: any) {
       }
       
       // 데이터와 카운트를 동시에 조회 (병렬 처리)
-      // excludeZeroDocs가 있으면 bindings에 조건이 있으므로 바인딩 필요
-      const countBindings = (whereClause || excludeZeroDocs) ? bindings : [];
+      // COUNT 쿼리는 WHERE 절이 있거나 excludeZeroDocs만 있을 때 바인딩 필요
+      const needsCountBinding = whereClause || excludeZeroDocs;
       const [dataResult, countResult] = await Promise.all([
         db.prepare(query).bind(...bindings, pageSize, offset).all(),
-        countBindings.length > 0
-          ? db.prepare(countQuery).bind(...countBindings).all()
+        needsCountBinding && bindings.length > 0
+          ? db.prepare(countQuery).bind(...bindings).all()
           : db.prepare(countQuery).all()
       ]);
 
