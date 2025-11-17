@@ -59,6 +59,7 @@ export async function onRequest(context: any) {
     // 정렬 파라미터 파싱
     const sortBy = url.searchParams.get('sortBy') || 'default'; // 'cafe', 'blog', 'web', 'news', 'default'
     const excludeZeroDocs = url.searchParams.get('excludeZeroDocs') === 'true';
+    const minSearchVolume = url.searchParams.get('minSearchVolume'); // 총검색량 이상 필터
 
     // 페이지네이션 파라미터
     const pageParam = parseInt(url.searchParams.get('page') || '1');
@@ -102,6 +103,14 @@ export async function onRequest(context: any) {
     if (seedKeywordText) {
       conditions.push('k.seed_keyword_text = ?');
       bindings.push(seedKeywordText);
+    }
+    // 총검색량 이상 필터 (정렬 기준과 연동)
+    if (minSearchVolume) {
+      const minVol = parseInt(minSearchVolume);
+      if (!isNaN(minVol) && minVol > 0) {
+        conditions.push('k.avg_monthly_search >= ?');
+        bindings.push(minVol);
+      }
     }
     if (minAvgSearch) {
       conditions.push('k.avg_monthly_search >= ?');

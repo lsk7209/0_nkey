@@ -104,6 +104,7 @@ export default function DataPage() {
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce를 위한 timeout ref
   const [sortBy, setSortBy] = useState<'default' | 'cafe' | 'blog' | 'web' | 'news'>('default') // 정렬 옵션
   const [excludeZeroDocs, setExcludeZeroDocs] = useState(false) // 문서수 0 제외 옵션
+  const [minSearchVolume, setMinSearchVolume] = useState('') // 총검색량 이상 필터
 
   // 메모이제이션된 키워드 로드 함수 (페이지 이동 방식)
   const loadKeywords = useCallback(async (page: number = 1, showLoading: boolean = true) => {
@@ -137,6 +138,11 @@ export default function DataPage() {
       // 문서수 0 제외 옵션
       if (excludeZeroDocs) {
         params.append('excludeZeroDocs', 'true')
+      }
+      
+      // 총검색량 이상 필터 (정렬 기준과 연동)
+      if (minSearchVolume) {
+        params.append('minSearchVolume', minSearchVolume)
       }
 
       const url = `https://0-nkey.pages.dev/api/keywords${params.toString() ? `?${params.toString()}` : ''}`
