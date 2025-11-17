@@ -336,7 +336,7 @@ export default function DataPage() {
       setCurrentPage(1)
       loadKeywords(1)
     }
-  }, [sortBy, excludeZeroDocs])
+  }, [sortBy, excludeZeroDocs, minSearchVolume])
 
   // 홈 페이지에서 키워드 저장 완료 시 자동 새로고침 (Debounce 적용)
   useEffect(() => {
@@ -659,6 +659,24 @@ export default function DataPage() {
                 </span>
               </label>
             </div>
+          </div>
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              총검색량 이상
+            </label>
+            <input
+              type="number"
+              value={minSearchVolume}
+              onChange={(e) => {
+                setMinSearchVolume(e.target.value)
+                setCurrentPage(1)
+              }}
+              placeholder="예: 10000"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              정렬 기준과 함께 총검색량 이상인 키워드만 표시됩니다.
+            </p>
           </div>
         </div>
 
