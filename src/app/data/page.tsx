@@ -291,17 +291,13 @@ export default function DataPage() {
   const handleSortChange = useCallback((newSortBy: 'default' | 'cafe' | 'blog' | 'web' | 'news') => {
     setSortBy(newSortBy)
     setCurrentPage(1)
-    setKeywords([])
-    setTimeout(() => loadKeywords(1), 100)
-  }, [loadKeywords])
+  }, [])
 
   // 문서수 0 제외 옵션 변경 핸들러
   const handleExcludeZeroDocsChange = useCallback((checked: boolean) => {
     setExcludeZeroDocs(checked)
     setCurrentPage(1)
-    setKeywords([])
-    setTimeout(() => loadKeywords(1), 100)
-  }, [loadKeywords])
+  }, [])
 
   // 필터 초기화
   const handleResetFilters = useCallback(() => {
