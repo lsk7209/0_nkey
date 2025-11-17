@@ -73,6 +73,8 @@ export async function onRequest(context: any) {
     const bindings: any[] = [];
 
     // 문서 수 0 제외 옵션 처리
+    // excludeZeroDocs가 true이면 모든 문서수가 0인 키워드 제외
+    // 즉, 하나라도 문서수가 0보다 큰 키워드만 포함
     if (excludeZeroDocs) {
       conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
     }
@@ -123,8 +125,17 @@ export async function onRequest(context: any) {
     }
 
     // excludeZeroDocs가 있으면 항상 WHERE 절이 필요하므로 조건 확인
+    // excludeZeroDocs가 true이면 conditions에 이미 추가되어 있음
     const hasWhereConditions = conditions.length > 0;
     const whereClause = hasWhereConditions ? `WHERE ${conditions.join(' AND ')}` : '';
+    
+    // 디버깅: excludeZeroDocs와 conditions 확인
+    console.log(`🔍 excludeZeroDocs 조건 확인:`, {
+      excludeZeroDocs,
+      conditionsCount: conditions.length,
+      conditions: conditions,
+      whereClause
+    });
 
     // 정렬 절 구성
     // 주의: SQLite에서 ORDER BY는 1순위가 먼저, 2순위가 나중에 적용됨
