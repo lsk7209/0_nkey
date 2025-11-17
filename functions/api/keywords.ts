@@ -73,10 +73,30 @@ export async function onRequest(context: any) {
     const bindings: any[] = [];
 
     // 문서 수 0 제외 옵션 처리
-    // excludeZeroDocs가 true이면 모든 문서수가 0인 키워드 제외
-    // 즉, 하나라도 문서수가 0보다 큰 키워드만 포함
+    // excludeZeroDocs가 true이면 선택한 정렬 기준의 문서수가 0인 키워드 제외
+    // 정렬 기준에 따라 해당 문서수만 확인
     if (excludeZeroDocs) {
-      conditions.push('(COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)');
+      switch (sortBy) {
+        case 'cafe':
+          // 카페문서수 정렬일 때: 카페문서수가 0인 키워드 제외
+          conditions.push('COALESCE(ndc.cafe_total, 0) > 0');
+          break;
+        case 'blog':
+          // 블로그문서수 정렬일 때: 블로그문서수가 0인 키워드 제외
+          conditions.push('COALESCE(ndc.blog_total, 0) > 0');
+          break;
+        case 'web':
+          // 웹문서수 정렬일 때: 웹문서수가 0인 키워드 제외
+          conditions.push('COALESCE(ndc.web_total, 0) > 0');
+          break;
+        case 'news':
+          // 뉴스문서수 정렬일 때: 뉴스문서수가 0인 키워드 제외
+          conditions.push('COALESCE(ndc.news_total, 0) > 0');
+          break;
+        default:
+          // 기본 정렬일 때: 카페문서수가 0인 키워드 제외
+          conditions.push('COALESCE(ndc.cafe_total, 0) > 0');
+      }
     }
 
     if (seedKeywordText) {
@@ -257,11 +277,29 @@ export async function onRequest(context: any) {
       `;
     } else if (excludeZeroDocs) {
       // excludeZeroDocs만 있고 다른 필터가 없을 때도 JOIN과 WHERE 필요
+      // 정렬 기준에 따라 해당 문서수만 확인
+      let excludeCondition = '';
+      switch (sortBy) {
+        case 'cafe':
+          excludeCondition = 'COALESCE(ndc.cafe_total, 0) > 0';
+          break;
+        case 'blog':
+          excludeCondition = 'COALESCE(ndc.blog_total, 0) > 0';
+          break;
+        case 'web':
+          excludeCondition = 'COALESCE(ndc.web_total, 0) > 0';
+          break;
+        case 'news':
+          excludeCondition = 'COALESCE(ndc.news_total, 0) > 0';
+          break;
+        default:
+          excludeCondition = 'COALESCE(ndc.cafe_total, 0) > 0';
+      }
       countQuery = `
         SELECT COUNT(*) as total
         FROM keywords k
         LEFT JOIN naver_doc_counts ndc ON k.id = ndc.keyword_id
-        WHERE (COALESCE(ndc.cafe_total, 0) > 0 OR COALESCE(ndc.blog_total, 0) > 0 OR COALESCE(ndc.web_total, 0) > 0 OR COALESCE(ndc.news_total, 0) > 0)
+        WHERE ${excludeCondition}
       `;
     } else {
       // WHERE 절이 없으면 가장 빠른 단순 COUNT
