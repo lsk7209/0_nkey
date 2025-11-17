@@ -628,10 +628,10 @@ export default function DataPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="default">기본 정렬 (총검색량 내림차순)</option>
-                <option value="cafe">카페문서수 내림차순 + 총검색량 오름차순</option>
-                <option value="blog">블로그문서수 내림차순 + 총검색량 오름차순</option>
-                <option value="web">웹문서수 내림차순 + 총검색량 오름차순</option>
-                <option value="news">뉴스문서수 내림차순 + 총검색량 오름차순</option>
+                <option value="cafe">카페문서수 오름차순 + 총검색량 내림차순</option>
+                <option value="blog">블로그문서수 오름차순 + 총검색량 내림차순</option>
+                <option value="web">웹문서수 오름차순 + 총검색량 내림차순</option>
+                <option value="news">뉴스문서수 오름차순 + 총검색량 내림차순</option>
               </select>
             </div>
             <div className="flex items-center">

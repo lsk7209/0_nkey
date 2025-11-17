@@ -128,20 +128,20 @@ export async function onRequest(context: any) {
     let orderByClause = '';
     switch (sortBy) {
       case 'cafe':
-        // 카페문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
-        orderByClause = 'ORDER BY COALESCE(ndc.cafe_total, 0) DESC, k.avg_monthly_search ASC';
+        // 카페문서수 오름차순(1순위) + 총검색량 내림차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.cafe_total, 0) ASC, k.avg_monthly_search DESC';
         break;
       case 'blog':
-        // 블로그문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
-        orderByClause = 'ORDER BY COALESCE(ndc.blog_total, 0) DESC, k.avg_monthly_search ASC';
+        // 블로그문서수 오름차순(1순위) + 총검색량 내림차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.blog_total, 0) ASC, k.avg_monthly_search DESC';
         break;
       case 'web':
-        // 웹문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
-        orderByClause = 'ORDER BY COALESCE(ndc.web_total, 0) DESC, k.avg_monthly_search ASC';
+        // 웹문서수 오름차순(1순위) + 총검색량 내림차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.web_total, 0) ASC, k.avg_monthly_search DESC';
         break;
       case 'news':
-        // 뉴스문서수 내림차순(1순위) + 총검색량 오름차순(2순위)
-        orderByClause = 'ORDER BY COALESCE(ndc.news_total, 0) DESC, k.avg_monthly_search ASC';
+        // 뉴스문서수 오름차순(1순위) + 총검색량 내림차순(2순위)
+        orderByClause = 'ORDER BY COALESCE(ndc.news_total, 0) ASC, k.avg_monthly_search DESC';
         break;
       default:
         // 기본 정렬: 총검색량 내림차순(1순위) + 카페문서수 오름차순(2순위)
