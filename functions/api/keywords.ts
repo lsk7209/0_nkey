@@ -151,23 +151,23 @@ export async function onRequest(context: any) {
         orderByClause = 'ORDER BY k.avg_monthly_search DESC, COALESCE(ndc.cafe_total, 0) ASC';
     }
 
-    // 필터 디버깅 로그 (프로덕션에서는 최소화)
-    if (process.env.NODE_ENV === 'development') {
-      console.log(`🔍 필터 적용:`, {
-        conditions: conditions.length,
-        whereClause,
-        sortBy,
-        orderByClause,
-        bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
-        filters: {
-          minAvgSearch, maxAvgSearch,
-          minCafeTotal, maxCafeTotal,
-          minBlogTotal, maxBlogTotal,
-          minWebTotal, maxWebTotal,
-          minNewsTotal, maxNewsTotal
-        }
-      });
-    }
+    // 필터 디버깅 로그
+    console.log(`🔍 필터 적용:`, {
+      excludeZeroDocs,
+      conditions: conditions.length,
+      hasWhereConditions,
+      whereClause,
+      sortBy,
+      orderByClause,
+      bindings: bindings.map((b, i) => `${i}: ${b}`).join(', '),
+      filters: {
+        minAvgSearch, maxAvgSearch,
+        minCafeTotal, maxCafeTotal,
+        minBlogTotal, maxBlogTotal,
+        minWebTotal, maxWebTotal,
+        minNewsTotal, maxNewsTotal
+      }
+    });
 
     // D1 데이터베이스에서 키워드 조회 (최적화된 쿼리)
     const db = env.DB;
