@@ -104,7 +104,7 @@ export default function DataPage() {
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce를 위한 timeout ref
   const [sortBy, setSortBy] = useState<'default' | 'cafe' | 'blog' | 'web' | 'news'>('default') // 정렬 옵션
   const [excludeZeroDocs, setExcludeZeroDocs] = useState(true) // 문서수 0 제외 옵션 (기본값: 체크됨)
-  const [minSearchVolume, setMinSearchVolume] = useState('') // 총검색량 이상 필터
+  const [minSearchVolume, setMinSearchVolume] = useState('10000') // 총검색량 이상 필터 (기본값: 10000)
 
   // 메모이제이션된 키워드 로드 함수 (페이지 이동 방식)
   const loadKeywords = useCallback(async (page: number = 1, showLoading: boolean = true) => {
