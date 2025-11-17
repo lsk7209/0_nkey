@@ -125,6 +125,7 @@ export async function onRequest(context: any) {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
     // 정렬 절 구성
+    // 주의: SQLite에서 ORDER BY는 1순위가 먼저, 2순위가 나중에 적용됨
     let orderByClause = '';
     switch (sortBy) {
       case 'cafe':
@@ -243,6 +244,13 @@ export async function onRequest(context: any) {
     let result, total = 0;
 
     try {
+      // 디버깅: 실제 실행되는 쿼리 확인
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔍 실행 쿼리:`, query.replace(/\s+/g, ' '));
+        console.log(`🔍 정렬 절:`, orderByClause);
+        console.log(`🔍 바인딩:`, [...bindings, pageSize, offset]);
+      }
+      
       // 데이터와 카운트를 동시에 조회 (병렬 처리)
       const [dataResult, countResult] = await Promise.all([
         db.prepare(query).bind(...bindings, pageSize, offset).all(),
