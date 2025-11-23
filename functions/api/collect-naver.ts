@@ -55,8 +55,36 @@ export async function onRequest(context: any) {
       );
     }
 
+    // ⚠️ 비용 절감을 위해 서비스 중단
     const body = await request.json();
     const seed = body.seed;
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        message: '서비스가 비용 절감을 위해 일시 중단되었습니다.',
+        seed: seed?.trim() || '',
+        totalCollected: 0,
+        totalSavedOrUpdated: 0,
+        savedCount: 0,
+        updatedCount: 0,
+        skippedCount: 0,
+        totalAttempted: 0,
+        keywords: [],
+        failedCount: 0,
+        failedSamples: [],
+        docCountsCollected: 0,
+        hasOpenApiKeys: false,
+        actualNewKeywords: 0,
+        version: 'v9.1 - 서비스 중단',
+        timestamp: new Date().toISOString(),
+        disabled: true
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+    // 아래 코드는 실행되지 않음 (비용 절감을 위해 중단됨)
+    // const seed = body.seed;
     
     if (!seed || typeof seed !== 'string') {
       return new Response(
@@ -566,7 +594,11 @@ export async function onRequest(context: any) {
 
 // 공식 네이버 SearchAd API로 키워드 수집
 async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
+  // ⚠️ 비용 절감을 위해 서비스 중단 - API 호출 차단
+  console.log('⚠️ 서비스 중단: 네이버 API 호출이 차단되었습니다.');
+  return [];
   
+  /* 비활성화된 코드
   try {
     // 기존 환경변수에서 API 키 가져오기 (공식 API 사용)
     const BASE = 'https://api.naver.com';
@@ -812,6 +844,7 @@ async function fetchKeywordsFromOfficialNaverAPI(seed: string, env: any) {
     console.error('❌ 네이버 API 호출 실패:', error.message);
     throw new Error(`공식 네이버 SearchAd API 호출 실패: ${error.message}`);
   }
+  */
 }
 
 // 공식 HMAC 시그니처 생성 함수
@@ -850,6 +883,11 @@ function normalizeSearchCount(value: string | number): number {
 
 // 시스템 메트릭스 기록 함수
 async function recordSystemMetrics(db: any, keywordsCollected: number, apiKeyIndex: number) {
+  // ⚠️ 비용 절감을 위해 서비스 중단 - 데이터베이스 쓰기 차단
+  console.log('⚠️ 서비스 중단: 시스템 메트릭스 기록이 차단되었습니다.');
+  return;
+  
+  /* 비활성화된 코드
   try {
     const metrics = [
       {
@@ -880,10 +918,16 @@ async function recordSystemMetrics(db: any, keywordsCollected: number, apiKeyInd
   } catch (error) {
     console.warn('메트릭스 기록 중 오류:', error);
   }
+  */
 }
 
 // 네이버 오픈API로 문서 수 수집
 async function collectDocCountsFromNaver(keyword: string, env: any) {
+  // ⚠️ 비용 절감을 위해 서비스 중단 - 네이버 오픈API 호출 차단
+  console.log('⚠️ 서비스 중단: 네이버 오픈API 호출이 차단되었습니다.');
+  return null;
+  
+  /* 비활성화된 코드
   try {
     // 사용 가능한 네이버 오픈API 키 찾기
     const openApiKeys = [
@@ -1051,4 +1095,5 @@ async function collectDocCountsFromNaver(keyword: string, env: any) {
     console.error('Error collecting document counts from Naver OpenAPI:', error);
     throw new Error(`네이버 오픈API 호출 실패: ${error.message}`);
   }
+  */
 }
